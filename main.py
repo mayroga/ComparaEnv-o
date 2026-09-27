@@ -6,7 +6,6 @@
 # El cerebro interno vive en data/app_brain.json.
 
 import os
-import secrets
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -23,11 +22,9 @@ from schemas import (
     FinalCheckRequest,
     FinalCheckResponse,
     ParseNeedRequest,
-    ParsedNeed,
     SessionResponse,
     UserNeedRequest,
 )
-
 
 # ============================================================
 # APP
@@ -44,10 +41,7 @@ BRAIN_FILE = DATA_DIR / "app_brain.json"
 app = FastAPI(
     title=APP_NAME,
     version=APP_VERSION,
-    description=(
-        "Plataforma de comparación y asistencia "
-        "para remesas."
-    ),
+    description="Plataforma de comparación y asistencia para remesas.",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -59,54 +53,33 @@ app = FastAPI(
 if STATIC_DIR.exists():
     app.mount(
         "/static",
-        StaticFiles(
-            directory=str(STATIC_DIR)
-        ),
+        StaticFiles(directory=str(STATIC_DIR)),
         name="static",
     )
 
-
 # ============================================================
-# STRIPE
+# RENDER / ENVIRONMENT
 # ============================================================
 
-STRIPE_SECRET_KEY = os.getenv(
-    "STRIPE_SECRET_KEY",
-    "",
-)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
-STRIPE_PRICE_ID = os.getenv(
-    "STRIPE_PRICE_ID",
-    "",
-)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-STRIPE_SUCCESS_URL = os.getenv(
-    "STRIPE_SUCCESS_URL",
-    "",
-)
-
-STRIPE_CANCEL_URL = os.getenv(
-    "STRIPE_CANCEL_URL",
-    "",
-)
+STRIPE_PRICE_ID1 = os.getenv("STRIPE_PRICE_ID1", "")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
-
 
 # ============================================================
 # INTERNAL CONFIG
 # ============================================================
 
-SESSION_COOKIE_NAME = "remesas_session"
-
+ALLOWED_LANGUAGES = {"es", "en"}
 MAX_BODY_SIZE = 1024 * 1024
-
-ALLOWED_LANGUAGES = {
-    "es",
-    "en",
-}
-
 
 # ============================================================
 # STARTUP
@@ -115,23 +88,17 @@ ALLOWED_LANGUAGES = {
 @app.on_event("startup")
 async def startup_event() -> None:
     """
-    Loads and validates the application brain.
-
-    If the brain cannot be loaded, the application must not
-    silently operate with invented or incomplete rules.
+    Carga y valida el cerebro interno.
+    La aplicación no debe funcionar silenciosamente
+    con reglas inexistentes o incompletas.
     """
-
     engine.load_brain()
-
 
 # ============================================================
 # ROOT
 # ============================================================
 
-@app.get(
-    "/",
-    include_in_schema=False,
-)
+@app.get("/", include_in_schema=False)
 async def root() -> FileResponse:
     index_file = STATIC_DIR / "index.html"
 
@@ -141,10 +108,7 @@ async def root() -> FileResponse:
             detail="Application interface not found.",
         )
 
-    return FileResponse(
-        str(index_file)
-    )
-
+    return FileResponse(str(index_file))
 
 # ============================================================
 # HEALTH
@@ -158,70 +122,66 @@ async def health() -> Dict[str, Any]:
         "status": "ok",
         "app": APP_NAME,
         "version": APP_VERSION,
-        "brain_loaded": bool(
-            engine.brain
-        ),
-        "brain_version": brain.get(
-            "version"
+        "brain_loaded": bool(engine.brain),
+        "brain_version": brain.get("version"),
+        "stripe_configured": bool(
+            STRIPE_SECRET_KEY and STRIPE_PRICE_ID1
         ),
     }
-
 
 # ============================================================
 # PUBLIC APP CONFIGURATION
 # ============================================================
 
-@app.get(
-    "/api/config",
-)
+@app.get("/api/config")
 async def public_configuration(
     language: str = "es",
 ) -> Dict[str, Any]:
 
-    language = normalize_language(
-        language
-    )
+    language = normalize_language(language)
 
-    return engine.client_configuration(
-        language
-    )
+    config = engine.client_configuration(language)
 
+    # La publishable key de Stripe puede llegar al navegador.
+    # Ninguna llave secreta se incluye aquí.
+    if isinstance(config, dict):
+        config = dict(config)
+        config["stripe"] = {
+            "enabled": bool(
+                STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1
+            ),
+            "publishable_key": STRIPE_PUBLISHABLE_KEY,
+            "price": 15.99,
+            "currency": "USD",
+            "period": "1_month",
+        }
+
+    return config
 
 # ============================================================
 # BRAIN VERSION
 # ============================================================
 
-@app.get(
-    "/api/brain/version",
-)
+@app.get("/api/brain/version")
 async def brain_version() -> Dict[str, Any]:
     """
-    Only public version information.
-    The internal brain itself is never exposed.
+    Solo información pública de versión.
+    Nunca expone el contenido del cerebro.
     """
-
     return engine.brain_info()
-
 
 # ============================================================
 # SESSION
 # ============================================================
 
-@app.post(
-    "/api/session",
-    response_model=SessionResponse,
-)
+@app.post("/api/session", response_model=SessionResponse)
 async def create_session(
     language: str = "es",
 ) -> SessionResponse:
 
-    language = normalize_language(
-        language
-    )
+    language = normalize_language(language)
 
-    session = engine.create_session(
-        language
-    )
+    session = engine.create_session(language)
 
     return SessionResponse(
         success=True,
@@ -233,7 +193,6 @@ async def create_session(
         ),
     )
 
-
 @app.get(
     "/api/session/{session_id}",
     response_model=SessionResponse,
@@ -242,13 +201,9 @@ async def get_session(
     session_id: str,
 ) -> SessionResponse:
 
-    validate_session_id(
-        session_id
-    )
+    validate_session_id(session_id)
 
-    session = engine.get_session(
-        session_id
-    )
+    session = engine.get_session(session_id)
 
     if session is None:
         raise HTTPException(
@@ -261,21 +216,14 @@ async def get_session(
         session=session,
     )
 
-
-@app.delete(
-    "/api/session/{session_id}",
-)
+@app.delete("/api/session/{session_id}")
 async def delete_session(
     session_id: str,
 ) -> Dict[str, Any]:
 
-    validate_session_id(
-        session_id
-    )
+    validate_session_id(session_id)
 
-    deleted = engine.clear_session(
-        session_id
-    )
+    deleted = engine.clear_session(session_id)
 
     return {
         "success": deleted,
@@ -285,7 +233,6 @@ async def delete_session(
             else "Session already cleared."
         ),
     }
-
 
 # ============================================================
 # USER NEED
@@ -299,14 +246,28 @@ async def apply_need(
     request: UserNeedRequest,
 ) -> SessionResponse:
 
-    session_id = request_session_id(
-        request
+    session_id = getattr(
+        request,
+        "session_id",
+        None,
     )
 
-    if not session_id:
-        session = engine.create_session(
-            request.language
-        )
+    language = normalize_language(
+        getattr(request, "language", "es")
+    )
+
+    if session_id:
+        validate_session_id(session_id)
+
+        existing = engine.get_session(session_id)
+
+        if existing is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Session not found.",
+            )
+    else:
+        session = engine.create_session(language)
         session_id = session.session_id
 
     try:
@@ -316,7 +277,7 @@ async def apply_need(
         )
     except ValueError as exc:
         raise HTTPException(
-            status_code=404,
+            status_code=400,
             detail=str(exc),
         )
 
@@ -325,14 +286,11 @@ async def apply_need(
         session=session,
     )
 
-
 # ============================================================
 # FREE TEXT
 # ============================================================
 
-@app.post(
-    "/api/need/parse",
-)
+@app.post("/api/need/parse")
 async def parse_need(
     request: ParseNeedRequest,
 ) -> Dict[str, Any]:
@@ -351,18 +309,13 @@ async def parse_need(
         "parsed": parsed,
     }
 
-
-@app.post(
-    "/api/session/{session_id}/need/parse",
-)
+@app.post("/api/session/{session_id}/need/parse")
 async def parse_need_into_session(
     session_id: str,
     request: ParseNeedRequest,
 ) -> Dict[str, Any]:
 
-    validate_session_id(
-        session_id
-    )
+    validate_session_id(session_id)
 
     try:
         session, parsed = engine.apply_free_text(
@@ -372,7 +325,7 @@ async def parse_need_into_session(
         )
     except ValueError as exc:
         raise HTTPException(
-            status_code=404,
+            status_code=400,
             detail=str(exc),
         )
 
@@ -381,7 +334,6 @@ async def parse_need_into_session(
         "parsed": parsed,
         "session": session,
     }
-
 
 # ============================================================
 # COMPARISON
@@ -407,10 +359,7 @@ async def compare(
             detail="Amount must be greater than zero.",
         )
 
-    return engine.compare(
-        request
-    )
-
+    return engine.compare(request)
 
 @app.post(
     "/api/session/{session_id}/compare",
@@ -420,13 +369,9 @@ async def compare_session(
     session_id: str,
 ) -> ComparisonResponse:
 
-    validate_session_id(
-        session_id
-    )
+    validate_session_id(session_id)
 
-    session = engine.get_session(
-        session_id
-    )
+    session = engine.get_session(session_id)
 
     if session is None:
         raise HTTPException(
@@ -450,26 +395,17 @@ async def compare_session(
         language=session.language,
         amount=session.amount,
         send_currency=session.send_currency,
-        destination_country=(
-            session.destination_country
-        ),
+        destination_country=session.destination_country,
         priority=session.priority,
         urgency=session.urgency,
-        delivery_method=(
-            session.delivery_method
-        ),
-        payment_method=(
-            session.payment_method
-        ),
+        delivery_method=session.delivery_method,
+        payment_method=session.payment_method,
         special_need=session.special_need,
         provider_ids=session.candidate_providers,
     )
 
-    result = engine.compare(
-        request
-    )
+    result = engine.compare(request)
 
-    # Store only the verified results temporarily.
     if result.results:
         engine.update_session(
             session_id,
@@ -478,7 +414,6 @@ async def compare_session(
         )
 
     return result
-
 
 # ============================================================
 # SELECT OPTION
@@ -492,13 +427,9 @@ async def select_provider_option(
     provider_id: str,
 ) -> Dict[str, Any]:
 
-    validate_session_id(
-        session_id
-    )
+    validate_session_id(session_id)
 
-    session = engine.get_session(
-        session_id
-    )
+    session = engine.get_session(session_id)
 
     if session is None:
         raise HTTPException(
@@ -516,10 +447,7 @@ async def select_provider_option(
     if option is None:
         raise HTTPException(
             status_code=404,
-            detail=(
-                "Verified provider option "
-                "not found."
-            ),
+            detail="Verified provider option not found.",
         )
 
     try:
@@ -539,7 +467,6 @@ async def select_provider_option(
         "selected_option": option,
     }
 
-
 # ============================================================
 # FINAL CHECK
 # ============================================================
@@ -552,10 +479,7 @@ async def final_check(
     request: FinalCheckRequest,
 ) -> FinalCheckResponse:
 
-    return engine.final_check(
-        request
-    )
-
+    return engine.final_check(request)
 
 @app.post(
     "/api/session/{session_id}/final-check",
@@ -565,13 +489,9 @@ async def session_final_check(
     session_id: str,
 ) -> FinalCheckResponse:
 
-    validate_session_id(
-        session_id
-    )
+    validate_session_id(session_id)
 
-    session = engine.get_session(
-        session_id
-    )
+    session = engine.get_session(session_id)
 
     if session is None:
         raise HTTPException(
@@ -600,28 +520,17 @@ async def session_final_check(
             or session.send_currency
         ),
         destination_country=(
-            session.destination_country
-            or ""
+            session.destination_country or ""
         ),
-        delivery_method=(
-            option.delivery_method
-        ),
-        payment_method=(
-            option.payment_method
-        ),
-        recipient_amount=(
-            option.recipient_amount
-        ),
+        delivery_method=option.delivery_method,
+        payment_method=option.payment_method,
+        recipient_amount=option.recipient_amount,
         fee=option.fee,
-        exchange_rate=(
-            option.exchange_rate
-        ),
+        exchange_rate=option.exchange_rate,
         recipient_information_entered=False,
     )
 
-    result = engine.final_check(
-        request
-    )
+    result = engine.final_check(request)
 
     engine.update_session(
         session_id,
@@ -631,26 +540,19 @@ async def session_final_check(
 
     return result
 
-
 # ============================================================
 # HELP
 # ============================================================
 
-@app.get(
-    "/api/session/{session_id}/help",
-)
+@app.get("/api/session/{session_id}/help")
 async def session_help(
     session_id: str,
     language: str = "es",
 ) -> Dict[str, Any]:
 
-    validate_session_id(
-        session_id
-    )
+    validate_session_id(session_id)
 
-    language = normalize_language(
-        language
-    )
+    language = normalize_language(language)
 
     message = engine.help_current_step(
         session_id,
@@ -662,25 +564,18 @@ async def session_help(
         "message": message,
     }
 
-
 # ============================================================
 # RESET
 # ============================================================
 
-@app.post(
-    "/api/session/{session_id}/reset",
-)
+@app.post("/api/session/{session_id}/reset")
 async def reset_session(
     session_id: str,
 ) -> Dict[str, Any]:
 
-    validate_session_id(
-        session_id
-    )
+    validate_session_id(session_id)
 
-    deleted = engine.reset_user_session(
-        session_id
-    )
+    deleted = engine.reset_user_session(session_id)
 
     return {
         "success": True,
@@ -692,7 +587,6 @@ async def reset_session(
         ),
     }
 
-
 # ============================================================
 # LOCAL DATA
 # ============================================================
@@ -703,10 +597,8 @@ async def reset_session(
 )
 async def local_data_info() -> DeleteLocalDataResponse:
     """
-    Server does not control browser localStorage.
-    The frontend performs the actual local deletion.
-
-    This endpoint exists only to make the contract explicit.
+    El navegador controla localStorage.
+    El servidor no guarda esos datos.
     """
 
     return DeleteLocalDataResponse(
@@ -717,19 +609,16 @@ async def local_data_info() -> DeleteLocalDataResponse:
         ),
     )
 
-
 # ============================================================
-# STRIPE
+# STRIPE STATUS
 # ============================================================
 
-@app.get(
-    "/api/subscription/status",
-)
+@app.get("/api/subscription/status")
 async def subscription_status() -> Dict[str, Any]:
 
     configured = bool(
         STRIPE_SECRET_KEY
-        and STRIPE_PRICE_ID
+        and STRIPE_PRICE_ID1
     )
 
     return {
@@ -739,10 +628,26 @@ async def subscription_status() -> Dict[str, Any]:
         "period": "1_month",
     }
 
+# ============================================================
+# STRIPE PUBLISHABLE KEY
+# ============================================================
 
-@app.post(
-    "/api/create-checkout-session",
-)
+@app.get("/api/stripe/public")
+async def stripe_public() -> Dict[str, Any]:
+
+    return {
+        "enabled": bool(
+            STRIPE_PUBLISHABLE_KEY
+            and STRIPE_PRICE_ID1
+        ),
+        "publishable_key": STRIPE_PUBLISHABLE_KEY,
+    }
+
+# ============================================================
+# STRIPE CHECKOUT
+# ============================================================
+
+@app.post("/api/create-checkout-session")
 async def create_checkout_session(
     request: Request,
 ) -> Dict[str, Any]:
@@ -750,75 +655,53 @@ async def create_checkout_session(
     if not STRIPE_SECRET_KEY:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "Stripe is not configured."
-            ),
+            detail="Stripe is not configured.",
         )
 
-    if not STRIPE_PRICE_ID:
+    if not STRIPE_PRICE_ID1:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "Stripe Price ID is not configured."
-            ),
+            detail="Stripe Price ID is not configured.",
         )
 
-    if not STRIPE_SUCCESS_URL:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Stripe success URL is not configured."
-            ),
-        )
-
-    if not STRIPE_CANCEL_URL:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Stripe cancel URL is not configured."
-            ),
-        )
+    base_url = str(request.base_url).rstrip("/")
 
     try:
         checkout = stripe.checkout.Session.create(
             mode="subscription",
             line_items=[
                 {
-                    "price": STRIPE_PRICE_ID,
+                    "price": STRIPE_PRICE_ID1,
                     "quantity": 1,
                 }
             ],
             success_url=(
-                STRIPE_SUCCESS_URL
-                + "?session_id={CHECKOUT_SESSION_ID}"
+                f"{base_url}/?payment=success"
+                "&session_id={CHECKOUT_SESSION_ID}"
             ),
-            cancel_url=STRIPE_CANCEL_URL,
+            cancel_url=(
+                f"{base_url}/?payment=cancelled"
+            ),
             allow_promotion_codes=True,
             billing_address_collection="auto",
         )
 
-    except stripe.error.StripeError:
+    except stripe.error.StripeError as exc:
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Unable to create the payment "
-                "session."
-            ),
-        )
+            detail="Unable to create the payment session.",
+        ) from exc
 
     return {
         "success": True,
         "checkout_url": checkout.url,
     }
 
-
 # ============================================================
-# STRIPE CHECK
+# STRIPE PAYMENT CHECK
 # ============================================================
 
-@app.get(
-    "/api/payment/check",
-)
+@app.get("/api/payment/check")
 async def payment_check(
     session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -838,53 +721,186 @@ async def payment_check(
         }
 
     try:
-        checkout = (
-            stripe.checkout.Session.retrieve(
-                session_id
-            )
+        checkout = stripe.checkout.Session.retrieve(
+            session_id,
+            expand=["subscription"],
         )
 
-        active = (
-            checkout.payment_status
-            == "paid"
+        paid = (
+            checkout.payment_status == "paid"
         )
 
-        if (
-            checkout.mode
-            == "subscription"
-            and checkout.subscription
-        ):
-            active = active or bool(
-                checkout.subscription
-            )
+        subscription_active = False
+
+        if checkout.mode == "subscription":
+            subscription = checkout.subscription
+
+            if subscription:
+                status = getattr(
+                    subscription,
+                    "status",
+                    None,
+                )
+
+                subscription_active = status in {
+                    "active",
+                    "trialing",
+                }
+
+        active = bool(
+            paid and subscription_active
+        )
 
         return {
             "success": True,
             "active": active,
-            "payment_status": (
-                checkout.payment_status
-            ),
-            "checkout_status": (
-                checkout.status
+            "payment_status": checkout.payment_status,
+            "checkout_status": checkout.status,
+            "mode": checkout.mode,
+            "subscription_status": (
+                getattr(
+                    checkout.subscription,
+                    "status",
+                    None,
+                )
+                if checkout.subscription
+                else None
             ),
         }
 
-    except stripe.error.StripeError:
+    except stripe.error.StripeError as exc:
         raise HTTPException(
             status_code=502,
-            detail=(
-                "Unable to verify payment."
-            ),
+            detail="Unable to verify payment.",
+        ) from exc
+
+# ============================================================
+# STRIPE WEBHOOK
+# ============================================================
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(
+    request: Request,
+) -> Dict[str, Any]:
+
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(
+            status_code=503,
+            detail="Stripe webhook is not configured.",
         )
 
+    payload = await request.body()
+
+    if len(payload) > MAX_BODY_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="Webhook payload too large.",
+        )
+
+    signature = request.headers.get(
+        "stripe-signature"
+    )
+
+    if not signature:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing Stripe signature.",
+        )
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload,
+            signature,
+            STRIPE_WEBHOOK_SECRET,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid webhook payload.",
+        ) from exc
+    except stripe.error.SignatureVerificationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid webhook signature.",
+        ) from exc
+
+    event_type = event.get("type", "")
+
+    handled_events = {
+        "checkout.session.completed",
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+        "invoice.paid",
+        "invoice.payment_failed",
+    }
+
+    return {
+        "success": True,
+        "received": True,
+        "event_type": event_type,
+        "handled": event_type in handled_events,
+    }
+
+# ============================================================
+# ADMIN CONFIG STATUS
+# ============================================================
+
+@app.get("/api/admin/config-status")
+async def admin_config_status(
+    request: Request,
+) -> Dict[str, Any]:
+
+    username = request.headers.get(
+        "X-Admin-Username",
+        "",
+    )
+    password = request.headers.get(
+        "X-Admin-Password",
+        "",
+    )
+
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin access is not configured.",
+        )
+
+    if (
+        not secrets.compare_digest(
+            username,
+            ADMIN_USERNAME,
+        )
+        or not secrets.compare_digest(
+            password,
+            ADMIN_PASSWORD,
+        )
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized.",
+        )
+
+    return {
+        "success": True,
+        "app": APP_NAME,
+        "version": APP_VERSION,
+        "brain_loaded": bool(engine.brain),
+        "gemini_configured": bool(GEMINI_API_KEY),
+        "stripe_configured": bool(
+            STRIPE_SECRET_KEY
+            and STRIPE_PRICE_ID1
+        ),
+        "stripe_webhook_configured": bool(
+            STRIPE_WEBHOOK_SECRET
+        ),
+    }
 
 # ============================================================
 # ERROR HANDLING
 # ============================================================
 
-@app.exception_handler(
-    ValueError
-)
+@app.exception_handler(ValueError)
 async def value_error_handler(
     request: Request,
     exc: ValueError,
@@ -898,16 +914,12 @@ async def value_error_handler(
         },
     )
 
-
-@app.exception_handler(
-    Exception
-)
+@app.exception_handler(Exception)
 async def generic_error_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
 
-    # Do not expose internal exception details.
     return JSONResponse(
         status_code=500,
         content={
@@ -918,7 +930,6 @@ async def generic_error_handler(
             ),
         },
     )
-
 
 # ============================================================
 # SECURITY / VALIDATION HELPERS
@@ -936,7 +947,6 @@ def normalize_language(
         return "es"
 
     return language
-
 
 def validate_session_id(
     session_id: str,
@@ -963,39 +973,16 @@ def validate_session_id(
             detail="Invalid session.",
         )
 
-
-def request_session_id(
-    request: UserNeedRequest,
-) -> Optional[str]:
-    """
-    UserNeedRequest intentionally does not contain
-    session_id in the schema.
-
-    The frontend should use /api/session first and
-    then operate against the returned session ID.
-
-    This helper remains here so main.py can be extended
-    without changing the public model contract.
-    """
-
-    return None
-
-
 def localized(
     es: str,
     en: str,
     language: str,
 ) -> str:
 
-    return (
-        en
-        if language == "en"
-        else es
-    )
-
+    return en if language == "en" else es
 
 # ============================================================
-# OPTIONAL UPTIME / ROOT PING
+# PING / UPTIME
 # ============================================================
 
 @app.get(
@@ -1004,5 +991,5 @@ def localized(
 )
 async def ping() -> Dict[str, str]:
     return {
-        "status": "ok"
+        "status": "ok",
     }
