@@ -1,237 +1,339 @@
-const app=document.getElementById("app");let CFG=null,SESSION=null,LANG=localStorage.getItem("remesas_language")||"es";
-const $=(s,r=document)=>r.querySelector(s);
-const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
-const money=(v,c="USD")=>v==null||v===""?text("No verificado","Not verified"):`${Number(v).toLocaleString(LANG==="es"?"es-US":"en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} ${c||""}`;
-const post=async(u,b)=>{const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw Error(await r.text());return r.json()};
-const get=async u=>{const r=await fetch(u);if(!r.ok)throw Error(await r.text());return r.json()};
-const del=async u=>{const r=await fetch(u,{method:"DELETE"});if(!r.ok)throw Error(await r.text());return r.json()};
-const text=(es,en)=>LANG==="es"?es:en;
-const val=(v,fb="")=>v==null||v===""?fb:v;
-const fmtStatus=v=>({compatible:text("Compatible","Compatible"),conditional:text("Condicional","Conditional"),unavailable:text("No disponible","Unavailable"),restricted:text("Restringido","Restricted"),verified:text("Verificado","Verified"),unverified:text("No verificado","Not verified")}[v]||v||"");
-const normalizeCountry=(v,list=[])=>{const q=String(v||"").trim().toLowerCase();if(!q)return"";const c=list.find(x=>String(x.name||x.label||"").toLowerCase()===q||String(x.code||"").toLowerCase()===q||String(x.id||"").toLowerCase()===q);return c?.name||c?.label||v};
-function saveLang(){try{localStorage.setItem("remesas_language",LANG)}catch(_){}}
-function saveSession(){try{if(SESSION?.session_id)localStorage.setItem("remesas_session_id",SESSION.session_id)}catch(_){}}
-function clearSessionStorage(){try{localStorage.removeItem("remesas_session_id")}catch(_){}}
+"use strict";
 
-async function init(){
- try{
-  CFG=await get("/api/config");
-  const saved=localStorage.getItem("remesas_language");
-  if(saved==="es"||saved==="en")LANG=saved;
-  renderOpening();
- }catch(e){renderError(e)}
-}
-function renderError(e){
- const raw=e?.message||"";
- let msg=raw;
- try{const j=JSON.parse(raw);msg=j.detail||j.message||raw}catch(_){}
- app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><div class="top-actions"><button class="ghost" id="langBtn">${LANG==="es"?"EN":"ES"}</button></div></header><main class="container"><div class="card error"><h2>${text("No pudimos completar esta operación.","We couldn't complete this operation.")}</h2><p>${esc(msg)}</p><button class="primary" onclick="init()">${text("Intentar nuevamente","Try again")}</button><button class="secondary full" onclick="restart()">${text("Reiniciar","Restart")}</button></div></main>`;
- const b=$("#langBtn");if(b)b.onclick=()=>{LANG=LANG==="es"?"en":"es";saveLang();renderOpening()}
-}
-function renderOpening(){
- const o=CFG?.opening||{},countries=CFG?.countries?.items||CFG?.countries?.list||CFG?.countries||[];
- const priorities=o.priorities||CFG?.conversation_logic?.priority_options||[];
- const pMap={balanced:[text("Equilibrar","Balance"),"balanced"],fastest:[text("Rapidez","Speed"),"fastest"],save:[text("Pagar menos","Lower cost"),"save"],recipient_gets_more:[text("Que reciba más","Recipient gets more"),"recipient_gets_more"],compare_all:[text("Entender opciones","Understand options"),"compare_all"]};
- const choiceValues=priorities.length?priorities.map(x=>{const id=x.id||x.value||x;return{id,label:x.label||x.name||pMap[id]?.[0]||id}}):Object.keys(pMap).map(id=>({id,label:pMap[id][0]}));
- app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><div class="top-actions"><button class="ghost" id="langBtn">${LANG==="es"?"EN":"ES"}</button></div></header>
- <main class="container">
- <section class="hero"><p class="eyebrow">MAY ROGA LLC</p><h1>${text("Antes de mandar el dinero, entiende tu situación.","Before you send the money, understand your situation.")}</h1><p>${text("Te ayudamos a identificar lo que necesitas, qué debes preparar, qué debes verificar y qué opciones son compatibles con tu caso.","We help identify what you need, what to prepare, what to verify, and which options fit your situation.")}</p></section>
- <section class="card"><div class="section-head"><h2>${esc(o.primary_question||text("Cuéntame qué necesitas","Tell me what you need"))}</h2><p>${esc(o.secondary_text||text("Puedes escribirlo con tus propias palabras o completar los datos.","You can describe it in your own words or complete the details."))}</p></div>
- <form id="needForm">
- <div class="field"><label>${text("¿Qué quieres hacer?","What do you want to do?")}</label><textarea id="freeText" rows="4" placeholder="${text("Ej.: Quiero mandar $500 a México. Mi mamá necesita recibirlos hoy y no tiene cuenta bancaria.","Example: I want to send $500 to Mexico. My mom needs to receive it today and doesn't have a bank account.")}"></textarea></div>
- <div class="form-grid">
- <div class="field"><label>${text("Cantidad","Amount")}</label><input id="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="500"></div>
- <div class="field"><label>${text("País de destino","Destination country")}</label><input id="destination" list="countryList" autocomplete="country-name" placeholder="${text("México","Mexico")}"><datalist id="countryList">${countries.map(c=>`<option value="${esc(c.name||c.label||c)}">`).join("")}</datalist></div>
- </div>
- <div class="field"><label>${text("¿Qué es lo más importante para ti?","What's most important to you?")}</label><div class="choice-grid">${choiceValues.map(x=>choice("priority",x.id,x.label)).join("")}</div></div>
- <div class="form-grid">
- <div class="field"><label>${text("¿Cuándo necesita recibirlo?","When does it need to arrive?")}</label><select id="urgency"><option value="">${text("No estoy seguro","Not sure")}</option><option value="today">${text("Hoy","Today")}</option><option value="soon">${text("Pronto","Soon")}</option><option value="normal">${text("No es urgente","Not urgent")}</option></select></div>
- <div class="field"><label>${text("¿Cómo debe recibirlo?","How should it be received?")}</label><select id="delivery"><option value="">${text("Todavía no sé","Not sure yet")}</option><option value="cash_pickup">${text("Efectivo / recoger","Cash pickup")}</option><option value="bank_account">${text("Cuenta bancaria","Bank account")}</option><option value="debit_card">${text("Tarjeta de débito","Debit card")}</option><option value="mobile_wallet">${text("Billetera móvil","Mobile wallet")}</option><option value="home_delivery">${text("Entrega a domicilio","Home delivery")}</option></select></div>
- </div>
- <div class="field"><label>${text("Si quieres, agrega algún detalle","If you want, add a detail")}</label><input id="special" placeholder="${text("Ej.: es la primera vez, será mensual, no tengo cuenta bancaria...","Example: first transfer, monthly transfer, I don't have a bank account...")}"></div>
- <button class="primary full" type="submit">${text("Analizar mi situación","Analyze my situation")}</button>
- </form></section>
- </main>`;
- const lb=$("#langBtn");if(lb)lb.onclick=()=>{LANG=LANG==="es"?"en":"es";saveLang();renderOpening()};
- $("#needForm").onsubmit=submitNeed;
- const radios=document.querySelectorAll('input[name="priority"]');if(radios.length)radios[0].checked=true;
-}
-function choice(name,value,label){return `<label class="choice"><input type="radio" name="${esc(name)}" value="${esc(value)}"><span>${esc(label)}</span></label>`}
+const APP={
+  config:null,
+  sessionId:null,
+  language:localStorage.getItem("remesas_language")||"es",
+  amount:"",
+  destination:localStorage.getItem("remesas_destination")||"",
+  priority:"",
+  delivery:"",
+  freeText:"",
+  comparison:null,
+  selectedProvider:null
+};
 
-async function submitNeed(e){
- e.preventDefault();
- const free=$("#freeText").value.trim(),amount=$("#amount").value,destination=$("#destination").value.trim();
- if(!free&&!amount&&!destination)return;
- setLoading(text("Entendiendo tu situación…","Understanding your situation…"));
- try{
-  let parsed=free?await post("/api/need/parse",{language:LANG,text:free}):null;
-  const p=parsed?.parsed||parsed||{},countries=CFG?.countries?.items||CFG?.countries?.list||CFG?.countries||[];
-  const parsedDestination=normalizeCountry(p.destination,countries);
-  const body={
-   language:LANG,
-   amount:amount?Number(amount):(p.amount||0),
-   destination:destination||parsedDestination||"",
-   priority:$('input[name="priority"]:checked')?.value||p.priority||"balanced",
-   urgency:$("#urgency").value||p.urgency||null,
-   delivery_method:$("#delivery").value||p.delivery_method||null,
-   payment_method:p.payment_method||null,
-   free_text:free||null,
-   special_need:$("#special").value.trim()||p.special_need||null,
-   recipient_has_bank_account:p.recipient_has_bank_account??null,
-   recipient_has_mobile_wallet:p.recipient_has_mobile_wallet??null,
-   first_transfer:p.first_transfer??null,
-   recurring_transfer:p.recurring_transfer??null
-  };
-  if(!body.amount||Number(body.amount)<=0)throw Error(text("Falta una cantidad válida.","A valid amount is missing."));
-  if(!body.destination)throw Error(text("Falta el país de destino.","Destination country is missing."));
-  const r=await post("/api/need",body);SESSION=r.session||r;saveSession();await showAnalysis();
- }catch(e){renderError(e)}
+const TEXT={
+es:{
+loading:"Buscando opciones para lo que necesitas.",
+title:"REMESAS",
+subtitle:"Encuentra la opción que mejor se adapta a lo que necesitas hoy.",
+question:"¿QUÉ NECESITAS HOY?",
+amount:"¿Cuánto quieres enviar?",
+amountPlaceholder:"Ej. 500",
+destination:"¿A qué país quieres enviar?",
+destinationPlaceholder:"Selecciona un país",
+priority:"¿Qué es lo más importante para ti?",
+fastest:"MÁS RÁPIDO",save:"AHORRAR",receiveMore:"QUE RECIBA MÁS",urgent:"URGENTE",balanced:"MEJOR EQUILIBRIO",compare:"COMPARAR TODO",other:"OTRA NECESIDAD",
+freeText:"Cuéntame qué necesitas",
+freeTextPlaceholder:"Ej. Quiero mandar $500 a México y necesito que llegue hoy.",
+continue:"CONTINUAR",back:"ATRÁS",clear:"EMPEZAR DE NUEVO",
+help:"NO SÉ QUÉ HACER",options:"Opciones para ti",verified:"Información verificada",
+fee:"Tarifa",rate:"Tipo de cambio",receive:"Recibe",delivery:"Entrega",method:"Forma de entrega",
+official:"IR AL PROVEEDOR",review:"REVISA ANTES DE ENVIAR",country:"País",sendAmount:"Monto a enviar",receiveAmount:"Monto que recibe",
+payment:"Forma de pago",check:"VERIFICAR",selected:"Opción seleccionada",
+finalText:"Antes de continuar, revisa que los datos coincidan con lo que quieres enviar.",
+yes:"CONFIRMAR",no:"VOLVER",
+noResults:"No encontramos una cotización comercial verificada todavía.",
+tryAgain:"Estas plataformas están disponibles para tu destino, pero sus tarifas y tasas requieren verificación actual.",
+helpTitle:"Te ayudamos a decidir",
+helpText:"No necesitas saber qué plataforma usar. Dime qué es lo más importante para ti y te mostramos las opciones disponibles.",
+close:"CERRAR",language:"EN",
+available:"Plataformas disponibles para tu destino.",
+commercialUnavailable:"Cotización actual no disponible",
+error:"No pudimos completar la consulta. Inténtalo nuevamente.",
+countryRequired:"Selecciona un país.",amountRequired:"Indica cuánto quieres enviar."
+},
+en:{
+loading:"Looking for options that fit what you need.",
+title:"REMITTANCES",subtitle:"Find the option that best fits what you need today.",
+question:"WHAT DO YOU NEED TODAY?",amount:"How much do you want to send?",amountPlaceholder:"Example: 500",
+destination:"Which country are you sending to?",destinationPlaceholder:"Select a country",
+priority:"What matters most to you?",fastest:"FASTEST",save:"SAVE MONEY",receiveMore:"RECIPIENT GETS MORE",urgent:"URGENT",balanced:"BEST BALANCE",compare:"COMPARE EVERYTHING",other:"OTHER NEED",
+freeText:"Tell me what you need",freeTextPlaceholder:"Example: I want to send $500 to Mexico and need it there today.",
+continue:"CONTINUE",back:"BACK",clear:"START OVER",help:"I DON'T KNOW WHAT TO DO",options:"Options for you",verified:"Verified information",
+fee:"Fee",rate:"Exchange rate",receive:"Recipient gets",delivery:"Delivery",method:"Delivery method",official:"GO TO PROVIDER",
+review:"REVIEW BEFORE SENDING",country:"Country",sendAmount:"Amount to send",receiveAmount:"Recipient gets",payment:"Payment method",check:"VERIFY",
+selected:"Selected option",finalText:"Before continuing, make sure the details match what you want to send.",
+yes:"CONFIRM",no:"GO BACK",noResults:"We could not find a verified commercial quote yet.",
+tryAgain:"These platforms are available for your destination, but current rates and fees require verification.",
+helpTitle:"We'll help you decide",helpText:"You don't need to know which platform to use. Tell us what matters most and we'll show you the available options.",
+close:"CLOSE",language:"ES",available:"Platforms available for your destination.",
+commercialUnavailable:"Current quote unavailable",error:"We couldn't complete the request. Please try again.",
+countryRequired:"Select a country.",amountRequired:"Enter the amount."
 }
-async function showAnalysis(){
- if(!SESSION?.session_id)return renderOpening();
- setLoading(text("Preparando el análisis…","Preparing the analysis…"));
- try{
-  const r=await get(`/api/session/${encodeURIComponent(SESSION.session_id)}/analysis`);SESSION=r.session||SESSION;saveSession();renderAnalysis(r);
- }catch(e){renderError(e)}
-}
-function setLoading(msg){
- app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div></header><main class="container"><div class="loading card"><div class="loader"></div><p>${esc(msg)}</p></div></main>`;
-}
-function renderAnalysis(r){
- const s=r.session||SESSION,a=r.analysis||s.need_analysis||{},ctx=a.detected_context||s.detected_context||{};
- const factors=(a.decision_factors||[]).map(x=>`<div class="info-item"><strong>${esc(x.name||x.id||text("Factor","Factor"))}</strong><span>${esc(x.reason||x.value||"")}</span></div>`).join("");
- const cons=(a.constraints||[]).map(x=>`<li><strong>${esc(x.label||x.id||text("Condición","Condition"))}:</strong> ${esc(x.value??x.reason??"")}</li>`).join("");
- const destination=s.destination||ctx.destination||"";
- app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
- <main class="container"><section class="hero compact"><p class="eyebrow">${text("SEGÚN LO QUE ME DIJISTE","BASED ON WHAT YOU TOLD ME")}</p><h1>${esc(a.main_need||a.summary||text("Tu situación está lista para revisar.","Your situation is ready to review."))}</h1><p>${esc(a.summary||"")}</p></section>
- <section class="card"><h2>${text("Lo que cambia el resultado","What changes the result")}</h2><div class="info-grid">
- <div class="info-item"><strong>${text("Cantidad","Amount")}</strong><span>${money(s.amount||ctx.amount)}</span></div>
- <div class="info-item"><strong>${text("Destino","Destination")}</strong><span>${esc(destination)}</span></div>
- <div class="info-item"><strong>${text("Urgencia","Urgency")}</strong><span>${esc(s.urgency||ctx.urgency||text("No definida","Not defined"))}</span></div>
- <div class="info-item"><strong>${text("Entrega","Delivery")}</strong><span>${esc(s.delivery_method||ctx.delivery_method||text("Por determinar","To determine"))}</span></div>
- </div></section>
- ${cons?`<section class="card"><h2>${text("Restricciones detectadas","Detected constraints")}</h2><ul class="clean-list">${cons}</ul></section>`:""}
- ${factors?`<section class="card"><h2>${text("Factores importantes","Important factors")}</h2><div class="info-grid">${factors}</div></section>`:""}
- <section class="card warning"><strong>${text("Antes de pagar","Before paying")}</strong><p>${text("Las tarifas, tasas de cambio y cantidades recibidas deben estar verificadas. Si un dato no está verificado, no lo trataremos como un precio real.","Fees, exchange rates and recipient amounts must be verified. If a value is not verified, we will not present it as a real price.")}</p></section>
- <button class="primary full" onclick="compare()">${text("Ver opciones compatibles","See compatible options")}</button>
- </main>`;
+};
+
+function t(k){return(TEXT[APP.language]||TEXT.es)[k]||k}
+
+function esc(v){
+return String(v==null?"":v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")
 }
 
-async function compare(){
- if(!SESSION?.session_id)return restart();
- setLoading(text("Revisando opciones compatibles…","Checking compatible options…"));
- try{
-  const r=await post(`/api/session/${encodeURIComponent(SESSION.session_id)}/compare`,{language:LANG,priority:SESSION.priority||"balanced"});SESSION=r.session||SESSION;saveSession();renderComparison(r);
- }catch(e){renderError(e)}
-}
-function renderComparison(r){
- const s=r.session||SESSION,results=r.results||s.comparison_results||[];
- const cards=results.map((x,i)=>{
-  const q=x.quote||{},c=x.cost||{},status=x.compatibility?.status||x.status||"conditional",verified=q.status==="verified"||c.status==="verified";
-  const recipientCurrency=c.recipient_currency||q.receive_currency||"";
-  const providerId=x.provider_id||x.provider?.id||"";
-  const official=x.official_url||x.provider?.official_url||"";
-  const confirm=x.what_to_confirm||[];
-  return `<article class="provider-card ${esc(status)}">
-   <div class="provider-head"><div><h3>${esc(x.provider_name||x.name||providerId)}</h3><span class="status">${esc(fmtStatus(status))}</span></div></div>
-   <p>${esc(x.why_it_appears||x.compatibility?.reason||"")}</p>
-   <div class="provider-data">
-    <div><span>${text("Cantidad enviada","Amount sent")}</span><strong>${money(c.amount_sent??q.send_amount,q.send_currency||"USD")}</strong></div>
-    <div><span>${text("Tarifa","Fee")}</span><strong>${money(c.fee??q.fee,q.send_currency||"USD")}</strong></div>
-    <div><span>${text("Total pagado","Total paid")}</span><strong>${money(c.total_out_of_pocket,q.send_currency||"USD")}</strong></div>
-    <div><span>${text("Recibe","Recipient gets")}</span><strong>${money(c.recipient_amount??q.recipient_amount,recipientCurrency)}</strong></div>
-    <div><span>${text("Tipo de cambio","Exchange rate")}</span><strong>${c.exchange_rate!=null?esc(c.exchange_rate):q.exchange_rate!=null?esc(q.exchange_rate):text("No verificado","Not verified")}</strong></div>
-    <div><span>${text("Entrega","Delivery")}</span><strong>${esc(x.delivery_method||q.delivery_method||text("No verificado","Not verified"))}</strong></div>
-    <div><span>${text("Tiempo","Delivery time")}</span><strong>${esc(x.delivery_time||q.delivery_time||text("No verificado","Not verified"))}</strong></div>
-   </div>
-   <p class="${verified?"success":"warning"}">${verified?text("Datos comerciales verificados.","Verified commercial data."):text("Datos comerciales no verificados. Confirma el costo directamente antes de pagar.","Commercial data is not verified. Confirm the cost directly before paying.")}</p>
-   ${confirm.length?`<details><summary>${text("Qué debes confirmar","What to confirm")}</summary><ul class="clean-list">${confirm.map(v=>`<li>${esc(typeof v==="object"?(v.label||v.text||v.description||""):v)}</li>`).join("")}</ul></details>`:""}
-   <button class="secondary full" onclick="selectProvider('${esc(providerId)}')">${text("Usar esta opción","Use this option")}</button>
-   ${official?`<a class="provider-link" href="${esc(official)}" target="_blank" rel="noopener noreferrer">${text("Ver página oficial","View official page")}</a>`:""}
-  </article>`}).join("");
- app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
- <main class="container"><section class="hero compact"><p class="eyebrow">${text("OPCIONES COMPATIBLES","COMPATIBLE OPTIONS")}</p><h1>${text("No hay una opción universal.","There is no universal option.")}</h1><p>${text("Las opciones aparecen según lo que necesitas. Esto no es un ranking.","Options appear according to your needs. This is not a ranking.")}</p></section>
- <section class="provider-list">${cards||`<div class="card"><p>${text("No hay opciones disponibles para estas condiciones.","No options are available for these conditions.")}</p></div>`}</section>
- <button class="secondary full" onclick="showAnalysis()">${text("Volver al análisis","Back to analysis")}</button>
- </main>`;
+function money(v,currency="USD"){
+if(v===null||v===undefined||v==="")return"—";
+const n=Number(v);
+if(!Number.isFinite(n))return esc(v);
+try{return new Intl.NumberFormat(APP.language==="es"?"es-US":"en-US",{style:"currency",currency:currency||"USD",maximumFractionDigits:2}).format(n)}
+catch(e){return `${n.toFixed(2)} ${currency}`}
 }
 
-async function selectProvider(id){
- if(!id)return;
- setLoading(text("Preparando la opción seleccionada…","Preparing the selected option…"));
- try{
-  const r=await post(`/api/session/${encodeURIComponent(SESSION.session_id)}/select/${encodeURIComponent(id)}`,{});
-  SESSION=r.session||SESSION;saveSession();await showPreparation();
- }catch(e){renderError(e)}
+async function api(url,options={}){
+const r=await fetch(url,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});
+let data=null;
+try{data=await r.json()}catch(e){}
+if(!r.ok)throw new Error(data?.detail||data?.message||data?.error||t("error"));
+return data
 }
-async function showPreparation(){
- if(!SESSION?.session_id)return restart();
- setLoading(text("Preparando tu guía…","Preparing your guide…"));
- try{
-  const r=await get(`/api/session/${encodeURIComponent(SESSION.session_id)}/preparation`);SESSION=r.session||SESSION;saveSession();renderPreparation(r);
- }catch(e){renderError(e)}
+
+function saveLocal(){
+localStorage.setItem("remesas_language",APP.language);
+if(APP.destination)localStorage.setItem("remesas_destination",APP.destination);
 }
-function renderPreparation(r){
- const s=r.session||SESSION,p=s.preparation||r.preparation||{};
- const list=a=>(a||[]).map(x=>`<li><strong>${esc(x.label||x.title||"")}</strong>${x.description?`<span>${esc(x.description)}</span>`:""}</li>`).join("");
- app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
- <main class="container"><section class="hero compact"><p class="eyebrow">${text("PREPARACIÓN","PREPARATION")}</p><h1>${esc(p.title||text("Prepara tu envío","Prepare your transfer"))}</h1><p>${esc(p.introduction||"")}</p></section>
- <section class="card"><h2>${text("Antes de comenzar","Before you start")}</h2><ul class="guide-list">${list(p.before_start)}</ul></section>
- <section class="card"><h2>${text("Información del destinatario","Recipient information")}</h2><ul class="guide-list">${list(p.recipient_items)}</ul></section>
- <section class="card"><h2>${text("Antes de pagar","Before paying")}</h2><ul class="guide-list">${list(p.before_payment)}</ul></section>
- <section class="card warning"><strong>${text("Importante","Important")}</strong><p>${text("No introduzcas aquí contraseñas, PIN, códigos de seguridad ni datos bancarios sensibles. REMESAS funciona como guía y preparación.","Do not enter passwords, PINs, security codes, or sensitive banking credentials here. REMESAS is a guidance and preparation layer.")}</p></section>
- <button class="primary full" onclick="showGuide()">${text("Aprender cómo hacer el envío","Learn how to send it")}</button>
- </main>`;
+
+function priorityId(p){return typeof p==="string"?p:p?.id||""}
+
+function priorityLabel(p){
+if(typeof p==="string"){
+const map={fastest:"fastest",save:"save",recipient_gets_more:"receiveMore",urgent:"urgent",balanced:"balanced",compare_all:"compare",other:"other"};
+return t(map[p]||p)
 }
-async function showGuide(){
- if(!SESSION?.session_id)return restart();
- setLoading(text("Preparando la guía…","Preparing the guide…"));
- try{
-  const r=await get(`/api/session/${encodeURIComponent(SESSION.session_id)}/guide`);SESSION=r.session||SESSION;saveSession();renderGuide(r);
- }catch(e){renderError(e)}
+return p?.label||p?.name||p?.id||""
 }
-function renderGuide(r){
- const s=r.session||SESSION,g=s.send_guide||r.guide||{};
- const steps=(g.steps||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map((x,i)=>`<div class="step"><b>${i+1}</b><div><h3>${esc(x.title||"")}</h3><p>${esc(x.description||x.instruction||x.text||"")}</p>${x.what_to_check?`<small>${text("Comprueba:","Check:")} ${esc(x.what_to_check)}</small>`:""}</div></div>`).join("");
- app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
- <main class="container"><section class="hero compact"><p class="eyebrow">${text("GUÍA DE ENVÍO","SEND GUIDE")}</p><h1>${esc(g.title||text("Haz el envío paso a paso","Send it step by step"))}</h1><p>${esc(g.introduction||"")}</p></section>
- <section class="card"><div class="steps">${steps||`<p>${text("No hay pasos disponibles todavía.","No steps are available yet.")}</p>`}</div></section>
- <section class="card"><h2>${text("Reglas importantes","Important rules")}</h2><ul class="clean-list">${(g.rules||[]).map(x=>`<li>${esc(typeof x==="object"?(x.text||x.description||""):x)}</li>`).join("")}</ul></section>
- <button class="primary full" onclick="showFinalCheck()">${text("Verificar antes de continuar","Verify before continuing")}</button>
- </main>`;
+
+function countryName(code){
+const list=APP.config?.countries||[];
+const found=list.find(c=>(typeof c==="string"?c:(c.id||c.code))===code);
+return found?(typeof found==="string"?found:(found.name||found.country||code)):code||""
 }
-async function showFinalCheck(){
- if(!SESSION?.session_id)return restart();
- setLoading(text("Verificando los datos…","Checking the details…"));
- try{
-  const r=await post(`/api/session/${encodeURIComponent(SESSION.session_id)}/final-check`,{language:LANG,provider_id:SESSION.selected_provider_id||null,confirm_provider_data:false});
-  SESSION=r.session||SESSION;saveSession();renderFinalCheck(r);
- }catch(e){renderError(e)}
+
+function renderHeader(){
+return`<header class="topbar"><div class="brand"><div class="brand-mark">R</div><div><strong>${esc(t("title"))}</strong><span>May Roga LLC</span></div></div><button class="language-btn" id="languageBtn">${esc(t("language"))}</button></header>`
 }
-function renderFinalCheck(r){
- const s=r.session||SESSION,f=s.final_check||r,items=f.items||[];
- app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
- <main class="container"><section class="hero compact"><p class="eyebrow">${text("VERIFICACIÓN FINAL","FINAL CHECK")}</p><h1>${text("Comprueba estos datos antes de pagar","Check these details before paying")}</h1><p>${esc(f.message||"")}</p></section>
- <section class="card final-check">${items.map(x=>`<div class="check-item ${esc(x.status||"unknown")}"><div><strong>${esc(x.label||"")}</strong><span>${esc(x.message||x.description||"")}</span></div><b>${x.status==="ok"?"✓":x.status==="missing"?"!":"?"}</b></div>`).join("")}</section>
- <section class="card warning"><strong>${text("Último paso","Last step")}</strong><p>${text("El precio, tipo de cambio, método de entrega y cantidad que recibirá el destinatario deben coincidir con la información mostrada por el proveedor en el momento del pago.","The price, exchange rate, delivery method, and recipient amount must match the provider's information at the time of payment.")}</p></section>
- ${f.can_continue?`<button class="primary full" onclick="providerHandoff()">${text("Continuar con el proveedor","Continue to provider")}</button>`:`<button class="secondary full" onclick="showPreparation()">${text("Revisar preparación","Review preparation")}</button>`}
- </main>`;
+
+function renderHome(){
+const app=document.getElementById("app");
+const opening=APP.config?.opening||{};
+const countries=APP.config?.countries||[];
+const priorities=opening.priorities||[];
+const priorityButtons=(priorities.length?priorities:["fastest","save","recipient_gets_more","urgent","balanced","compare_all"]).map(p=>{
+const id=priorityId(p);
+return`<button class="priority-btn ${APP.priority===id?"active":""}" data-priority="${esc(id)}">${esc(priorityLabel(p))}</button>`
+}).join("");
+
+let options=`<option value="">${esc(t("destinationPlaceholder"))}</option>`;
+countries.forEach(c=>{
+const id=typeof c==="string"?c:(c.id||c.code||"");
+const name=typeof c==="string"?c:(c.name||c.country||id);
+options+=`<option value="${esc(id)}" ${APP.destination===id?"selected":""}>${esc(name)}</option>`
+});
+
+app.innerHTML=`${renderHeader()}<main class="shell"><section class="hero"><div class="hero-badge">● SIMPLE · CLARO · DIRECTO</div><h1>${esc(opening.primary_question||t("question"))}</h1><p>${esc(opening.secondary_text||t("subtitle"))}</p></section><section class="main-card"><div class="field"><label>${esc(t("amount"))}</label><div class="amount-wrap"><span>$</span><input id="amountInput" inputmode="decimal" type="number" min="1" step="0.01" placeholder="${esc(opening.amount?.placeholder||t("amountPlaceholder"))}" value="${esc(APP.amount)}"></div></div><div class="field"><label>${esc(t("destination"))}</label><select id="destinationInput">${options}</select></div><div class="field"><label>${esc(t("priority"))}</label><div class="priority-grid">${priorityButtons}</div></div><button class="help-link" id="helpBtn">?</button><button class="primary-btn" id="continueBtn">${esc(t("continue"))}</button><button class="secondary-btn" id="freeTextBtn">${esc(t("other"))}</button><div id="freeTextArea" class="free-text-area hidden"><label>${esc(t("freeText"))}</label><textarea id="freeTextInput" rows="3" placeholder="${esc(opening.free_text?.placeholder||t("freeTextPlaceholder"))}">${esc(APP.freeText)}</textarea><button class="primary-btn" id="freeTextContinue">${esc(t("continue"))}</button></div></section><footer class="footer"><span>© May Roga LLC</span><button id="clearBtn">${esc(t("clear"))}</button></footer></main><div id="modal"></div>`;
+
+document.getElementById("languageBtn")?.addEventListener("click",()=>{APP.language=APP.language==="es"?"en":"es";saveLocal();renderHome()});
+document.getElementById("amountInput")?.addEventListener("input",e=>APP.amount=e.target.value);
+document.getElementById("destinationInput")?.addEventListener("change",e=>{APP.destination=e.target.value;saveLocal()});
+document.querySelectorAll(".priority-btn").forEach(b=>b.addEventListener("click",()=>{APP.priority=b.dataset.priority;document.querySelectorAll(".priority-btn").forEach(x=>x.classList.remove("active"));b.classList.add("active")}));
+document.getElementById("continueBtn")?.addEventListener("click",startComparison);
+document.getElementById("freeTextBtn")?.addEventListener("click",()=>{document.getElementById("freeTextArea")?.classList.toggle("hidden");document.getElementById("freeTextInput")?.focus()});
+document.getElementById("freeTextContinue")?.addEventListener("click",startFreeText);
+document.getElementById("helpBtn")?.addEventListener("click",showHelp);
+document.getElementById("clearBtn")?.addEventListener("click",restart)
 }
-async function providerHandoff(){
- if(!SESSION?.session_id)return restart();
- setLoading(text("Confirmando la opción…","Confirming the option…"));
- try{
-  const r=await post(`/api/session/${encodeURIComponent(SESSION.session_id)}/final-check`,{language:LANG,provider_id:SESSION.selected_provider_id||null,confirm_provider_data:true});
-  const s=r.session||SESSION,f=s.final_check||r;
-  SESSION=s;saveSession();
-  if(!f.can_continue){renderFinalCheck(r);return}
-  const url=f.official_url||s.selected_provider?.official_url||s.selected_provider?.official_urls?.main;
-  if(url)window.open(url,"_blank","noopener,noreferrer");
-  else renderError(Error(text("No hay una página oficial disponible para este proveedor.","No official page is available for this provider.")));
- }catch(e){renderError(e)}
+
+async function createSession(){
+try{
+const data=await api(`/api/session?language=${encodeURIComponent(APP.language)}`,{method:"POST",body:"{}"});
+APP.sessionId=data?.session?.session_id||data?.session_id||null;
+return APP.sessionId
+}catch(e){APP.sessionId=null;return null}
 }
-async function restart(){
- try{if(SESSION?.session_id)await del(`/api/session/${encodeURIComponent(SESSION.session_id)}`)}catch(_){}
- SESSION=null;clearSessionStorage();renderOpening();
+
+async function ensureSession(){if(!APP.sessionId)await createSession();return APP.sessionId}
+
+async function loadConfig(){APP.config=await api(`/api/config?language=${encodeURIComponent(APP.language)}`)}
+
+function renderLoading(){
+document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell centered"><section class="loading-card"><div class="loader large"></div><h2>${esc(t("options"))}</h2><p>${esc(t("loading"))}</p></section></main>`;
+document.getElementById("languageBtn")?.addEventListener("click",()=>{APP.language=APP.language==="es"?"en":"es";saveLocal();renderLoading()})
 }
-init();
+
+function collectNeed(){
+const amount=Number(APP.amount);
+return{session_id:APP.sessionId,language:APP.language,amount,send_currency:"USD",destination_country:APP.destination,priority:APP.priority||"balanced",delivery_method:APP.delivery||null,special_need:APP.freeText||null}
+}
+
+async function startComparison(){
+APP.amount=document.getElementById("amountInput")?.value||APP.amount;
+APP.destination=document.getElementById("destinationInput")?.value||APP.destination;
+const amount=Number(APP.amount);
+if(!APP.destination){document.getElementById("destinationInput")?.focus();return}
+if(!amount||amount<=0){document.getElementById("amountInput")?.focus();return}
+if(!APP.priority)APP.priority="balanced";
+renderLoading();
+try{
+await ensureSession();
+const need=collectNeed();
+await api("/api/need",{method:"POST",body:JSON.stringify(need)});
+APP.comparison=await api("/api/compare",{method:"POST",body:JSON.stringify(need)});
+renderResults()
+}catch(e){renderError(e.message)}
+}
+
+async function startFreeText(){
+const text=document.getElementById("freeTextInput")?.value.trim();
+if(!text)return;
+APP.freeText=text;
+renderLoading();
+try{
+await ensureSession();
+const response=await api("/api/need/parse",{method:"POST",body:JSON.stringify({text,language:APP.language})});
+const parsed=response?.parsed||{};
+if(parsed.amount)APP.amount=parsed.amount;
+if(parsed.destination_country)APP.destination=parsed.destination_country;
+if(parsed.priority)APP.priority=parsed.priority;
+if(parsed.delivery_method)APP.delivery=parsed.delivery_method;
+if(!APP.amount||!APP.destination){renderNeedMissing();return}
+await startComparison()
+}catch(e){renderError(e.message)}
+}
+
+function renderNeedMissing(){
+const missing=[];
+if(!APP.amount)missing.push(t("amount"));
+if(!APP.destination)missing.push(t("destination"));
+document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell"><section class="main-card"><div class="hero-badge">● ${esc(t("helpTitle"))}</div><h1>${esc(t("question"))}</h1><p>${esc(t("helpText"))}</p><div class="missing-box">${missing.map(x=>`<div>• ${esc(x)}</div>`).join("")}</div><button class="primary-btn" id="completeBtn">${esc(t("continue"))}</button><button class="secondary-btn" id="backBtn">${esc(t("back"))}</button></section></main>`;
+document.getElementById("completeBtn")?.addEventListener("click",renderHome);
+document.getElementById("backBtn")?.addEventListener("click",renderHome);
+document.getElementById("languageBtn")?.addEventListener("click",()=>{APP.language=APP.language==="es"?"en":"es";saveLocal();renderNeedMissing()})
+}
+
+function resultId(r){return r?.provider_id||r?.id||""}
+
+function getResults(){
+const data=APP.comparison||{};
+const verified=Array.isArray(data.results)?data.results:[];
+const available=Array.isArray(data.available_providers)?data.available_providers:[];
+const merged=[];
+const seen=new Set();
+verified.forEach(r=>{const id=resultId(r);if(id&&!seen.has(id)){seen.add(id);merged.push({...r,commercial_verified:true,commercial_status:"verified"})}});
+available.forEach(p=>{const id=resultId(p);if(id&&!seen.has(id)){seen.add(id);merged.push({...p,provider_id:id,provider_name:p.provider_name||p.name||id})}});
+return merged
+}
+
+function resultValue(r,key){
+if(r?.[key]!==undefined)return r[key];
+if(r?.commercial_data?.[key]!==undefined)return r.commercial_data[key];
+return null
+}
+
+function renderResults(){
+const data=APP.comparison||{};
+const results=getResults();
+const verified=(data.results||[]).length>0;
+const heading=verified?(data.message||t("options")):(results.length?t("available"):(data.message||t("noResults")));
+
+document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell"><section class="results-head"><button class="back-btn" id="backBtn">← ${esc(t("back"))}</button><div><div class="hero-badge">● ${esc(verified?t("verified"):t("available"))}</div><h1>${esc(t("options"))}</h1><p>${esc(formatSummary())}</p></div></section><section class="results-list">${results.length?results.map(renderResultCard).join(""):`<div class="empty-card"><div class="empty-icon">—</div><h2>${esc(heading)}</h2><p>${esc(t("tryAgain"))}</p></div>`}</section><footer class="footer"><button id="clearBtn">${esc(t("clear"))}</button></footer></main>`;
+
+document.getElementById("backBtn")?.addEventListener("click",renderHome);
+document.getElementById("clearBtn")?.addEventListener("click",restart);
+document.querySelectorAll("[data-provider]").forEach(b=>b.addEventListener("click",()=>{const p=results.find(x=>resultId(x)===b.dataset.provider);if(p)renderFinalCheck(p)}));
+document.getElementById("languageBtn")?.addEventListener("click",()=>{APP.language=APP.language==="es"?"en":"es";saveLocal();renderResults()})
+}
+
+function formatSummary(){return`${money(Number(APP.amount),"USD")} → ${countryName(APP.destination)}`}
+
+function renderResultCard(r,i){
+const id=resultId(r);
+const name=r.provider_name||id;
+const verified=r.commercial_verified===true||r.commercial_status==="verified";
+const fee=verified?resultValue(r,"fee"):null;
+const rate=verified?resultValue(r,"exchange_rate"):null;
+const recipient=verified?resultValue(r,"recipient_amount"):null;
+const delivery=verified?(resultValue(r,"delivery_time")??resultValue(r,"estimated_delivery")):null;
+const method=verified?resultValue(r,"delivery_method"):null;
+const currency=resultValue(r,"currency")||resultValue(r,"recipient_currency")||"";
+const url=r.continue_url||r.official_site||"";
+
+return`<article class="provider-card"><div class="provider-top"><div><span class="provider-number">${i+1}</span><h2>${esc(name)}</h2></div><span class="verified-pill">${verified?"✓ "+esc(t("verified")):esc(t("commercialUnavailable"))}</span></div><div class="provider-main"><div class="receive-box"><span>${esc(t("receive"))}</span><strong>${recipient!==null?money(recipient,currency):"—"}</strong></div><div class="details-grid"><div><span>${esc(t("fee"))}</span><strong>${fee!==null?money(fee,"USD"):"—"}</strong></div><div><span>${esc(t("rate"))}</span><strong>${rate!==null?esc(rate):"—"}</strong></div><div><span>${esc(t("delivery"))}</span><strong>${delivery!==null?esc(delivery):"—"}</strong></div><div><span>${esc(t("method"))}</span><strong>${method?esc(formatMethod(method)):"—"}</strong></div></div></div><div class="provider-foot"><small>${verified?esc(t("verified")):esc(t("commercialUnavailable"))}</small>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("official"))}</a>`:""}</div><button class="primary-btn provider-btn" data-provider="${esc(id)}">${esc(verified?t("check"):t("official"))}</button></article>`
+}
+
+function formatMethod(v){
+const map={cash_pickup:APP.language==="es"?"Efectivo":"Cash pickup",bank_account:APP.language==="es"?"Cuenta bancaria":"Bank account",debit_card:APP.language==="es"?"Tarjeta de débito":"Debit card",mobile_wallet:APP.language==="es"?"Billetera móvil":"Mobile wallet",home_delivery:APP.language==="es"?"Entrega a domicilio":"Home delivery"};
+return map[v]||v
+}
+
+async function renderFinalCheck(provider){
+const id=resultId(provider);
+const verified=provider.commercial_verified===true||provider.commercial_status==="verified";
+if(!verified){
+const url=provider.continue_url||provider.official_site;
+if(url)window.open(url,"_blank","noopener,noreferrer");
+return
+}
+
+document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell"><section class="results-head"><button class="back-btn" id="backBtn">← ${esc(t("back"))}</button><div><div class="hero-badge">● ${esc(t("selected"))}</div><h1>${esc(provider.provider_name||id)}</h1><p>${esc(t("finalText"))}</p></div></section><section class="review-card"><h2>${esc(t("review"))}</h2><div class="review-row"><span>${esc(t("country"))}</span><strong>${esc(countryName(APP.destination))}</strong></div><div class="review-row"><span>${esc(t("sendAmount"))}</span><strong>${money(Number(APP.amount),"USD")}</strong></div><div class="review-row"><span>${esc(t("fee"))}</span><strong>${provider.fee!=null?money(provider.fee,"USD"):"—"}</strong></div><div class="review-row"><span>${esc(t("rate"))}</span><strong>${provider.exchange_rate!=null?esc(provider.exchange_rate):"—"}</strong></div><div class="review-row highlight"><span>${esc(t("receiveAmount"))}</span><strong>${provider.recipient_amount!=null?money(provider.recipient_amount,provider.currency||"USD"):"—"}</strong></div><div class="review-row"><span>${esc(t("method"))}</span><strong>${provider.delivery_method?esc(formatMethod(provider.delivery_method)):"—"}</strong></div><div class="review-actions"><button class="secondary-btn" id="backResults">${esc(t("no"))}</button><button class="primary-btn" id="verifyBtn">${esc(t("yes"))}</button></div><div id="finalStatus"></div></section><footer class="footer"><button id="clearBtn">${esc(t("clear"))}</button></footer></main>`;
+
+document.getElementById("backBtn")?.addEventListener("click",renderResults);
+document.getElementById("backResults")?.addEventListener("click",renderResults);
+document.getElementById("clearBtn")?.addEventListener("click",restart);
+document.getElementById("verifyBtn")?.addEventListener("click",()=>performFinalCheck(provider,id));
+document.getElementById("languageBtn")?.addEventListener("click",()=>{APP.language=APP.language==="es"?"en":"es";saveLocal();renderFinalCheck(provider)})
+}
+
+async function performFinalCheck(provider,id){
+const status=document.getElementById("finalStatus");
+if(!status)return;
+status.innerHTML=`<div class="checking"><div class="loader"></div>${esc(t("loading"))}</div>`;
+try{
+await ensureSession();
+const result=await api("/api/final-check",{method:"POST",body:JSON.stringify({
+language:APP.language,provider_id:id,amount:Number(APP.amount),send_currency:"USD",
+destination_country:APP.destination,delivery_method:provider.delivery_method||null,
+payment_method:null,recipient_amount:provider.recipient_amount??null,fee:provider.fee??null,
+exchange_rate:provider.exchange_rate??null
+})});
+const checks=result?.checks||[];
+const ready=result?.ready_to_continue!==false;
+const url=provider.continue_url||provider.official_site;
+status.innerHTML=`<div class="${ready?"success-box":"error-box"}">${ready?`<strong>✓ ${esc(t("verified"))}</strong>`:`<strong>${esc(t("tryAgain"))}</strong>`}<p>${esc(result?.message||t("finalText"))}</p>${ready&&url?`<a class="primary-btn link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("official"))}</a>`:""}</div>`;
+}catch(e){status.innerHTML=`<div class="error-box">${esc(e.message||t("error"))}</div>`}
+}
+
+function showHelp(){
+const modal=document.getElementById("modal");
+if(!modal)return;
+modal.innerHTML=`<div class="modal-backdrop" id="modalBackdrop"><div class="modal-card"><button class="modal-close" id="modalClose">×</button><div class="hero-badge">?</div><h2>${esc(t("helpTitle"))}</h2><p>${esc(t("helpText"))}</p><button class="primary-btn" id="modalStart">${esc(t("continue"))}</button></div></div>`;
+document.getElementById("modalClose")?.addEventListener("click",()=>modal.innerHTML="");
+document.getElementById("modalBackdrop")?.addEventListener("click",e=>{if(e.target.id==="modalBackdrop")modal.innerHTML=""});
+document.getElementById("modalStart")?.addEventListener("click",()=>{modal.innerHTML="";document.getElementById("amountInput")?.focus()})
+}
+
+function renderError(message){
+document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell centered"><section class="error-card"><div class="error-icon">!</div><h2>${esc(t("error"))}</h2><p>${esc(message||"")}</p><button class="primary-btn" id="retryBtn">${esc(t("back"))}</button></section></main>`;
+document.getElementById("retryBtn")?.addEventListener("click",renderHome);
+document.getElementById("languageBtn")?.addEventListener("click",()=>{APP.language=APP.language==="es"?"en":"es";saveLocal();renderError(message)})
+}
+
+function restart(){
+APP.sessionId=null;
+APP.amount="";
+APP.destination="";
+APP.priority="";
+APP.delivery="";
+APP.freeText="";
+APP.comparison=null;
+APP.selectedProvider=null;
+localStorage.removeItem("remesas_destination");
+createSession().finally(renderHome)
+}
+
+async function boot(){
+try{
+await loadConfig();
+await createSession();
+renderHome()
+}catch(e){renderError(e.message)}
+}
+
+document.addEventListener("DOMContentLoaded",boot);
