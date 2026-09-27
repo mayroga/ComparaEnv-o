@@ -133,7 +133,7 @@ class RemittanceEngine:
             return "USD"
         return currency.strip().upper()
 
-    def language_text(
+def language_text(
         self,
         key: str,
         language: str = "es",
@@ -155,6 +155,30 @@ class RemittanceEngine:
             )
 
         return ""
+
+    def _message(
+        self,
+        key: str,
+        language: str = "es",
+    ) -> str:
+        messages = {
+            "no_results": {
+                "es": "No encontramos opciones con datos comerciales verificados en este momento.",
+                "en": "We could not find options with verified commercial data at this time.",
+            },
+            "results_ready": {
+                "es": "Estas son las opciones que pudimos verificar.",
+                "en": "These are the options we were able to verify.",
+            },
+        }
+
+        return messages.get(
+            key,
+            {},
+        ).get(
+            language,
+            messages.get(key, {}).get("es", ""),
+        )
 
     # ------------------------------------------------------------------
     # COUNTRIES
