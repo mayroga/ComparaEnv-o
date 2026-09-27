@@ -1,589 +1,759 @@
-import json,re
-from datetime import datetime,timezone
+import json,re,uuid
+from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from typing import Any,Dict,List,Optional
+
 from schemas import (
-    ComparisonRequest,ComparisonResponse,ComparisonResult,Compatibility,CostSummary,
-    DetectedContext,FinalCheckRequest,FinalCheckResponse,FinalCheckItem,HelpResponse,
-    MissingInformation,NeedAnalysis,ParsedNeed,PreparationGuide,PreparationItem,
-    ProviderOption,ProviderQuote,SendGuide,GuideStep,SessionState,UserNeedRequest,
-    Verification
+    Language,Priority,DeliveryMethod,PaymentMethod,DataStatus,Urgency,
+    UserNeedRequest,ParsedNeed,DetectedContext,MissingInformation,
+    Constraint,DecisionFactor,NeedAnalysis,ProviderQuote,Compatibility,
+    ProviderOption,ComparisonResult,ComparisonResponse,CostSummary,
+    PreparationItem,PreparationGuide,RecipientInformation,GuideStep,
+    SendGuide,FinalCheckItem,FinalCheckResponse,SessionState
 )
 
 BASE_DIR=Path(__file__).resolve().parent
 DATA_DIR=BASE_DIR/"data"
-BRAIN_FILE=DATA_DIR/"app_brain.json"
 PROVIDERS_FILE=DATA_DIR/"providers.json"
+BRAIN_FILE=BASE_DIR/"app_brain.json"
 
-class RemittanceEngine:
-    def __init__(self):
-        self.brain={}
-        self.providers_data={}
-        self.sessions={}
-        self.load_brain()
+SESSIONS:Dict[str,SessionState]={}
+COMMERCIAL_TTL_HOURS=24
 
-    def _now(self):
-        return datetime.now(timezone.utc).isoformat()
+COUNTRY_ALIASES={
+    "mexico":"MX","méxico":"MX","mx":"MX",
+    "guatemala":"GT","gt":"GT",
+    "el salvador":"SV","salvador":"SV","sv":"SV",
+    "honduras":"HN","hn":"HN",
+    "nicaragua":"NI","ni":"NI",
+    "costa rica":"CR","cr":"CR",
+    "panama":"PA","panamá":"PA","pa":"PA",
+    "dominican republic":"DO","república dominicana":"DO","republica dominicana":"DO","rd":"DO","do":"DO",
+    "colombia":"CO","co":"CO",
+    "venezuela":"VE","ve":"VE",
+    "ecuador":"EC","ec":"EC",
+    "peru":"PE","perú":"PE","pe":"PE",
+    "bolivia":"BO","bo":"BO",
+    "paraguay":"PY","py":"PY",
+    "brazil":"BR","brasil":"BR","br":"BR",
+    "chile":"CL","cl":"CL",
+    "argentina":"AR","ar":"AR",
+    "uruguay":"UY","uy":"UY",
+    "cuba":"CU","cu":"CU",
+    "haiti":"HT","haití":"HT","ht":"HT",
+    "belize":"BZ","bz":"BZ",
+    "guyana":"GY","gy":"GY",
+    "suriname":"SR","surinam":"SR","sr":"SR",
+    "jamaica":"JM","jm":"JM",
+    "trinidad and tobago":"TT","trinidad y tobago":"TT","tt":"TT"
+}
 
-    def _read_json(self,path):
+PROVIDER_NAMES={
+    "western_union":"Western Union",
+    "moneygram":"MoneyGram",
+    "remitly":"Remitly",
+    "xoom":"Xoom"
+}
+
+def now_iso()->str:
+    return datetime.now(timezone.utc).isoformat()
+
+def normalize_text(value:Optional[str])->str:
+    if not value:return ""
+    return re.sub(r"\s+"," ",str(value).strip().lower())
+
+def load_json(path:Path,default:Any)->Any:
+    try:
+        if path.exists():
+            with path.open("r",encoding="utf-8") as f:return json.load(f)
+    except Exception:
+        pass
+    return default
+
+def load_providers()->Dict[str,Any]:
+    data=load_json(PROVIDERS_FILE,{})
+    if not isinstance(data,dict):return {}
+    return data
+
+def load_brain()->Dict[str,Any]:
+    data=load_json(BRAIN_FILE,{})
+    if not isinstance(data,dict):return {}
+    return data
+
+def provider_registry()->List[Dict[str,Any]]:
+    data=load_providers()
+    providers=data.get("providers",[])
+    if isinstance(providers,dict):
+        providers=[dict(v,provider_id=k) if isinstance(v,dict) else {"provider_id":k} for k,v in providers.items()]
+    return providers if isinstance(providers,list) else []
+
+def provider_id(p:Dict[str,Any])->str:
+    return str(p.get("id") or p.get("provider_id") or "").strip().lower()
+
+def provider_name(p:Dict[str,Any])->str:
+    return str(p.get("name") or PROVIDER_NAMES.get(provider_id(p),provider_id(p).replace("_"," ").title()))
+
+def provider_url(p:Dict[str,Any])->Optional[str]:
+    return p.get("official_url") or p.get("url")
+
+def normalize_country(value:Optional[str])->Optional[str]:
+    if not value:return None
+    v=normalize_text(value)
+    return COUNTRY_ALIASES.get(v,v.upper() if len(v)==2 else None)
+
+def money_value(value:Any)->Optional[float]:
+    try:
+        if value is None or value=="":return None
+        return float(value)
+    except Exception:
+        return None
+
+def contains_any(text:str,words:List[str])->bool:
+    return any(w in text for w in words)
+
+def detect_amount(text:str)->Optional[float]:
+    patterns=[
+        r"(?:\$|usd\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)",
+        r"\b([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:dólares|dolares|dollars|usd)\b"
+    ]
+    for pattern in patterns:
+        m=re.search(pattern,text,re.I)
+        if m:
+            try:return float(m.group(1).replace(",",""))
+            except Exception:pass
+    return None
+
+def detect_destination(text:str)->Optional[str]:
+    for name,code in sorted(COUNTRY_ALIASES.items(),key=lambda x:-len(x[0])):
+        if re.search(r"\b"+re.escape(name)+r"\b",text,re.I):
+            return code
+    return None
+
+def detect_urgency(text:str)->Optional[Urgency]:
+    t=normalize_text(text)
+    if contains_any(t,["hoy","ahora","lo antes posible","urgent","urgente","today","right now"]):return Urgency.today
+    if contains_any(t,["mañana","manana","pronto","soon","esta semana","this week"]):return Urgency.soon
+    if contains_any(t,["normal","no importa cuando","sin prisa","not urgent"]):return Urgency.normal
+    return None
+
+def detect_priority(text:str)->Optional[Priority]:
+    t=normalize_text(text)
+    if contains_any(t,["reciba más","reciba mas","que le llegue más","que le llegue mas","más dinero","mas dinero","recipient gets more"]):
+        return Priority.recipient_gets_more
+    if contains_any(t,["lo más rápido","lo mas rapido","más rápido","mas rapido","fastest","rápido","rapido","speed"]):
+        return Priority.fastest
+    if contains_any(t,["ahorrar","barato","menos costo","menor costo","save money","cheapest","fee"]):
+        return Priority.save
+    if contains_any(t,["urgente","hoy","ahora","urgent","today"]):return Priority.urgent
+    if contains_any(t,["comparar","compare","no sé","no se","what is best for me"]):return Priority.compare_all
+    return None
+
+def detect_delivery(text:str)->Optional[DeliveryMethod]:
+    t=normalize_text(text)
+    if contains_any(t,["efectivo","cash pickup","recoger dinero","retiro en efectivo","agente","cash"]):
+        return DeliveryMethod.cash_pickup
+    if contains_any(t,["cuenta bancaria","cuenta de banco","bank account","banco"]):
+        return DeliveryMethod.bank_account
+    if contains_any(t,["wallet","billetera","monedero","mobile wallet"]):
+        return DeliveryMethod.mobile_wallet
+    if contains_any(t,["tarjeta de débito","tarjeta de debito","debit card"]):
+        return DeliveryMethod.debit_card
+    if contains_any(t,["entrega a domicilio","home delivery","domicilio"]):
+        return DeliveryMethod.home_delivery
+    return None
+
+def detect_payment(text:str)->Optional[PaymentMethod]:
+    t=normalize_text(text)
+    if contains_any(t,["tarjeta de crédito","tarjeta de credito","credit card"]):return PaymentMethod.credit_card
+    if contains_any(t,["tarjeta de débito","tarjeta de debito","debit card"]):return PaymentMethod.debit_card
+    if contains_any(t,["cuenta bancaria","bank account","transferencia bancaria"]):return PaymentMethod.bank_account
+    if contains_any(t,["efectivo","cash"]):return PaymentMethod.cash
+    if contains_any(t,["wallet","billetera","digital wallet"]):return PaymentMethod.digital_wallet
+    return None
+
+def detect_bool(text:str,positive:List[str],negative:List[str])->Optional[bool]:
+    t=normalize_text(text)
+    if contains_any(t,negative):return False
+    if contains_any(t,positive):return True
+    return None
+
+def detect_special_need(text:str)->Optional[str]:
+    t=normalize_text(text)
+    if contains_any(t,["mi mamá","mi mama","mi madre","my mom","my mother"]):return "family_recipient"
+    if contains_any(t,["mi hijo","mi hija","my son","my daughter","niño","niña"]):return "child_recipient"
+    if contains_any(t,["mensual","cada mes","monthly","every month"]):return "recurring"
+    if contains_any(t,["primera vez","first time","nunca he enviado","never sent"]):return "first_transfer"
+    if contains_any(t,["sin cuenta","no tiene cuenta","doesn't have a bank account","does not have a bank account"]):return "no_recipient_bank_account"
+    return None
+
+def parse_need_text(text:str,language:Language=Language.es)->ParsedNeed:
+    raw=text.strip()
+    amount=detect_amount(raw)
+    destination=detect_destination(raw)
+    priority=detect_priority(raw)
+    urgency=detect_urgency(raw)
+    delivery=detect_delivery(raw)
+    payment=detect_payment(raw)
+    bank=detect_bool(raw,
+        ["tiene cuenta bancaria","tiene cuenta de banco","has a bank account","bank account"],
+        ["no tiene cuenta","sin cuenta bancaria","no bank account","doesn't have a bank account","does not have a bank account"])
+    wallet=detect_bool(raw,
+        ["tiene wallet","tiene billetera","has a wallet","mobile wallet"],
+        ["no tiene wallet","sin wallet","no wallet"])
+    first=detect_bool(raw,
+        ["primera vez","primer envío","primer envio","first transfer","first time"],
+        ["ya he enviado","ya envié","ya envie","already sent"])
+    recurring=detect_bool(raw,
+        ["cada mes","mensual","monthly","every month","recurring"],
+        ["una sola vez","one time","single transfer"])
+    special=detect_special_need(raw)
+    ctx=DetectedContext(
+        amount=amount,destination=destination,priority=priority,urgency=urgency,
+        delivery_method=delivery,payment_method=payment,
+        recipient_has_bank_account=bank,recipient_has_mobile_wallet=wallet,
+        first_transfer=first,recurring_transfer=recurring,special_need=special,
+        recipient_amount_is_priority=priority==Priority.recipient_gets_more,
+        speed_is_priority=priority in (Priority.fastest,Priority.urgent) or urgency==Urgency.today,
+        cost_is_priority=priority==Priority.save,
+        cash_pickup_needed=delivery==DeliveryMethod.cash_pickup or bank is False,
+        bank_account_needed=delivery==DeliveryMethod.bank_account,
+        wallet_needed=delivery==DeliveryMethod.mobile_wallet
+    )
+    missing=[]
+    if amount is None:
+        missing.append(MissingInformation(field="amount",label="Cantidad",question="¿Cuánto quieres enviar?",reason="La cantidad puede cambiar costos, límites y opciones.",required=True))
+    if destination is None:
+        missing.append(MissingInformation(field="destination",label="Destino",question="¿A qué país quieres enviar?",reason="Las opciones y condiciones dependen del país.",required=True))
+    return ParsedNeed(
+        language=language,raw_text=raw,amount=amount,destination=destination,
+        priority=priority,urgency=urgency,delivery_method=delivery,
+        payment_method=payment,recipient_has_bank_account=bank,
+        recipient_has_mobile_wallet=wallet,first_transfer=first,
+        recurring_transfer=recurring,special_need=special,
+        detected_context=ctx,missing_information=missing,
+        confidence=round(sum(x is not None for x in [amount,destination,priority,urgency,delivery,payment])/6,2)
+    )
+
+def analyze_need(
+    amount:Optional[float],
+    destination:Optional[str],
+    priority:Optional[Priority],
+    urgency:Optional[Urgency],
+    delivery_method:Optional[DeliveryMethod],
+    payment_method:Optional[PaymentMethod],
+    recipient_has_bank_account:Optional[bool]=None,
+    recipient_has_mobile_wallet:Optional[bool]=None,
+    first_transfer:Optional[bool]=None,
+    recurring_transfer:Optional[bool]=None,
+    special_need:Optional[str]=None,
+    free_text:Optional[str]=None
+)->NeedAnalysis:
+    parsed=parse_need_text(f"{free_text or ''}",Language.es) if free_text else ParsedNeed(raw_text="",detected_context=DetectedContext())
+    ctx=DetectedContext(
+        amount=amount or parsed.amount,
+        destination=normalize_country(destination) if destination else parsed.destination,
+        priority=priority or parsed.priority,
+        urgency=urgency or parsed.urgency,
+        delivery_method=delivery_method or parsed.delivery_method,
+        payment_method=payment_method or parsed.payment_method,
+        recipient_has_bank_account=recipient_has_bank_account if recipient_has_bank_account is not None else parsed.recipient_has_bank_account,
+        recipient_has_mobile_wallet=recipient_has_mobile_wallet if recipient_has_mobile_wallet is not None else parsed.recipient_has_mobile_wallet,
+        first_transfer=first_transfer if first_transfer is not None else parsed.first_transfer,
+        recurring_transfer=recurring_transfer if recurring_transfer is not None else parsed.recurring_transfer,
+        special_need=special_need or parsed.special_need
+    )
+    ctx.recipient_amount_is_priority=ctx.priority==Priority.recipient_gets_more
+    ctx.speed_is_priority=ctx.priority in (Priority.fastest,Priority.urgent) or ctx.urgency==Urgency.today
+    ctx.cost_is_priority=ctx.priority==Priority.save
+    ctx.cash_pickup_needed=ctx.delivery_method==DeliveryMethod.cash_pickup or ctx.recipient_has_bank_account is False
+    ctx.bank_account_needed=ctx.delivery_method==DeliveryMethod.bank_account
+    ctx.wallet_needed=ctx.delivery_method==DeliveryMethod.mobile_wallet
+
+    constraints=[]
+    factors=[]
+    missing=[]
+    if ctx.amount is None:
+        missing.append(MissingInformation(field="amount",label="Cantidad",question="¿Cuánto quieres enviar?",required=True))
+    else:
+        constraints.append(Constraint(id="amount",label="Cantidad",value=ctx.amount,reason="La cantidad forma parte de la cotización.",source="user"))
+        factors.append(DecisionFactor(id="amount",name="Cantidad",importance="high",value=ctx.amount,reason="Puede afectar límites, tarifas y resultado final."))
+    if not ctx.destination:
+        missing.append(MissingInformation(field="destination",label="Destino",question="¿A qué país quieres enviar?",required=True))
+    else:
+        constraints.append(Constraint(id="destination",label="Destino",value=ctx.destination,reason="Las condiciones dependen del corredor.",source="user"))
+    if ctx.urgency:
+        constraints.append(Constraint(id="urgency",label="Urgencia",value=ctx.urgency.value,reason="La velocidad de entrega puede cambiar las opciones.",source="user"))
+        factors.append(DecisionFactor(id="urgency",name="Urgencia",importance="high",value=ctx.urgency.value,reason="Determina si el tiempo de entrega debe comprobarse primero."))
+    if ctx.delivery_method:
+        constraints.append(Constraint(id="delivery",label="Forma de recepción",value=ctx.delivery_method.value,reason="No todos los métodos están disponibles en todos los corredores.",source="user"))
+    if ctx.recipient_has_bank_account is False:
+        constraints.append(Constraint(id="no_bank",label="Sin cuenta bancaria",value=True,reason="Hace relevante comprobar recepción en efectivo u otros métodos.",source="user"))
+        factors.append(DecisionFactor(id="delivery",name="Forma de recepción",importance="high",value="cash_or_alternative",reason="La persona destinataria no tiene cuenta bancaria."))
+    if ctx.recipient_has_mobile_wallet is False:
+        constraints.append(Constraint(id="no_wallet",label="Sin wallet",value=True,reason="Evita mostrar métodos que dependan de una wallet.",source="user"))
+    if ctx.first_transfer is True:
+        factors.append(DecisionFactor(id="first_transfer",name="Primer envío",importance="medium",value=True,reason="Conviene comprobar requisitos de identificación y condiciones iniciales."))
+    if ctx.recurring_transfer is True:
+        factors.append(DecisionFactor(id="recurring",name="Envío recurrente",importance="medium",value=True,reason="Conviene revisar costos y condiciones repetidas."))
+    if ctx.priority:
+        factors.append(DecisionFactor(id="priority",name="Prioridad",importance="high",value=ctx.priority.value,reason="Define qué información debe pesar en la explicación."))
+
+    main_need="comparar opciones compatibles"
+    if ctx.speed_is_priority:main_need="recibir el dinero con la urgencia indicada"
+    elif ctx.cash_pickup_needed:main_need="recibir el dinero sin depender de una cuenta bancaria"
+    elif ctx.recipient_amount_is_priority:main_need="maximizar la cantidad que recibe la persona"
+    elif ctx.cost_is_priority:main_need="controlar el costo total del envío"
+    elif ctx.recurring_transfer:main_need="encontrar una opción adecuada para envíos recurrentes"
+
+    summary=f"Necesitas enviar {ctx.amount:g} USD" if ctx.amount else "Necesitas preparar un envío"
+    if ctx.destination:summary+=f" a {ctx.destination}"
+    if ctx.speed_is_priority:summary+=", con prioridad en la rapidez"
+    elif ctx.cash_pickup_needed:summary+=", considerando recepción sin cuenta bancaria"
+    elif ctx.recipient_amount_is_priority:summary+=", dando importancia a lo que recibe la persona"
+    elif ctx.cost_is_priority:summary+=", dando importancia al costo"
+
+    return NeedAnalysis(
+        summary=summary,
+        main_need=main_need,
+        detected_context=ctx,
+        constraints=constraints,
+        decision_factors=factors,
+        missing_information=missing,
+        compatible_delivery_methods=[
+            DeliveryMethod.cash_pickup.value,
+            DeliveryMethod.bank_account.value,
+            DeliveryMethod.debit_card.value,
+            DeliveryMethod.mobile_wallet.value,
+            DeliveryMethod.home_delivery.value
+        ],
+        compatible_payment_methods=[
+            PaymentMethod.bank_account.value,
+            PaymentMethod.debit_card.value,
+            PaymentMethod.credit_card.value,
+            PaymentMethod.cash.value,
+            PaymentMethod.digital_wallet.value
+        ],
+        notes=[
+            "Solo se muestran costos comerciales cuando están verificados.",
+            "Una opción compatible no significa que sea la mejor para todos los casos.",
+            "Antes de pagar debes confirmar los datos mostrados con el proveedor."
+        ]
+    )
+
+def verification_from(value:Any)->Optional[Dict[str,Any]]:
+    if isinstance(value,dict):return value
+    return None
+
+def is_verified(data:Any)->bool:
+    if not isinstance(data,dict):return False
+    status=str(data.get("status","")).lower()
+    if status!="verified":return False
+    expires=data.get("expires_at")
+    if expires:
         try:
-            with open(path,"r",encoding="utf-8") as f:return json.load(f)
-        except Exception:return {}
+            if datetime.fromisoformat(expires.replace("Z","+00:00"))<datetime.now(timezone.utc):return False
+        except Exception:
+            return False
+    return True
 
-    def load_brain(self):
-        self.brain=self._read_json(BRAIN_FILE)
-        self.providers_data=self._read_json(PROVIDERS_FILE)
-        return self.brain
+def provider_supports_corridor(p:Dict[str,Any],destination:str)->bool:
+    if not destination:return True
+    corridors=p.get("corridors")
+    if corridors is None:return True
+    if isinstance(corridors,dict):corridors=list(corridors.keys())
+    if not isinstance(corridors,list):return True
+    return destination.upper() in [str(x).upper() for x in corridors]
 
-    def validate_brain(self):
-        required=["app","experience","opening","conversation_logic","kernel","providers","countries","comparison","validation","security","languages"]
-        missing=[x for x in required if x not in self.brain]
-        return {"valid":not missing,"version":str(self.brain.get("app",{}).get("version","unknown")),"missing_sections":missing,"errors":[]}
+def extract_commercial(p:Dict[str,Any],destination:Optional[str]=None)->Dict[str,Any]:
+    data=p.get("commercial_data")
+    if isinstance(data,dict):
+        if destination and isinstance(data.get(destination),dict):return data[destination]
+        return data
+    return {}
 
-    def _country_codes(self):
-        countries=self.brain.get("countries",{})
-        if isinstance(countries,dict):
-            items=countries.get("initial_supported",countries.get("supported",[]))
-            if isinstance(items,list):
-                out=[]
-                for x in items:
-                    if isinstance(x,str):out.append(x.upper())
-                    elif isinstance(x,dict) and x.get("code"):out.append(str(x["code"]).upper())
-                return out
-        return []
+def build_quote(p:Dict[str,Any],request:UserNeedRequest)->Optional[ProviderQuote]:
+    commercial=extract_commercial(p,normalize_country(request.destination))
+    if not commercial:return None
+    status=str(commercial.get("status","unverified")).lower()
+    if status not in {x.value for x in DataStatus}:status="unverified"
+    return ProviderQuote(
+        provider_id=provider_id(p),
+        provider_name=provider_name(p),
+        origin_country="US",
+        destination_country=normalize_country(request.destination),
+        send_amount=money_value(commercial.get("send_amount") or request.amount),
+        send_currency=commercial.get("send_currency","USD"),
+        fee=money_value(commercial.get("fee")),
+        exchange_rate=money_value(commercial.get("exchange_rate")),
+        recipient_amount=money_value(commercial.get("recipient_amount")),
+        recipient_currency=commercial.get("recipient_currency"),
+        total_out_of_pocket=money_value(commercial.get("total_out_of_pocket")),
+        delivery_method=commercial.get("delivery_method"),
+        delivery_time=commercial.get("delivery_time"),
+        payment_method=commercial.get("payment_method"),
+        conditions=commercial.get("conditions",[]) if isinstance(commercial.get("conditions",[]),list) else [],
+        status=status,
+        source=commercial.get("source"),
+        verified_at=commercial.get("verified_at"),
+        expires_at=commercial.get("expires_at")
+    )
 
-    def _country_aliases(self):
-        return {
-            "mexico":"MX","méxico":"MX","mex":"MX","mx":"MX",
-            "guatemala":"GT","gt":"GT",
-            "el salvador":"SV","salvador":"SV","sv":"SV",
-            "honduras":"HN","hn":"HN",
-            "nicaragua":"NI","ni":"NI",
-            "costa rica":"CR","cr":"CR",
-            "panama":"PA","panamá":"PA","pa":"PA",
-            "dominican republic":"DO","república dominicana":"DO","republica dominicana":"DO","rd":"DO","do":"DO",
-            "colombia":"CO","co":"CO",
-            "venezuela":"VE","ve":"VE",
-            "ecuador":"EC","ec":"EC",
-            "peru":"PE","perú":"PE","pe":"PE",
-            "bolivia":"BO","bo":"BO",
-            "paraguay":"PY","py":"PY",
-            "brazil":"BR","brasil":"BR","br":"BR",
-            "chile":"CL","cl":"CL",
-            "argentina":"AR","ar":"AR",
-            "uruguay":"UY","uy":"UY",
-            "cuba":"CU","cu":"CU",
-            "haiti":"HT","haití":"HT","ht":"HT",
-            "belize":"BZ","bz":"BZ",
-            "guyana":"GY","gy":"GY",
-            "suriname":"SR","sr":"SR",
-            "jamaica":"JM","jm":"JM",
-            "trinidad":"TT","trinidad and tobago":"TT","trinidad y tobago":"TT","tt":"TT"
-        }
+def compatibility_for(p:Dict[str,Any],request:UserNeedRequest)->Compatibility:
+    pid=provider_id(p)
+    if not pid:
+        return Compatibility(status="incompatible",reason="Proveedor sin identificador válido.")
+    if not provider_supports_corridor(p,normalize_country(request.destination) or ""):
+        return Compatibility(status="incompatible",reason="El corredor indicado no aparece como compatible en los datos disponibles.")
+    methods=p.get("delivery_methods",[]) or []
+    payment=p.get("payment_methods",[]) or []
+    matched=[]
+    unmet=[]
+    conditions=[]
+    wanted_delivery=request.delivery_method.value if request.delivery_method else None
+    wanted_payment=request.payment_method.value if request.payment_method else None
+    if wanted_delivery:
+        if wanted_delivery in methods:matched.append(f"delivery:{wanted_delivery}")
+        else:unmet.append(f"delivery:{wanted_delivery}")
+    if wanted_payment:
+        if wanted_payment in payment:matched.append(f"payment:{wanted_payment}")
+        else:unmet.append(f"payment:{wanted_payment}")
+    if request.recipient_has_bank_account is False:
+        if DeliveryMethod.cash_pickup.value in methods:matched.append("no_bank:cash_pickup")
+        elif wanted_delivery is None:conditions.append("Confirmar si existe una forma de recepción sin cuenta bancaria.")
+    if request.recipient_has_mobile_wallet is False and wanted_delivery==DeliveryMethod.mobile_wallet:
+        unmet.append("recipient_wallet_unavailable")
+    if unmet:
+        return Compatibility(status="incompatible",reason="No cumple una restricción indicada.",matched_constraints=matched,unmet_constraints=unmet,conditions=conditions)
+    quote=build_quote(p,request)
+    if quote and is_verified(quote.model_dump()):
+        return Compatibility(status="compatible",reason="Cumple las restricciones conocidas y tiene datos comerciales verificados.",matched_constraints=matched,conditions=conditions)
+    return Compatibility(status="conditional",reason="Puede encajar, pero faltan datos comerciales verificados para confirmar la opción.",matched_constraints=matched,conditions=conditions)
 
-    def _country_from_text(self,text):
-        t=(text or "").lower()
-        aliases=self._country_aliases()
-        for name,code in sorted(aliases.items(),key=lambda x:-len(x[0])):
-            if re.search(r"(?<!\w)"+re.escape(name)+r"(?!\w)",t):return code
-        return None
+def provider_option(p:Dict[str,Any],request:UserNeedRequest)->ProviderOption:
+    comp=compatibility_for(p,request)
+    quote=build_quote(p,request)
+    confirmations=[]
+    conditions=[]
+    if not quote or not is_verified(quote.model_dump()):
+        confirmations.extend([
+            "Comprobar comisión actual antes de pagar.",
+            "Comprobar tipo de cambio actual.",
+            "Comprobar cantidad exacta que recibirá la persona.",
+            "Comprobar método y tiempo de entrega."
+        ])
+    if request.first_transfer:
+        confirmations.append("Comprobar si existen requisitos o condiciones para el primer envío.")
+    if request.recurring_transfer:
+        confirmations.append("Comprobar condiciones aplicables a envíos recurrentes.")
+    if quote and quote.conditions:conditions.extend(quote.conditions)
+    why="Aparece porque está registrado para este corredor y puede ser compatible con tus condiciones."
+    if comp.status=="conditional":why="Aparece porque podría encajar, pero debes verificar las condiciones comerciales antes de pagar."
+    if comp.status=="incompatible":why="Se muestra como referencia, pero no cumple una de las restricciones conocidas."
+    return ProviderOption(
+        provider_id=provider_id(p),
+        name=provider_name(p),
+        official_url=provider_url(p),
+        enabled=p.get("enabled",True) is not False,
+        compatibility=comp,
+        quote=quote,
+        commercial_data={
+            "status":quote.status.value if quote else "unverified",
+            "source":quote.source if quote else None,
+            "verified_at":quote.verified_at if quote else None,
+            "expires_at":quote.expires_at if quote else None
+        },
+        delivery_methods=[str(x) for x in p.get("delivery_methods",[])],
+        payment_methods=[str(x) for x in p.get("payment_methods",[])],
+        why_it_appears=why,
+        what_to_confirm=confirmations,
+        important_conditions=conditions
+    )
 
-    def _amount_from_text(self,text):
-        if not text:return None
-        m=re.search(r"(?:\$|usd\s*)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)",text.lower())
-        if not m:m=re.search(r"(?<!\w)([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:usd|dólares|dolares|dollars)?",text.lower())
-        if not m:return None
-        try:
-            v=float(m.group(1).replace(",",""))
-            return v if v>0 else None
-        except Exception:return None
+def compare_options(request:UserNeedRequest,session_id:Optional[str]=None)->ComparisonResponse:
+    destination=normalize_country(request.destination)
+    options=[]
+    for p in provider_registry():
+        if p.get("enabled",True) is False:continue
+        if request.destination and not provider_supports_corridor(p,destination or ""):continue
+        options.append(provider_option(p,request))
+    results=[]
+    for o in options:
+        q=o.quote
+        results.append(ComparisonResult(
+            provider_id=o.provider_id,
+            provider_name=o.name,
+            compatibility=o.compatibility,
+            quote=q,
+            cost=CostSummary(
+                amount_sent=q.send_amount if q else request.amount,
+                send_currency=q.send_currency if q else "USD",
+                fee=q.fee if q else None,
+                total_out_of_pocket=q.total_out_of_pocket if q else None,
+                exchange_rate=q.exchange_rate if q else None,
+                recipient_amount=q.recipient_amount if q else None,
+                recipient_currency=q.recipient_currency if q else None,
+                status=q.status if q else DataStatus.unverified
+            ),
+            delivery_method=q.delivery_method.value if q and q.delivery_method else None,
+            payment_method=q.payment_method.value if q and q.payment_method else None,
+            why_it_appears=o.why_it_appears,
+            what_to_confirm=o.what_to_confirm,
+            important_conditions=o.important_conditions,
+            official_url=o.official_url
+        ))
+    compatible=sum(x.compatibility.status=="compatible" for x in results)
+    conditional=sum(x.compatibility.status=="conditional" for x in results)
+    incompatible=sum(x.compatibility.status=="incompatible" for x in results)
+    verified=sum(x.cost.status==DataStatus.verified for x in results)
+    unverified=len(results)-verified
+    summary="Se muestran opciones compatibles o condicionadas; no se presenta un proveedor como universalmente mejor."
+    response=ComparisonResponse(
+        session_id=session_id,
+        language=request.language,
+        summary=summary,
+        results=results,
+        compatible_count=compatible,
+        conditional_count=conditional,
+        incompatible_count=incompatible,
+        verified_count=verified,
+        unverified_count=unverified,
+        next_step="Revisa los datos de costo y condiciones. Antes de pagar, realiza la verificación final."
+    )
+    if session_id and session_id in SESSIONS:
+        SESSIONS[session_id].comparison_results=results
+        SESSIONS[session_id].updated_at=now_iso()
+    return response
 
-    def _priority_from_text(self,text):
-        t=(text or "").lower()
-        if any(x in t for x in ["que reciba más","reciba mas","recibir más","recibir mas","más dinero","mas dinero","mejor tasa","mayor cantidad"]):return "recipient_gets_more"
-        if any(x in t for x in ["lo más rápido","lo mas rapido","más rápido","mas rapido","rápido","rapido","en minutos","instantáneo","instantaneo"]):return "fastest"
-        if any(x in t for x in ["hoy","ahora","urgente","urgencia","necesito ya"]):return "urgent"
-        if any(x in t for x in ["ahorrar","barato","menos comisión","menos comision","pagar menos","economizar"]):return "save"
-        if any(x in t for x in ["comparar","compare","todas las opciones","no sé cuál","no se cual"]):return "compare_all"
-        return "balanced"
+def preparation_guide(session:SessionState)->PreparationGuide:
+    sender=[
+        PreparationItem(id="amount",label="Cantidad a enviar",description="Ten definida la cantidad exacta.",required=True,category="sender"),
+        PreparationItem(id="identification",label="Identificación",description="El proveedor puede solicitar identificación según el método y las condiciones aplicables.",required=False,category="sender")
+    ]
+    recipient=[
+        PreparationItem(id="name",label="Nombre completo",description="Debe coincidir con la información requerida por el proveedor.",required=True,category="recipient"),
+        PreparationItem(id="phone",label="Teléfono",description="Tenlo disponible si el método lo solicita.",required=False,category="recipient")
+    ]
+    provider=[
+        PreparationItem(id="delivery",label="Método de recepción",description="Confirma efectivo, banco, wallet u otro método.",required=True,category="provider"),
+        PreparationItem(id="conditions",label="Condiciones",description="Revisa límites, requisitos, tiempos y cualquier condición mostrada.",required=True,category="provider")
+    ]
+    before_payment=[
+        PreparationItem(id="fee",label="Comisión",description="Confirma la comisión vigente.",required=True,category="verification"),
+        PreparationItem(id="rate",label="Tipo de cambio",description="Confirma el tipo de cambio vigente.",required=True,category="verification"),
+        PreparationItem(id="recipient_amount",label="Cantidad que recibe",description="Confirma cuánto recibirá la persona.",required=True,category="verification"),
+        PreparationItem(id="total",label="Costo total",description="Confirma cuánto pagarás en total.",required=True,category="verification")
+    ]
+    return PreparationGuide(
+        title="PREPARA TU ENVÍO",
+        introduction="Antes de abrir el proveedor, reúne la información necesaria y comprueba los datos que cambian el costo o la entrega.",
+        sender_items=sender,
+        recipient_items=recipient,
+        provider_items=provider,
+        before_start=["Cantidad","País de destino","Forma de recepción","Método de pago"],
+        before_payment=before_payment,
+        important_conditions=["No pagues basándote en una cifra no verificada.","Comprueba los datos finales directamente con el proveedor."],
+        recipient_information=session.recipient
+    )
 
-    def _urgency_from_text(self,text):
-        t=(text or "").lower()
-        if any(x in t for x in ["ahora","ya mismo","inmediatamente"]):return "now"
-        if any(x in t for x in ["hoy","today"]):return "today"
-        if any(x in t for x in ["mañana","manana","tomorrow","pronto"]):return "soon"
-        if any(x in t for x in ["cuando pueda","sin prisa","no importa cuándo","no importa cuando"]):return "flexible"
-        if any(x in t for x in ["normal"]):return "normal"
-        return "unknown"
+def send_guide(session:SessionState)->SendGuide:
+    steps=[
+        GuideStep(id="prepare",title="Prepara la información",description="Ten lista la cantidad y los datos de la persona destinataria.",instruction="Revisa los datos antes de comenzar.",order=1),
+        GuideStep(id="provider",title="Abre el proveedor",description="Continúa al sitio oficial del proveedor elegido.",instruction="Usa únicamente el enlace oficial mostrado.",order=2),
+        GuideStep(id="recipient",title="Introduce los datos",description="Escribe exactamente la información solicitada.",instruction="Revisa nombre, país y método de recepción.",order=3),
+        GuideStep(id="delivery",title="Selecciona la recepción",description="Elige efectivo, banco, wallet u otro método disponible.",instruction="Confirma que coincide con la necesidad de la persona.",order=4),
+        GuideStep(id="review",title="Revisa antes de pagar",description="Comprueba comisión, tipo de cambio, total y cantidad recibida.",instruction="No confirmes el pago hasta verificar estos datos.",order=5),
+        GuideStep(id="confirm",title="Confirma el envío",description="Finaliza únicamente cuando los datos sean correctos.",instruction="Guarda el número de referencia si el proveedor lo proporciona.",order=6)
+    ]
+    return SendGuide(
+        title="GUÍA PARA ENVIAR",
+        introduction="REMESAS te prepara para el envío; el pago y la transferencia se realizan directamente con el proveedor.",
+        steps=steps,
+        rules=[
+            "No compartas contraseñas ni códigos de seguridad.",
+            "Comprueba el nombre y destino antes de pagar.",
+            "Confirma el costo total y la cantidad que recibe la persona.",
+            "Conserva el comprobante y número de referencia."
+        ]
+    )
 
-    def _delivery_from_text(self,text):
-        t=(text or "").lower()
-        if any(x in t for x in ["efectivo","cash","recoger","retirar","agente","sucursal"]):return "cash_pickup"
-        if any(x in t for x in ["cuenta bancaria","cuenta de banco","banco","bank account","depósito bancario","deposito bancario"]):return "bank_account"
-        if any(x in t for x in ["tarjeta","debit card","débito","debito"]):return "debit_card"
-        if any(x in t for x in ["wallet","billetera","monedero móvil","monedero movil"]):return "mobile_wallet"
-        if any(x in t for x in ["entrega a domicilio","domicilio","home delivery","casa"]):return "home_delivery"
-        return None
-
-    def _payment_from_text(self,text):
-        t=(text or "").lower()
-        if any(x in t for x in ["efectivo","cash"]):return "cash"
-        if any(x in t for x in ["tarjeta de débito","tarjeta de debito","debit card"]):return "debit_card"
-        if any(x in t for x in ["tarjeta de crédito","tarjeta de credito","credit card"]):return "credit_card"
-        if any(x in t for x in ["cuenta bancaria","desde mi banco","bank account"]):return "bank_account"
-        if any(x in t for x in ["paypal","apple pay","google pay","wallet"]):return "digital_wallet"
-        return None
-
-    def _bool_from_text(self,text,positive,negative):
-        t=(text or "").lower()
-        if any(x in t for x in positive):return True
-        if any(x in t for x in negative):return False
-        return None
-
-    def _recipient_bank_from_text(self,text):
-        return self._bool_from_text(text,
-            ["tiene cuenta bancaria","sí tiene banco","si tiene banco","tiene banco","cuenta bancaria"],
-            ["no tiene cuenta bancaria","no tiene banco","sin cuenta bancaria","no usa banco"])
-
-    def _recipient_wallet_from_text(self,text):
-        return self._bool_from_text(text,
-            ["tiene wallet","tiene billetera","usa wallet","usa billetera"],
-            ["no tiene wallet","no tiene billetera","sin wallet"])
-
-    def _first_transfer_from_text(self,text):
-        return self._bool_from_text(text,
-            ["es mi primer envío","es mi primer envio","primera vez","first transfer","nunca he enviado"],
-            ["ya he enviado","ya lo he usado","envío recurrente","envio recurrente"])
-
-    def _recurring_from_text(self,text):
-        return self._bool_from_text(text,
-            ["cada mes","mensual","todos los meses","recurrente","regularmente","every month"],
-            ["una sola vez","solo esta vez","por única vez","por unica vez"])
-
-    def _missing(self,parsed):
-        out=[]
-        if not parsed.amount:out.append(MissingInformation(field="amount",label="Cantidad a enviar",reason="Cambia la cotización y las condiciones comerciales.",question_type="required",affects_options=True))
-        if not parsed.destination_country:out.append(MissingInformation(field="destination_country",label="País de destino",reason="Determina qué proveedores y métodos están disponibles.",question_type="required",affects_options=True))
-        if not parsed.delivery_method and parsed.recipient_has_bank_account is None and parsed.recipient_has_mobile_wallet is None:
-            out.append(MissingInformation(field="delivery_method",label="Cómo recibirá el dinero",reason="Efectivo, banco y wallet pueden cambiar las opciones disponibles.",question_type="useful",affects_options=True))
-        return out
-
-    def parse_need(self,text,current_amount=None,current_destination=None,language="es"):
-        amount=current_amount or self._amount_from_text(text)
-        destination=current_destination or self._country_from_text(text)
-        delivery=self._delivery_from_text(text)
-        payment=self._payment_from_text(text)
-        bank=self._recipient_bank_from_text(text)
-        wallet=self._recipient_wallet_from_text(text)
-        first=self._first_transfer_from_text(text)
-        recurring=self._recurring_from_text(text)
-        priority=self._priority_from_text(text)
-        urgency=self._urgency_from_text(text)
-        special=None
-        t=(text or "").strip()
-        if any(x in t.lower() for x in ["mi mamá","mi mama","mi madre","mi papá","mi papa","mi padre","mi hijo","mi hija"]):special=t
-        if delivery=="cash_pickup" and bank is None:bank=False
-        if delivery=="mobile_wallet" and wallet is None:wallet=True
-        context=DetectedContext(amount=amount,currency="USD",destination_country=destination,priority=priority,urgency=urgency,delivery_method=delivery,payment_method=payment,recipient_has_bank_account=bank,recipient_has_mobile_wallet=wallet,first_transfer=first,recurring_transfer=recurring,special_need=special)
-        missing=self._missing(ParsedNeed(amount=amount,currency="USD",destination_country=destination,priority=priority,urgency=urgency,delivery_method=delivery,payment_method=payment,special_need=special,recipient_has_bank_account=bank,recipient_has_mobile_wallet=wallet,first_transfer=first,recurring_transfer=recurring))
-        detected=sum(x is not None for x in [amount,destination,delivery,payment,bank,wallet,first,recurring])
-        confidence=min(1.0,0.25+detected*.09+(0.2 if amount else 0)+(0.2 if destination else 0))
-        return ParsedNeed(amount=amount,currency="USD",destination_country=destination,priority=priority,urgency=urgency,delivery_method=delivery,payment_method=payment,special_need=special,recipient_has_bank_account=bank,recipient_has_mobile_wallet=wallet,first_transfer=first,recurring_transfer=recurring,original_text=text,detected_context=context,missing_information=missing,confidence=confidence)
-
-    def apply_need(self,session,need):
-        if isinstance(need,ParsedNeed):
-            p=need
-        elif isinstance(need,dict):
-            p=ParsedNeed(**need)
-        else:p=ParsedNeed()
-        session.amount=p.amount
-        session.send_currency=p.currency
-        session.destination=p.destination_country
-        session.priority=p.priority
-        session.urgency=p.urgency
-        session.delivery_method=p.delivery_method
-        session.payment_method=p.payment_method
-        session.special_need=p.special_need
-        session.recipient_has_bank_account=p.recipient_has_bank_account
-        session.recipient_has_mobile_wallet=p.recipient_has_mobile_wallet
-        session.first_transfer=p.first_transfer
-        session.recurring_transfer=p.recurring_transfer
-        session.parsed_user_need=p
-        session.detected_context=p.detected_context
-        session.current_step="analysis"
-        return session
-
-    def _provider_registry(self):
-        p=self.providers_data.get("providers",[])
-        if isinstance(p,dict):return list(p.values())
-        return p if isinstance(p,list) else []
-
-    def _provider_by_id(self,pid):
-        for p in self._provider_registry():
-            if str(p.get("id",p.get("provider_id",""))).lower()==str(pid).lower():return p
-        return None
-
-    def _corridor(self,destination):
-        corridors=self.providers_data.get("corridors",{})
-        if isinstance(corridors,dict):
-            c=corridors.get(destination)
-            if isinstance(c,dict):return c
-        if isinstance(corridors,list):
-            for c in corridors:
-                if isinstance(c,dict) and str(c.get("destination_country",c.get("country",""))).upper()==destination:return c
-        return None
-
-    def _provider_ids_for_corridor(self,destination):
-        c=self._corridor(destination)
-        if not c:return [str(p.get("id",p.get("provider_id",""))) for p in self._provider_registry() if p.get("enabled",True)]
-        ids=c.get("providers",[])
-        result=[]
-        for x in ids:
-            if isinstance(x,str):result.append(x)
-            elif isinstance(x,dict):
-                pid=x.get("provider_id",x.get("id"))
-                if pid:result.append(pid)
-        return result
-
-    def get_verified_provider_data(self,provider_id,destination=None):
-        p=self._provider_by_id(provider_id)
-        if not p:return None
-        cd=p.get("commercial_data",{})
-        if str(cd.get("status","")).lower()!="verified":return None
-        if not cd.get("source") or not cd.get("verified_at"):return None
-        if destination and cd.get("destination_country") and str(cd.get("destination_country")).upper()!=str(destination).upper():return None
-        return cd
-
-    def _delivery_list(self,p):
-        vals=p.get("delivery_methods",p.get("delivery",[]))
-        return [str(x) for x in vals] if isinstance(vals,list) else []
-
-    def _payment_list(self,p):
-        vals=p.get("payment_methods",p.get("payment",[]))
-        return [str(x) for x in vals] if isinstance(vals,list) else []
-
-    def _compatibility(self,p,req):
-        pid=str(p.get("id",p.get("provider_id","")))
-        reasons=[]
-        conditions=[]
-        delivery=req.delivery_method
-        payment=req.payment_method
-        deliveries=self._delivery_list(p)
-        payments=self._payment_list(p)
-        if delivery and delivery not in deliveries:
-            return Compatibility(status="not_compatible",reasons=[f"El proveedor no declara el método de entrega solicitado: {delivery}."],conditions_to_confirm=[])
-        if payment and payment not in payments:
-            return Compatibility(status="not_compatible",reasons=[f"El proveedor no declara el método de pago solicitado: {payment}."],conditions_to_confirm=[])
-        if req.recipient_has_bank_account is False and delivery=="bank_account":
-            return Compatibility(status="not_compatible",reasons=["El receptor indicó que no tiene cuenta bancaria."],conditions_to_confirm=[])
-        if req.recipient_has_mobile_wallet is False and delivery=="mobile_wallet":
-            return Compatibility(status="not_compatible",reasons=["El receptor indicó que no tiene wallet móvil."],conditions_to_confirm=[])
-        if req.urgency in ("now","today") and delivery=="cash_pickup":conditions.append("Confirma que el punto de retiro esté disponible y que el tiempo indicado corresponda a tu corredor.")
-        if req.amount>=5000:conditions.append("Confirma límites, identificación y requisitos aplicables a este importe antes de pagar.")
-        if req.first_transfer is True:conditions.append("Como primer envío, confirma los requisitos de registro e identificación del proveedor.")
-        if req.recurring_transfer is True:conditions.append("Si será recurrente, comprueba tarifas, promociones y condiciones para envíos posteriores.")
-        if req.destination_country=="CU":conditions.append("Para Cuba, confirma específicamente disponibilidad, método, moneda, tarifa y requisitos del corredor.")
-        if not deliveries:conditions.append("Confirma el método de entrega directamente con el proveedor.")
-        if not payments:conditions.append("Confirma el método de pago directamente con el proveedor.")
-        reasons.append("El proveedor aparece en el corredor solicitado.")
-        if conditions:return Compatibility(status="conditional",reasons=reasons,conditions_to_confirm=conditions)
-        return Compatibility(status="compatible",reasons=reasons,conditions_to_confirm=[])
-
-    def provider_public_option(self,p):
-        pid=str(p.get("id",p.get("provider_id","")))
-        return ProviderOption(
-            provider_id=pid,
-            provider_name=p.get("name",p.get("provider_name",pid)),
-            enabled=p.get("enabled",p.get("status","verified")!="disabled"),
-            available=True,
-            official_url=p.get("official_url") or p.get("urls",{}).get("main") if isinstance(p.get("urls",{}),dict) else p.get("official_url"),
-            delivery_methods=self._delivery_list(p),
-            payment_methods=self._payment_list(p),
-            commercial_data_status="unavailable"
-        )
-
-    def _quote(self,p,req):
-        cd=self.get_verified_provider_data(str(p.get("id",p.get("provider_id",""))),req.destination_country)
-        if not cd:return None
-        fee=cd.get("fee")
-        rate=cd.get("exchange_rate")
-        recipient=cd.get("recipient_amount")
-        total=req.amount+fee if isinstance(fee,(int,float)) else None
-        status="verified"
-        verification=Verification(status=status,source=cd.get("source"),verified_at=cd.get("verified_at"),expires_at=cd.get("expires_at"))
-        return ProviderQuote(
-            provider_id=str(p.get("id",p.get("provider_id",""))),
-            provider_name=p.get("name",p.get("provider_name","")),
-            origin_country="US",
-            destination_country=req.destination_country,
-            send_amount=req.amount,
-            send_currency=req.currency,
-            recipient_currency=cd.get("recipient_currency"),
-            fee=fee,
-            exchange_rate=rate,
-            recipient_amount=recipient,
-            delivery_method=cd.get("delivery_method"),
-            delivery_time=cd.get("delivery_time"),
-            payment_method=cd.get("payment_method"),
-            verification=verification,
-            important_conditions=cd.get("important_conditions",[]) if isinstance(cd.get("important_conditions",[]),list) else [],
-            official_url=p.get("official_url")
-        )
-
-    def analyze_need(self,req):
-        constraints=[]
-        factors=[]
-        if req.amount:
-            factors.append({"factor":"amount","value":str(req.amount),"importance":"high","explanation":"El importe puede cambiar tarifas, límites y condiciones."})
-        if req.destination_country:
-            factors.append({"factor":"destination","value":req.destination_country,"importance":"high","explanation":"El corredor determina las opciones disponibles."})
-        if req.urgency in ("now","today","soon"):
-            constraints.append(Constraint(type="urgency",value=req.urgency,description="Necesidad de recibir el dinero con rapidez.",effect="La velocidad y disponibilidad pasan a ser factores importantes.",verified=False))
-            factors.append({"factor":"delivery_speed","value":req.urgency,"importance":"high","explanation":"Una entrega rápida puede limitar métodos u opciones."})
-        if req.delivery_method:
-            constraints.append(Constraint(type="delivery_method",value=req.delivery_method,description="Método de recepción solicitado.",effect="Solo deben considerarse opciones compatibles o claramente condicionadas.",verified=True))
-        if req.recipient_has_bank_account is False:
-            constraints.append(Constraint(type="recipient_bank",value="false",description="El receptor no tiene cuenta bancaria.",effect="Las opciones que requieren depósito bancario dejan de ser adecuadas.",verified=True))
-        if req.recipient_has_mobile_wallet is False:
-            constraints.append(Constraint(type="recipient_wallet",value="false",description="El receptor no tiene wallet móvil.",effect="Las opciones que requieren wallet dejan de ser adecuadas.",verified=True))
-        if req.priority=="recipient_gets_more":
-            factors.append({"factor":"recipient_amount","value":"priority","importance":"high","explanation":"La cantidad que recibe el destinatario es un factor principal."})
-        elif req.priority=="save":
-            factors.append({"factor":"total_cost","value":"priority","importance":"high","explanation":"El costo total es un factor principal."})
-        elif req.priority in ("fastest","urgent"):
-            factors.append({"factor":"delivery_speed","value":"priority","importance":"high","explanation":"La rapidez es un factor principal."})
-        else:factors.append({"factor":"balanced","value":"priority","importance":"medium","explanation":"Se deben revisar conjuntamente costo, cantidad recibida, velocidad y método."})
-        compatible_delivery=[]
-        for x in ["bank_account","cash_pickup","debit_card","mobile_wallet","home_delivery"]:
-            if req.recipient_has_bank_account is False and x=="bank_account":continue
-            if req.recipient_has_mobile_wallet is False and x=="mobile_wallet":continue
-            compatible_delivery.append(x)
-        notes=[]
-        if req.amount and req.destination_country:notes.append("El análisis usa el importe y corredor proporcionados.")
-        notes.append("Los valores comerciales actuales solo se muestran cuando cuentan con verificación válida.")
-        return NeedAnalysis(
-            principal_need=self._principal_need(req),
-            context_summary=self._context_summary(req),
-            constraints=constraints,
-            decision_factors=[DecisionFactor(**x) for x in factors],
-            missing_information=self._missing(ParsedNeed(amount=req.amount,currency=req.currency,destination_country=req.destination_country,priority=req.priority,urgency=req.urgency,delivery_method=req.delivery_method,payment_method=req.payment_method,recipient_has_bank_account=req.recipient_has_bank_account,recipient_has_mobile_wallet=req.recipient_has_mobile_wallet,first_transfer=req.first_transfer,recurring_transfer=req.recurring_transfer)),
-            compatible_delivery_methods=compatible_delivery,
-            compatible_payment_methods=["bank_account","debit_card","credit_card","cash","digital_wallet"],
-            analysis_notes=notes
-        )
-
-    def _principal_need(self,req):
-        if req.urgency in ("now","today") or req.priority in ("urgent","fastest"):return "Recibir el dinero con rapidez"
-        if req.priority=="recipient_gets_more":return "Maximizar la cantidad que recibe el destinatario"
-        if req.priority=="save":return "Controlar el costo total del envío"
-        if req.delivery_method=="cash_pickup":return "Permitir que el destinatario retire el dinero en efectivo"
-        if req.delivery_method=="bank_account":return "Depositar el dinero en una cuenta bancaria"
-        return "Encontrar una opción compatible con la situación indicada"
-
-    def _context_summary(self,req):
-        parts=[]
-        if req.amount:parts.append(f"{req.amount:g} {req.currency}")
-        if req.destination_country:parts.append(f"hacia {req.destination_country}")
-        if req.urgency!="unknown":parts.append(f"urgencia {req.urgency}")
-        if req.delivery_method:parts.append(f"recepción {req.delivery_method}")
-        if req.recipient_has_bank_account is False:parts.append("receptor sin cuenta bancaria")
-        return ", ".join(parts) if parts else "Información inicial incompleta"
-
-    def compare(self,req):
-        if isinstance(req,dict):req=ComparisonRequest(**req)
-        analysis=self.analyze_need(req)
-        ids=req.provider_ids or self._provider_ids_for_corridor(req.destination_country)
-        results=[]
-        available=[]
-        verified=[]
-        for pid in ids:
-            p=self._provider_by_id(pid)
-            if not p:continue
-            comp=self._compatibility(p,req)
-            option=self.provider_public_option(p)
-            option.compatibility=comp.status
-            option.compatibility_reasons=comp.reasons
-            option.important_conditions=comp.conditions_to_confirm
-            available.append(option)
-            quote=self._quote(p,req)
-            if quote:
-                cost=CostSummary(amount_sent=req.amount,send_currency=req.currency,fee=quote.fee,total_out_of_pocket=req.amount+quote.fee if quote.fee is not None else None,exchange_rate=quote.exchange_rate,recipient_amount=quote.recipient_amount,recipient_currency=quote.recipient_currency,status="verified",explanation="Valores comerciales tomados de datos verificados del proveedor.")
-                verification=quote.verification
-                result=ComparisonResult(
-                    provider_id=option.provider_id,provider_name=option.provider_name,
-                    compatibility=comp,cost=cost,delivery_method=quote.delivery_method,estimated_delivery=quote.delivery_time,
-                    payment_method=quote.payment_method,important_conditions=list(dict.fromkeys(quote.important_conditions+comp.conditions_to_confirm)),
-                    verification=verification,official_url=option.official_url,
-                    why_it_appears=comp.reasons,what_to_confirm=comp.conditions_to_confirm
-                )
-                results.append(result)
-                if comp.status!="not_compatible":verified.append(result)
-            else:
-                verification=Verification(status="unavailable",source=None,verified_at=None,note="No existe una cotización comercial verificada actual para este corredor e importe.")
-                cost=CostSummary(amount_sent=req.amount,send_currency=req.currency,status="unavailable",explanation="Tarifa, tasa y cantidad recibida no están verificadas actualmente.")
-                results.append(ComparisonResult(
-                    provider_id=option.provider_id,provider_name=option.provider_name,compatibility=comp,cost=cost,
-                    delivery_method=req.delivery_method,estimated_delivery=None,payment_method=req.payment_method,
-                    important_conditions=list(dict.fromkeys(comp.conditions_to_confirm+["Confirma tarifa, tasa, cantidad recibida y tiempo directamente con el proveedor antes de pagar."])),
-                    verification=verification,official_url=option.official_url,why_it_appears=comp.reasons,
-                    what_to_confirm=list(dict.fromkeys(comp.conditions_to_confirm+["Cotización actual del proveedor."]))
+def final_check(session:SessionState,provider_id_value:Optional[str]=None,recipient:Optional[RecipientInformation]=None,confirm_provider_data:bool=False)->FinalCheckResponse:
+    pid=provider_id_value or session.selected_provider_id
+    provider=session.selected_provider
+    if pid and not provider:
+        for p in provider_registry():
+            if provider_id(p)==pid:
+                provider=provider_option(p,UserNeedRequest(
+                    language=session.language,
+                    amount=session.amount or 1,
+                    destination=session.destination or "MX",
+                    priority=session.priority or Priority.balanced,
+                    urgency=session.urgency,
+                    delivery_method=session.delivery_method,
+                    payment_method=session.payment_method,
+                    free_text=session.free_text,
+                    recipient_has_bank_account=session.recipient_has_bank_account,
+                    recipient_has_mobile_wallet=session.recipient_has_mobile_wallet,
+                    first_transfer=session.first_transfer,
+                    recurring_transfer=session.recurring_transfer,
+                    special_need=session.special_need
                 ))
-        explanation=[
-            "Las opciones se muestran según el corredor y las condiciones conocidas.",
-            "Una opción compatible no significa que sus valores comerciales estén actualmente verificados.",
-            "No se rellenan tarifas, tasas, cantidades recibidas ni tiempos que no estén verificados."
-        ]
-        unavailable=[f"{r.provider_name}: datos comerciales actuales no verificados." for r in results if r.cost.status!="verified"]
-        return ComparisonResponse(language="es",analysis=analysis,results=results,available_providers=available,verified_results=verified,unavailable_information=unavailable,explanation=explanation,next_step="preparation")
+                break
+    q=provider.quote if provider else None
+    items=[]
+    items.append(FinalCheckItem(id="provider",label="Proveedor elegido",status="ok" if provider else "missing",value=provider.name if provider else None,message="Proveedor identificado." if provider else "Selecciona una opción."))
+    items.append(FinalCheckItem(id="country",label="País de destino",status="ok" if session.destination else "missing",value=session.destination))
+    items.append(FinalCheckItem(id="amount",label="Cantidad a enviar",status="ok" if session.amount else "missing",value=session.amount))
+    items.append(FinalCheckItem(id="delivery",label="Forma de recepción",status="ok" if session.delivery_method else "verify",value=session.delivery_method.value if session.delivery_method else None))
+    verified=bool(q and is_verified(q.model_dump()))
+    items.append(FinalCheckItem(id="commercial",label="Datos comerciales",status="ok" if verified else "verify",value=q.model_dump() if q else None,message="Datos comerciales verificados." if verified else "Debes confirmar los datos actuales antes de pagar."))
+    if recipient:
+        session.recipient=recipient
+        if recipient.full_name:
+            items.append(FinalCheckItem(id="recipient_name",label="Nombre de la persona destinataria",status="ok",value=recipient.full_name))
+    else:
+        items.append(FinalCheckItem(id="recipient_name",label="Nombre de la persona destinataria",status="verify",message="Confirma el nombre solicitado por el proveedor."))
+    can_continue=bool(provider and session.amount and session.destination)
+    ready=bool(can_continue and confirm_provider_data and verified)
+    message="Todo lo necesario está identificado." if ready else "Revisa los elementos marcados antes de pagar."
+    return FinalCheckResponse(
+        session_id=session.session_id,
+        language=session.language,
+        items=items,
+        can_continue=can_continue,
+        ready=ready,
+        message=message,
+        provider_id=provider.provider_id if provider else pid,
+        provider_name=provider.name if provider else None,
+        official_url=provider.official_url if provider else None
+    )
 
-    def compare_session(self,session):
-        req=ComparisonRequest(
-            amount=session.amount or 0,currency=session.send_currency,destination_country=session.destination or "",
-            priority=session.priority,urgency=session.urgency,delivery_method=session.delivery_method,payment_method=session.payment_method,
-            special_need=session.special_need,recipient_has_bank_account=session.recipient_has_bank_account,
-            recipient_has_mobile_wallet=session.recipient_has_mobile_wallet,first_transfer=session.first_transfer,recurring_transfer=session.recurring_transfer
-        )
-        result=self.compare(req)
-        session.need_analysis=result.analysis
-        session.available_providers=result.available_providers
-        session.candidate_providers=result.available_providers
-        session.comparison_results=result.results
-        session.verified_results=result.verified_results
-        session.current_step="comparison"
-        session.preparation=self.build_preparation(session)
-        session.send_guide=self.build_send_guide(session)
-        return result
+def create_session(request:UserNeedRequest)->SessionState:
+    sid=str(uuid.uuid4())
+    timestamp=now_iso()
+    analysis=analyze_need(
+        amount=request.amount,destination=request.destination,
+        priority=request.priority,urgency=request.urgency,
+        delivery_method=request.delivery_method,payment_method=request.payment_method,
+        recipient_has_bank_account=request.recipient_has_bank_account,
+        recipient_has_mobile_wallet=request.recipient_has_mobile_wallet,
+        first_transfer=request.first_transfer,recurring_transfer=request.recurring_transfer,
+        special_need=request.special_need,free_text=request.free_text
+    )
+    session=SessionState(
+        session_id=sid,language=request.language,created_at=timestamp,
+        updated_at=timestamp,step="analysis",amount=request.amount,
+        destination=normalize_country(request.destination),priority=request.priority,
+        urgency=request.urgency,delivery_method=request.delivery_method,
+        payment_method=request.payment_method,free_text=request.free_text,
+        recipient_has_bank_account=request.recipient_has_bank_account,
+        recipient_has_mobile_wallet=request.recipient_has_mobile_wallet,
+        first_transfer=request.first_transfer,recurring_transfer=request.recurring_transfer,
+        special_need=request.special_need,need_analysis=analysis,
+        detected_context=analysis.detected_context
+    )
+    SESSIONS[sid]=session
+    return session
 
-    def select_provider(self,session,provider_id):
-        p=self._provider_by_id(provider_id)
-        if not p:raise ValueError("Proveedor no encontrado")
-        option=self.provider_public_option(p)
-        for x in session.available_providers:
-            if x.provider_id==provider_id:option=x;break
-        session.selected_option=option
-        session.current_step="preparation"
-        session.preparation=self.build_preparation(session)
-        session.send_guide=self.build_send_guide(session)
-        return option
+def get_session(session_id:str)->SessionState:
+    if session_id not in SESSIONS:
+        raise KeyError("Session not found")
+    return SESSIONS[session_id]
 
-    def build_preparation(self,session):
-        lang=session.language
-        sender=[
-            PreparationItem("amount","Cantidad a enviar","Ten clara la cantidad que quieres enviar y la moneda.",True),
-            PreparationItem("payment","Método de pago","Comprueba qué método usarás para pagar el envío.",True),
-            PreparationItem("identity","Identificación","El proveedor puede solicitar identificación o información adicional según el envío.",True)
-        ]
-        recipient=[
-            PreparationItem("name","Nombre del receptor","Ten el nombre exactamente como pueda requerirlo el proveedor.",True),
-            PreparationItem("phone","Teléfono","Ten disponible el número del receptor si el proveedor lo solicita.",False),
-            PreparationItem("location","Ubicación","Para retiro en efectivo, confirma ciudad o ubicación necesaria para seleccionar el punto adecuado.",False)
-        ]
-        if session.delivery_method=="bank_account":
-            recipient.extend([
-                PreparationItem("bank","Datos bancarios","Ten los datos bancarios requeridos por el proveedor y el banco receptor.",True)
-            ])
-        if session.delivery_method=="mobile_wallet":
-            recipient.extend([
-                PreparationItem("wallet","Wallet","Ten el número o identificador requerido por la wallet.",True)
-            ])
-        provider=[PreparationItem("requirements","Requisitos del proveedor","Comprueba los requisitos específicos antes de confirmar y pagar.",True)]
-        before_start=["Usa datos reales y revisa cuidadosamente el nombre y los datos del receptor.","No compartas contraseñas, códigos de seguridad ni credenciales con esta aplicación."]
-        before_payment=["Comprueba país, cantidad, método de recepción y método de pago.","Comprueba la tarifa y el tipo de cambio que muestra el proveedor en ese momento.","Comprueba cuánto pagarás en total y cuánto recibirá el destinatario.","Si algún dato no aparece verificado aquí, confírmalo directamente con el proveedor."]
-        conditions=[]
-        if session.amount and session.amount>=5000:conditions.append("Para importes altos pueden existir límites o requisitos adicionales.")
-        if session.first_transfer:conditions.append("En un primer envío pueden solicitarse pasos adicionales de registro o verificación.")
-        if session.recurring_transfer:conditions.append("Para envíos recurrentes, las condiciones de futuras operaciones pueden cambiar.")
-        if session.destination=="CU":conditions.append("Cuba requiere verificación específica del corredor antes de continuar.")
-        return PreparationGuide(title="Antes de empezar",introduction="Prepara únicamente la información necesaria para completar el envío con el proveedor.",sender_items=sender,recipient_items=recipient,provider_items=provider,before_start=before_start,before_payment=before_payment,important_conditions=conditions)
+def update_session(session:SessionState)->SessionState:
+    session.updated_at=now_iso()
+    SESSIONS[session.session_id]=session
+    return session
 
-    def build_send_guide(self,session):
-        p=session.selected_option.provider_name if session.selected_option else None
-        delivery=session.delivery_method
-        payment=session.payment_method
-        steps=[
-            GuideStep(1,"Selecciona el destino","Selecciona el país correcto al que enviarás el dinero.",what_to_select=session.destination,what_to_check="País de destino"),
-            GuideStep(2,"Indica la cantidad","Escribe la cantidad que deseas enviar y comprueba la moneda.",what_to_enter=f"{session.amount:g} {session.send_currency}" if session.amount else None,what_to_check="Cantidad y moneda"),
-            GuideStep(3,"Selecciona cómo recibe","Elige efectivo, cuenta bancaria, tarjeta, wallet u otro método disponible para el receptor.",what_to_select=delivery,what_to_check="Que el método sea el que realmente puede usar el receptor"),
-            GuideStep(4,"Selecciona cómo pagas","Elige el método de pago disponible para ti.",what_to_select=payment,what_to_check="Que el método de pago sea correcto"),
-            GuideStep(5,"Introduce los datos del receptor","Escribe los datos solicitados por el proveedor exactamente como corresponda.",what_to_enter="Datos reales del receptor",what_to_check="Nombre, teléfono y datos de recepción"),
-            GuideStep(6,"Revisa el costo","Antes de pagar, revisa la tarifa, tipo de cambio, total que pagarás y cantidad que recibirá el receptor.",what_to_check="Costo y cantidad recibida"),
-            GuideStep(7,"Confirma solo después de revisar","Si todo coincide con lo que necesitas, continúa con el proveedor.",what_to_check="Destino, receptor, método y cantidades")
-        ]
-        docs=["El proveedor puede solicitar identificación u otra información según la operación.","No introduzcas en esta aplicación contraseñas, PIN, códigos de seguridad ni credenciales."]
-        recipient=["Nombre del receptor","Teléfono si lo solicita el proveedor"]
-        if delivery=="bank_account":recipient.append("Datos bancarios requeridos por el proveedor")
-        if delivery=="mobile_wallet":recipient.append("Identificador o número de la wallet")
-        if delivery=="cash_pickup":recipient.append("Información necesaria para retiro y ubicación del receptor")
-        warnings=["Las pantallas y campos exactos pertenecen al proveedor y pueden cambiar.","Esta guía explica el proceso; no ejecuta ni garantiza el envío."]
-        return SendGuide(title="Guía para realizar el envío",provider_name=p,delivery_method=delivery,payment_method=payment,steps=steps,documents_or_information=docs,recipient_information=recipient,warnings=warnings)
+def select_provider(session_id:str,pid:str)->ProviderOption:
+    session=get_session(session_id)
+    request=UserNeedRequest(
+        language=session.language,
+        amount=session.amount or 1,
+        destination=session.destination or "MX",
+        priority=session.priority or Priority.balanced,
+        urgency=session.urgency,
+        delivery_method=session.delivery_method,
+        payment_method=session.payment_method,
+        free_text=session.free_text,
+        recipient_has_bank_account=session.recipient_has_bank_account,
+        recipient_has_mobile_wallet=session.recipient_has_mobile_wallet,
+        first_transfer=session.first_transfer,
+        recurring_transfer=session.recurring_transfer,
+        special_need=session.special_need
+    )
+    for p in provider_registry():
+        if provider_id(p)==pid.lower():
+            option=provider_option(p,request)
+            session.selected_provider_id=option.provider_id
+            session.selected_provider=option
+            session.step="preparation"
+            update_session(session)
+            return option
+    raise KeyError("Provider not found")
 
-    def final_check(self,req):
-        if isinstance(req,dict):req=FinalCheckRequest(**req)
-        items=[]
-        missing=[]
-        verify=[]
-        def add(key,label,value,required=True,status="verify",verified=False,explanation=None):
-            items.append(FinalCheckItem(key=key,label=label,value=value,required=required,status=status,verified=verified,explanation=explanation))
-            if status=="missing" and required:missing.append(label)
-            if status=="verify" and required:verify.append(label)
-        add("destination","País de destino",req.destination_country,bool(req.destination_country),"ok" if req.destination_country else "missing",bool(req.destination_country))
-        add("amount","Cantidad",req.amount,bool(req.amount),"ok" if req.amount else "missing",bool(req.amount))
-        add("currency","Moneda",req.currency,bool(req.currency),"ok" if req.currency else "missing",bool(req.currency))
-        add("delivery_method","Método de recepción",req.delivery_method,False,"ok" if req.delivery_method else "verify",bool(req.delivery_method))
-        add("payment_method","Método de pago",req.payment_method,False,"ok" if req.payment_method else "verify",bool(req.payment_method))
-        ri=req.recipient_information
-        if ri:
-            add("recipient_name","Nombre del receptor",ri.full_name,True,"ok" if ri.full_name else "missing",bool(ri.full_name))
-            if req.delivery_method=="bank_account":add("bank_account","Datos bancarios",ri.bank_account,True,"ok" if ri.bank_account else "missing",bool(ri.bank_account))
-            if req.delivery_method=="mobile_wallet":add("wallet","Wallet",ri.wallet,True,"ok" if ri.wallet else "missing",bool(ri.wallet))
-            if req.delivery_method=="cash_pickup":add("pickup_location","Ubicación de retiro",ri.pickup_location,False,"verify",False)
-        else:
-            add("recipient_information","Información del receptor",None,True,"missing",False,"Ten preparados los datos que el proveedor solicite.")
-        if req.provider_id:
-            p=self._provider_by_id(req.provider_id)
-            name=p.get("name",req.provider_id) if p else req.provider_id
-            cd=self.get_verified_provider_data(req.provider_id,req.destination_country)
-            if cd:
-                add("fee","Tarifa",cd.get("fee"),True,"ok",True,"Dato comercial verificado.")
-                add("exchange_rate","Tipo de cambio",cd.get("exchange_rate"),True,"ok",True,"Dato comercial verificado.")
-                add("recipient_amount","Cantidad recibida",cd.get("recipient_amount"),True,"ok",True,"Dato comercial verificado.")
-            else:
-                add("commercial_quote","Cotización actual",None,True,"verify",False,"Confirma tarifa, tasa, cantidad recibida y tiempo directamente con el proveedor.")
-                verify.extend(["Tarifa actual","Tipo de cambio actual","Cantidad que recibe el destinatario"])
-        else:name=None
-        ready=not missing and not verify
-        message="Puedes continuar con la revisión final." if ready else "Hay información que debes completar o verificar antes de pagar."
-        return FinalCheckResponse(ready_to_continue=ready,items=items,missing_items=missing,items_to_verify=list(dict.fromkeys(verify)),warnings=["La información comercial puede cambiar antes del pago.","Confirma los valores que aparezcan como no verificados."],provider_name=name,official_url=p.get("official_url") if req.provider_id and p else None,message=message,next_step="continue" if ready else "review")
+def update_from_parsed(session:SessionState,parsed:ParsedNeed)->SessionState:
+    if parsed.amount is not None:session.amount=parsed.amount
+    if parsed.destination:session.destination=normalize_country(parsed.destination)
+    if parsed.priority is not None:session.priority=parsed.priority
+    if parsed.urgency is not None:session.urgency=parsed.urgency
+    if parsed.delivery_method is not None:session.delivery_method=parsed.delivery_method
+    if parsed.payment_method is not None:session.payment_method=parsed.payment_method
+    if parsed.recipient_has_bank_account is not None:session.recipient_has_bank_account=parsed.recipient_has_bank_account
+    if parsed.recipient_has_mobile_wallet is not None:session.recipient_has_mobile_wallet=parsed.recipient_has_mobile_wallet
+    if parsed.first_transfer is not None:session.first_transfer=parsed.first_transfer
+    if parsed.recurring_transfer is not None:session.recurring_transfer=parsed.recurring_transfer
+    if parsed.special_need:session.special_need=parsed.special_need
+    session.parsed_need=parsed
+    session.detected_context=parsed.detected_context
+    session.free_text=parsed.raw_text
+    session.need_analysis=analyze_need(
+        session.amount,session.destination,session.priority,session.urgency,
+        session.delivery_method,session.payment_method,
+        session.recipient_has_bank_account,session.recipient_has_mobile_wallet,
+        session.first_transfer,session.recurring_transfer,
+        session.special_need,session.free_text
+    )
+    session.step="analysis"
+    return update_session(session)
 
-    def session_final_check(self,session):
-        req=FinalCheckRequest(amount=session.amount or 0,currency=session.send_currency,destination_country=session.destination or "",delivery_method=session.delivery_method,payment_method=session.payment_method,provider_id=session.selected_option.provider_id if session.selected_option else None)
-        result=self.final_check(req)
-        session.final_check=result
-        session.current_step="final_check"
-        return result
+def validate_brain()->Dict[str,Any]:
+    brain=load_brain()
+    required=["app","experience","opening","conversation_logic","decision_flow","data_truth","comparison","preparation","guide","validation"]
+    missing=[x for x in required if x not in brain]
+    return {"valid":not missing,"version":brain.get("version"),"missing_sections":missing,"warnings":[]}
 
-    def public_config(self):
-        b=self.brain
-        opening=b.get("opening",{})
-        comparison=b.get("comparison",{})
+def public_config()->Dict[str,Any]:
+    brain=load_brain()
+    data=load_providers()
+    return {
+        "app":brain.get("app",{}),
+        "experience":brain.get("experience",{}),
+        "opening":brain.get("opening",{}),
+        "countries":brain.get("countries",{}),
+        "delivery_methods":brain.get("delivery_methods",[]),
+        "payment_methods":brain.get("payment_methods",[]),
+        "languages":brain.get("languages",{"default":"es","supported":["es","en"]}),
+        "providers":[
+            {
+                "id":provider_id(p),
+                "name":provider_name(p),
+                "official_url":provider_url(p),
+                "delivery_methods":p.get("delivery_methods",[]),
+                "payment_methods":p.get("payment_methods",[])
+            } for p in provider_registry()
+        ],
+        "data_version":data.get("version")
+    }
+
+def help_data(language:Language=Language.es)->Dict[str,Any]:
+    if language==Language.en:
         return {
-            "app":b.get("app",{}),
-            "opening":opening,
-            "priorities":opening.get("priorities",[]),
-            "countries":b.get("countries",{}).get("initial_supported",b.get("countries",{}).get("supported",[])) if isinstance(b.get("countries",{}),dict) else [],
-            "providers":[self.provider_public_option(p).model_dump(exclude_none=True) for p in self._provider_registry()],
-            "delivery_methods":b.get("delivery_methods",[]),
-            "payment_methods":b.get("payment_methods",[]),
-            "messages":b.get("messages",{}),
-            "provider_handoff":b.get("provider_handoff",{}),
-            "preparation":b.get("preparation",{}),
-            "guide":b.get("guide",{}),
-            "comparison":comparison
+            "title":"How REMESAS works",
+            "message":"Tell us what you need. REMESAS identifies the important constraints, prepares the information, compares compatible options and asks you to verify the final data before payment.",
+            "topics":["Need","Preparation","Comparison","Cost","Verification","Provider"]
         }
-
-    def help(self,language="es"):
-        if language=="en":
-            return HelpResponse(title="How REMESAS helps",message="REMESAS helps you understand your situation, prepare the information you need, compare compatible options and verify the important details before continuing with the provider.",topics=["Your need","What you need to prepare","Costs and exchange rates","Recipient information","Final verification","Provider handoff"])
-        return HelpResponse(title="Cómo te ayuda REMESAS",message="REMESAS te ayuda a entender tu situación, preparar la información necesaria, comparar opciones compatibles y verificar los datos importantes antes de continuar con el proveedor.",topics=["Tu necesidad","Qué debes preparar","Costos y tasas","Datos del receptor","Verificación final","Continuar con el proveedor"])
-
-engine=RemittanceEngine()
+    return {
+        "title":"Cómo funciona REMESAS",
+        "message":"Dinos qué necesitas. REMESAS identifica las condiciones importantes, prepara la información, compara opciones compatibles y te pide verificar los datos finales antes de pagar.",
+        "topics":["Necesidad","Preparación","Comparación","Costo","Verificación","Proveedor"]
+    }
