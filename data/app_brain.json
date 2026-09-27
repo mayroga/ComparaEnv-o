@@ -1,759 +1,1007 @@
 {
-"app": {
-"id": "remesas_latinoamerica",
-"name": "REMESAS",
-"version": "1.0.0",
-"schema_version": "1.0",
-"status": "production",
-"default_language": "es",
-"supported_languages": ["es", "en"],
-"origin_market": "US",
-"target_region": "LATAM",
-"subscription": {
-"currency": "USD",
-"price": 15.99,
-"period": "1_month",
-"type": "subscription",
-"provider": "stripe",
-"description": {
-"es": "Acceso durante un mes a la plataforma de comparación y asistencia para remesas.",
-"en": "One month of access to the remittance comparison and assistance platform."
-}
-}
-},
-"product_promise": {
-"es": "Te ayudamos a encontrar una opción de envío que encaje con lo que necesitas hoy.",
-"en": "We help you find a sending option that fits what you need today.",
-"principles": ["simplify", "compare", "verify", "explain", "guide", "protect_user_control"],
-"never_promise": [
-"guaranteed_delivery",
-"guaranteed_exchange_rate",
-"guaranteed_fee",
-"guaranteed_approval",
-"guaranteed_availability"
-]
-},
-"experience": {
-"client_should_see": [
-"what_they_need",
-"relevant_options",
-"simple_comparison",
-"important_difference",
-"next_action",
-"final_check"
-],
-"client_should_not_see": [
-"internal_kernel",
-"internal_rules",
-"scoring_formula",
-"provider_ranking_formula",
-"api_details",
-"source_processing",
-"internal_validation_logic",
-"debug_information",
-"raw_provider_payloads",
-"technical_errors",
-"private_system_prompts",
-"server_state"
-],
-"tone": {
-"es": ["claro", "tranquilo", "directo", "humano", "practico", "sin_alarmismo"],
-"en": ["clear", "calm", "direct", "human", "practical", "non_alarmist"]
-},
-"interaction_rules": {
-"one_thing_at_a_time": true,
-"minimize_questions": true,
-"ask_only_if_answer_changes_result": true,
-"allow_free_text_need": true,
-"allow_skip_when_information_is_not_required": true,
-"always_explain_unfamiliar_term_on_request": true,
-"never_force_user_to_understand_provider_terminology": true
-}
-},
-"opening": {
-"primary_question": {
-"es": "¿QUÉ NECESITAS HOY?",
-"en": "WHAT DO YOU NEED TODAY?"
-},
-"secondary_text": {
-"es": "Dime cuánto quieres enviar y qué es lo más importante para ti.",
-"en": "Tell me how much you want to send and what matters most to you."
-},
-"amount": {
-"required": false,
-"type": "money",
-"currency_default": "USD",
-"placeholder": {
-"es": "¿Cuánto quieres enviar?",
-"en": "How much do you want to send?"
-}
-},
-"priorities": [
-{"id": "fastest", "icon": "⚡", "label": {"es": "LO NECESITO RÁPIDO", "en": "I NEED IT FAST"}},
-{"id": "save", "icon": "💰", "label": {"es": "QUIERO AHORRAR", "en": "I WANT TO SAVE"}},
-{"id": "recipient_gets_more", "icon": "💵", "label": {"es": "QUIERO QUE RECIBA MÁS", "en": "I WANT THEM TO RECEIVE MORE"}},
-{"id": "urgent", "icon": "🚨", "label": {"es": "ES URGENTE", "en": "IT'S URGENT"}},
-{"id": "balanced", "icon": "⚖️", "label": {"es": "MEJOR EQUILIBRIO", "en": "BEST BALANCE"}},
-{"id": "compare_all", "icon": "🔎", "label": {"es": "QUIERO COMPARAR", "en": "COMPARE OPTIONS"}},
-{"id": "other", "icon": "✍️", "label": {"es": "OTRA NECESIDAD", "en": "OTHER NEED"}}
-],
-"free_text": {
-"enabled": true,
-"placeholder": {
-"es": "También puedes escribir lo que necesitas...",
-"en": "You can also write what you need..."
-},
-"examples": {
-"es": [
-"Quiero mandar $500 a México y que llegue hoy.",
-"Necesito mandar dinero a Cuba.",
-"Quiero que mi familia reciba lo máximo posible.",
-"Quiero comparar antes de enviar.",
-"Necesito mandar una cantidad grande."
-],
-"en": [
-"I want to send $500 to Mexico and have it arrive today.",
-"I need to send money to Cuba.",
-"I want my family to receive as much as possible.",
-"I want to compare before sending.",
-"I need to send a large amount."
-]
-}
-}
-},
-"conversation_logic": {
-"goal": "obtain_only_information_that_can_change_available_or_relevant_options",
-"question_priority": [
-"amount",
-"destination",
-"urgency",
-"delivery_method",
-"payment_method",
-"special_requirement"
-],
-"do_not_ask": [
-"information_that_does_not_change_results",
-"information_already_provided",
-"information_that_can_be_requested_later_by_provider",
-"unnecessary_personal_information"
-],
-"question_rules": [
-{
-"id": "destination_required_for_comparison",
-"condition": "destination_missing",
-"action": "ask_destination"
-},
-{
-"id": "amount_required_for_price_comparison",
-"condition": "amount_missing",
-"action": "ask_amount"
-},
-{
-"id": "delivery_method",
-"condition": "available_options_change_by_delivery_method",
-"action": "ask_only_if_needed"
-},
-{
-"id": "urgency",
-"condition": "priority_is_speed_or_urgent",
-"action": "confirm_required_delivery_time_only_if_needed"
-}
-]
-},
-"kernel": {
-"name": "temporary_remittance_kernel",
-"server_persistence": false,
-"clear_after_session": true,
-"client_local_storage_allowed": true,
-"fields": {
-"session_id": "temporary",
-"language": "es",
-"amount": null,
-"send_currency": "USD",
-"destination_country": null,
-"destination_region": null,
-"priority": null,
-"urgency": null,
-"delivery_method": null,
-"payment_method": null,
-"recipient_amount_target": null,
-"special_need": null,
-"parsed_user_need": null,
-"candidate_providers": [],
-"verified_results": [],
-"selected_option": null,
-"final_check": {},
-"current_step": "opening"
-},
-"never_store": [
-"full_recipient_identity",
-"recipient_account_number",
-"recipient_card_number",
-"bank_password",
-"payment_card_number",
-"cvv",
-"government_id_number",
-"provider_password",
-"authentication_code",
-"full_sensitive_transaction_credentials"
-],
-"session_end": ["clear_kernel", "clear_sensitive_runtime_data"]
-},
-"local_storage": {
-"enabled": true,
-"purpose": [
-"language_preference",
-"app_version",
-"brain_version",
-"user_interface_preferences",
-"optional_non_sensitive_preferences",
-"temporary_session_recovery"
-],
-"never_store": [
-"payment_credentials",
-"bank_credentials",
-"government_identifiers",
-"provider_passwords",
-"authentication_codes",
-"full_recipient_sensitive_data"
-],
-"keys": {
-"language": "remesas_language",
-"app_version": "remesas_app_version",
-"brain_version": "remesas_brain_version",
-"preferences": "remesas_preferences",
-"session": "remesas_session",
-"consent": "remesas_consent"
-},
-"user_controls": {
-"delete_local_data": true,
-"label": {
-"es": "BORRAR MIS DATOS DE ESTE DISPOSITIVO",
-"en": "DELETE MY DATA FROM THIS DEVICE"
-}
-}
-},
-"brain_loading": {
-"source": "data/app_brain.json",
-"load_on_start": true,
-"validate_on_start": true,
-"cache_locally": true,
-"update_when_version_changes": true,
-"never_use_invalid_brain": true,
-"fallback_mode": "safe_read_only",
-"required_sections": [
-"app",
-"experience",
-"opening",
-"conversation_logic",
-"kernel",
-"providers",
-"countries",
-"comparison",
-"validation",
-"security",
-"languages"
-]
-},
-"data_truth": {
-"core_rule": "never_invent_data",
-"commercial_data_requires_verification": true,
-"required_metadata": ["source", "verified_at", "status"],
-"statuses": ["verified", "stale", "unavailable", "restricted", "not_applicable"],
-"stale_data_must_not_be_presented_as_current": true,
-"unknown_value": null,
-"if_data_missing": {
-"action": "do_not_guess",
-"client_message": {
-"es": "No pudimos confirmar ese dato ahora.",
-"en": "We could not confirm that information right now."
-}
-}
-},
-"providers": [
-{
-"id": "western_union",
-"name": "Western Union",
-"enabled": true,
-"category": "remittance_provider",
-"official_site": "https://www.westernunion.com/",
-"supports_online": true,
-"supports_agent": true,
-"supports_multiple_delivery_methods": true,
-"coverage_must_be_verified_by_corridor": true,
-"commercial_data": {
-"fee": null,
-"exchange_rate": null,
-"delivery_time": null,
-"recipient_amount": null,
-"source": null,
-"verified_at": null,
-"status": "unavailable"
-}
-},
-{
-"id": "moneygram",
-"name": "MoneyGram",
-"enabled": true,
-"category": "remittance_provider",
-"official_site": "https://www.moneygram.com/",
-"supports_online": true,
-"supports_agent": true,
-"supports_multiple_delivery_methods": true,
-"coverage_must_be_verified_by_corridor": true,
-"commercial_data": {
-"fee": null,
-"exchange_rate": null,
-"delivery_time": null,
-"recipient_amount": null,
-"source": null,
-"verified_at": null,
-"status": "unavailable"
-}
-},
-{
-"id": "remitly",
-"name": "Remitly",
-"enabled": true,
-"category": "remittance_provider",
-"official_site": "https://www.remitly.com/",
-"supports_online": true,
-"supports_agent": false,
-"supports_multiple_delivery_methods": true,
-"coverage_must_be_verified_by_corridor": true,
-"commercial_data": {
-"fee": null,
-"exchange_rate": null,
-"delivery_time": null,
-"recipient_amount": null,
-"source": null,
-"verified_at": null,
-"status": "unavailable"
-}
-},
-{
-"id": "xoom",
-"name": "Xoom",
-"enabled": true,
-"category": "remittance_provider",
-"official_site": "https://www.xoom.com/",
-"supports_online": true,
-"supports_agent": false,
-"supports_multiple_delivery_methods": true,
-"coverage_must_be_verified_by_corridor": true,
-"commercial_data": {
-"fee": null,
-"exchange_rate": null,
-"delivery_time": null,
-"recipient_amount": null,
-"source": null,
-"verified_at": null,
-"status": "unavailable"
-}
-}
-],
-"provider_rules": {
-"comparison_requires_current_data": true,
-"provider_must_not_be_marked_best_globally": true,
-"provider_order_is_not_recommendation": true,
-"provider_results_must_be_corridor_specific": true,
-"provider_data_may_vary_by": [
-"destination_country",
-"destination_currency",
-"send_amount",
-"payment_method",
-"delivery_method",
-"customer_profile",
-"promotion",
-"time",
-"day",
-"provider_rules"
-]
-},
-"countries": {
-"region": "Latin America and Caribbean",
-"mode": "destination_country",
-"initial_supported": [
-"AR",
-"BO",
-"BR",
-"CL",
-"CO",
-"CR",
-"CU",
-"DO",
-"EC",
-"SV",
-"GT",
-"HN",
-"HT",
-"MX",
-"NI",
-"PA",
-"PY",
-"PE",
-"UY",
-"VE"
-],
-"country_names": {
-"AR": {"es": "Argentina", "en": "Argentina", "currency": "ARS"},
-"BO": {"es": "Bolivia", "en": "Bolivia", "currency": "BOB"},
-"BR": {"es": "Brasil", "en": "Brazil", "currency": "BRL"},
-"CL": {"es": "Chile", "en": "Chile", "currency": "CLP"},
-"CO": {"es": "Colombia", "en": "Colombia", "currency": "COP"},
-"CR": {"es": "Costa Rica", "en": "Costa Rica", "currency": "CRC"},
-"CU": {"es": "Cuba", "en": "Cuba", "currency": "CUP"},
-"DO": {"es": "República Dominicana", "en": "Dominican Republic", "currency": "DOP"},
-"EC": {"es": "Ecuador", "en": "Ecuador", "currency": "USD"},
-"SV": {"es": "El Salvador", "en": "El Salvador", "currency": "USD"},
-"GT": {"es": "Guatemala", "en": "Guatemala", "currency": "GTQ"},
-"HN": {"es": "Honduras", "en": "Honduras", "currency": "HNL"},
-"HT": {"es": "Haití", "en": "Haiti", "currency": "HTG"},
-"MX": {"es": "México", "en": "Mexico", "currency": "MXN"},
-"NI": {"es": "Nicaragua", "en": "Nicaragua", "currency": "NIO"},
-"PA": {"es": "Panamá", "en": "Panama", "currency": "PAB"},
-"PY": {"es": "Paraguay", "en": "Paraguay", "currency": "PYG"},
-"PE": {"es": "Perú", "en": "Peru", "currency": "PEN"},
-"UY": {"es": "Uruguay", "en": "Uruguay", "currency": "UYU"},
-"VE": {"es": "Venezuela", "en": "Venezuela", "currency": "VES"}
-}
-},
-"delivery_methods": [
-{"id": "bank_account", "label": {"es": "Cuenta bancaria", "en": "Bank account"}},
-{"id": "cash_pickup", "label": {"es": "Retiro en efectivo", "en": "Cash pickup"}},
-{"id": "debit_card", "label": {"es": "Tarjeta de débito", "en": "Debit card"}},
-{"id": "mobile_wallet", "label": {"es": "Billetera móvil", "en": "Mobile wallet"}},
-{"id": "home_delivery", "label": {"es": "Entrega a domicilio", "en": "Home delivery"}},
-{"id": "other", "label": {"es": "Otro método", "en": "Other method"}}
-],
-"payment_methods": [
-{"id": "bank_account", "label": {"es": "Cuenta bancaria", "en": "Bank account"}},
-{"id": "debit_card", "label": {"es": "Tarjeta de débito", "en": "Debit card"}},
-{"id": "credit_card", "label": {"es": "Tarjeta de crédito", "en": "Credit card"}},
-{"id": "cash", "label": {"es": "Efectivo", "en": "Cash"}},
-{"id": "digital_wallet", "label": {"es": "Billetera digital", "en": "Digital wallet"}}
-],
-"comparison": {
-"enabled": true,
-"default_sort": "relevance_to_user_need",
-"never_sort_as_best_overall": true,
-"dimensions": [
-"total_cost",
-"exchange_rate",
-"recipient_amount",
-"delivery_speed",
-"delivery_method",
-"payment_method",
-"availability",
-"important_conditions"
-],
-"calculation": {
-"total_cost": "amount_sent_plus_fee",
-"recipient_amount": "provider_verified_recipient_amount",
-"effective_cost": "amount_sent_plus_fee_minus_value_delivered_after_currency_conversion",
-"never_estimate_missing_values": true
-},
-"priority_mapping": {
-"fastest": ["delivery_speed", "availability", "delivery_method"],
-"urgent": ["delivery_speed", "availability"],
-"save": ["fee", "effective_cost"],
-"recipient_gets_more": ["recipient_amount", "exchange_rate", "fee"],
-"balanced": ["recipient_amount", "fee", "delivery_speed", "availability"],
-"compare_all": [
-"total_cost",
-"exchange_rate",
-"recipient_amount",
-"delivery_speed",
-"delivery_method",
-"conditions"
-]
-}
-},
-"result_card": {
-"visible_fields": [
-"provider_name",
-"amount_sent",
-"fee",
-"exchange_rate",
-"recipient_amount",
-"delivery_method",
-"estimated_delivery",
-"important_condition",
-"continue_button"
-],
-"hidden_fields": [
-"internal_score",
-"source_processing",
-"rule_ids",
-"provider_api_data",
-"technical_status"
-],
-"buttons": {
-"continue": {
-"es": "VER ESTA OPCIÓN",
-"en": "VIEW THIS OPTION"
-},
-"details": {
-"es": "VER DETALLES",
-"en": "VIEW DETAILS"
-}
-}
-},
-"explanation": {
-"enabled": true,
-"simple_language": true,
-"show_only_when_useful": true,
-"examples": {
-"fee": {
-"es": "Este es el cargo que aparece para este envío.",
-"en": "This is the fee shown for this transfer."
-},
-"exchange_rate": {
-"es": "Esta es la tasa utilizada para convertir tu dinero.",
-"en": "This is the rate used to convert your money."
-},
-"recipient_amount": {
-"es": "Esta es la cantidad que aparece para recibir.",
-"en": "This is the amount shown for the recipient."
-},
-"delivery_time": {
-"es": "Es el tiempo indicado por el proveedor para esta opción.",
-"en": "This is the delivery time indicated by the provider for this option."
-}
-}
-},
-"validation": {
-"enabled": true,
-"purpose": "prevent_user_errors_before_external_transfer",
-"checks": [
-{"id": "destination", "label": {"es": "País de destino", "en": "Destination country"}},
-{"id": "amount", "label": {"es": "Cantidad", "en": "Amount"}},
-{"id": "currency", "label": {"es": "Moneda", "en": "Currency"}},
-{"id": "delivery_method", "label": {"es": "Forma de entrega", "en": "Delivery method"}},
-{"id": "recipient_information", "label": {"es": "Datos del destinatario", "en": "Recipient information"}},
-{"id": "fee", "label": {"es": "Cargo", "en": "Fee"}},
-{"id": "exchange_rate", "label": {"es": "Tasa de cambio", "en": "Exchange rate"}},
-{"id": "recipient_amount", "label": {"es": "Cantidad que recibe", "en": "Recipient amount"}}
-],
-"final_message": {
-"es": "REVISA ESTOS DATOS ANTES DE CONTINUAR.",
-"en": "REVIEW THESE DETAILS BEFORE CONTINUING."
-},
-"do_not_block_for": ["optional_information"]
-},
-"risk_handling": {
-"purpose": "inform_without_creating_fear",
-"style": "calm",
-"never_use_alarmist_language": true,
-"message_patterns": {
-"unknown": {
-"es": "No pudimos confirmar este dato ahora.",
-"en": "We could not confirm this information right now."
-},
-"changed": {
-"es": "Este dato puede cambiar. Revisa el valor mostrado por el proveedor antes de enviar.",
-"en": "This information can change. Check the value shown by the provider before sending."
-},
-"restriction": {
-"es": "Esta opción tiene una condición que debes revisar antes de continuar.",
-"en": "This option has a condition you should review before continuing."
-},
-"recipient_data": {
-"es": "Es importante escribir los datos del destinatario exactamente como los solicita el proveedor.",
-"en": "Enter the recipient's information exactly as requested by the provider."
-}
-}
-},
-"special_cases": {
-"large_amount": {
-"enabled": true,
-"action": "verify_provider_limits_and_requirements",
-"client_message": {
-"es": "Para esta cantidad pueden existir condiciones adicionales. Vamos a comprobarlas antes de continuar.",
-"en": "This amount may have additional conditions. We will check them before you continue."
-}
-},
-"cuba": {
-"enabled": true,
-"requires_corridor_specific_verification": true,
-"requires_provider_specific_verification": true,
-"never_assume_availability": true,
-"never_assume_delivery_method": true,
-"never_assume_fee": true,
-"never_assume_exchange_rate": true,
-"client_message": {
-"es": "Para Cuba, las opciones pueden depender especialmente del proveedor y del método de entrega. Vamos a comprobar las opciones disponibles.",
-"en": "For Cuba, available options can depend especially on the provider and delivery method. We will check the available options."
-}
-},
-"promotions": {
-"enabled": true,
-"must_show_expiration_when_known": true,
-"must_not_present_promotion_as_standard_price": true
-}
-},
-"provider_handoff": {
-"enabled": true,
-"app_does_not_execute_transfer": true,
-"external_provider_required": true,
-"before_redirect": [
-"show_selected_option",
-"show_final_check",
-"show_provider_name",
-"show_that_provider_is_external"
-],
-"button": {
-"es": "CONTINUAR CON EL PROVEEDOR",
-"en": "CONTINUE WITH PROVIDER"
-},
-"external_notice": {
-"es": "Vas a continuar directamente con el proveedor.",
-"en": "You are about to continue directly with the provider."
-}
-},
-"pdf": {
-"enabled": true,
-"purpose": "personalized_user_guide",
-"language_selection": true,
-"include": [
-"user_need",
-"destination",
-"amount",
-"selected_priority",
-"selected_option",
-"fee",
-"exchange_rate",
-"recipient_amount",
-"delivery_method",
-"provider",
-"important_conditions",
-"final_check",
-"verification_timestamp"
-],
-"exclude": [
-"payment_credentials",
-"passwords",
-"security_codes",
-"full_sensitive_identity_data"
-],
-"title": {
-"es": "MI GUÍA DE ENVÍO DE DINERO",
-"en": "MY MONEY TRANSFER GUIDE"
-}
-},
-"ui": {
-"design": {
-"priority": "simple",
-"mobile_first": true,
-"large_controls": true,
-"high_readability": true,
-"minimal_form_fields": true,
-"progressive_disclosure": true
-},
-"navigation": {
-"home": true,
-"back": true,
-"restart": true,
-"help": true
-},
-"help": {
-"persistent": true,
-"label": {
-"es": "NO SÉ QUÉ HACER",
-"en": "I DON'T KNOW WHAT TO DO"
-},
-"behavior": "explain_current_step_using_kernel"
-}
-},
-"messages": {
-"loading": {
-"es": "Estoy buscando opciones para lo que necesitas.",
-"en": "I'm looking for options that fit what you need."
-},
-"no_results": {
-"es": "No encontramos una opción que podamos confirmar ahora.",
-"en": "We could not find an option we can confirm right now."
-},
-"results_ready": {
-"es": "Estas son las opciones que pudimos encontrar para ti.",
-"en": "These are the options we found for you."
-},
-"session_expired": {
-"es": "Tu sesión terminó. Podemos comenzar de nuevo.",
-"en": "Your session ended. We can start again."
-},
-"restart": {
-"es": "EMPEZAR DE NUEVO",
-"en": "START OVER"
-}
-},
-"security": {
-"server_must_not_store_personal_session_data": true,
-"server_logs_must_not_include_sensitive_user_data": true,
-"never_log_payment_credentials": true,
-"never_log_government_ids": true,
-"never_log_bank_credentials": true,
-"never_expose_internal_kernel_to_client": true,
-"never_expose_private_rules_to_client": true,
-"sanitize_errors": true
-},
-"languages": {
-"default": "es",
-"supported": ["es", "en"],
-"all_client_messages_must_have_translation": true,
-"allow_user_switch_without_restart": true
-},
-"verification": {
-"commercial_information": {
-"must_have_source": true,
-"must_have_verified_at": true,
-"must_have_status": true,
-"must_be_corridor_specific": true
-},
-"source_priority": [
-"official_provider",
-"official_government",
-"official_regulatory_source",
-"trusted_secondary_source"
-],
-"never_claim_verified_without_source": true
-},
-"analytics": {
-"enabled": false,
-"personal_tracking": false,
-"server_side_user_profiles": false
-},
-"compliance_behavior": {
-"app_role": "information_comparison_guidance",
-"does_not_hold_customer_funds": true,
-"does_not_execute_remittance": true,
-"does_not_impersonate_provider": true,
-"does_not_guarantee_transaction": true,
-"does_not_make_decision_for_user": true,
-"user_controls_final_choice": true
-},
-"future_expansion": {
-"additional_providers_supported": true,
-"additional_countries_supported": true,
-"additional_delivery_methods_supported": true,
-"provider_schema_is_modular": true,
-"corridor_schema_is_modular": true,
-"api_integrations_can_be_added_later": true
-},
-"quality_rules": [
-"Never invent a fee.",
-"Never invent an exchange rate.",
-"Never invent delivery speed.",
-"Never invent availability.",
-"Never invent provider requirements.",
-"Never present stale data as current.",
-"Never call a provider universally best.",
-"Never overwhelm the user with internal complexity.",
-"Never ask a question that does not change the result.",
-"Never request sensitive information unnecessarily.",
-"Never store sensitive credentials.",
-"Always preserve user control.",
-"Always distinguish verified information from unavailable information.",
-"Always prefer a simple useful explanation over technical language."
-]
+  "app": {
+    "id": "remesas_latinoamerica",
+    "name": "REMESAS",
+    "version": "1.0.0",
+    "schema_version": "1.0",
+    "status": "production",
+    "default_language": "es",
+    "supported_languages": ["es", "en"],
+    "origin_market": "US",
+    "target_region": "LATAM",
+    "subscription": {
+      "currency": "USD",
+      "price": 15.99,
+      "period": "1_month",
+      "type": "subscription",
+      "provider": "stripe",
+      "description": {
+        "es": "Acceso durante un mes a la plataforma de comparación y asistencia para remesas.",
+        "en": "One month of access to the remittance comparison and assistance platform."
+      }
+    }
+  },
+
+  "product_promise": {
+    "es": "Te ayudamos a encontrar una opción de envío que encaje con lo que necesitas hoy.",
+    "en": "We help you find a sending option that fits what you need today.",
+    "principles": [
+      "simplify",
+      "compare",
+      "verify",
+      "explain",
+      "guide",
+      "protect_user_control"
+    ],
+    "never_promise": [
+      "guaranteed_delivery",
+      "guaranteed_exchange_rate",
+      "guaranteed_fee",
+      "guaranteed_approval",
+      "guaranteed_availability"
+    ]
+  },
+
+  "experience": {
+    "client_should_see": [
+      "what_they_need",
+      "relevant_options",
+      "simple_comparison",
+      "important_difference",
+      "next_action",
+      "final_check"
+    ],
+    "client_should_not_see": [
+      "internal_kernel",
+      "internal_rules",
+      "scoring_formula",
+      "provider_ranking_formula",
+      "api_details",
+      "source_processing",
+      "internal_validation_logic",
+      "debug_information",
+      "raw_provider_payloads",
+      "technical_errors",
+      "private_system_prompts",
+      "server_state"
+    ],
+    "tone": {
+      "es": [
+        "claro",
+        "tranquilo",
+        "directo",
+        "humano",
+        "practico",
+        "sin_alarmismo"
+      ],
+      "en": [
+        "clear",
+        "calm",
+        "direct",
+        "human",
+        "practical",
+        "non_alarmist"
+      ]
+    },
+    "interaction_rules": {
+      "one_thing_at_a_time": true,
+      "minimize_questions": true,
+      "ask_only_if_answer_changes_result": true,
+      "allow_free_text_need": true,
+      "allow_skip_when_information_is_not_required": true,
+      "always_explain_unfamiliar_term_on_request": true,
+      "never_force_user_to_understand_provider_terminology": true
+    }
+  },
+
+  "opening": {
+    "primary_question": {
+      "es": "¿QUÉ NECESITAS HOY?",
+      "en": "WHAT DO YOU NEED TODAY?"
+    },
+    "secondary_text": {
+      "es": "Dime cuánto quieres enviar y qué es lo más importante para ti.",
+      "en": "Tell me how much you want to send and what matters most to you."
+    },
+    "amount": {
+      "required": false,
+      "type": "money",
+      "currency_default": "USD",
+      "placeholder": {
+        "es": "¿Cuánto quieres enviar?",
+        "en": "How much do you want to send?"
+      }
+    },
+    "priorities": [
+      {
+        "id": "fastest",
+        "icon": "⚡",
+        "label": {
+          "es": "LO NECESITO RÁPIDO",
+          "en": "I NEED IT FAST"
+        }
+      },
+      {
+        "id": "save",
+        "icon": "💰",
+        "label": {
+          "es": "QUIERO AHORRAR",
+          "en": "I WANT TO SAVE"
+        }
+      },
+      {
+        "id": "recipient_gets_more",
+        "icon": "💵",
+        "label": {
+          "es": "QUIERO QUE RECIBA MÁS",
+          "en": "I WANT THEM TO RECEIVE MORE"
+        }
+      },
+      {
+        "id": "urgent",
+        "icon": "🚨",
+        "label": {
+          "es": "ES URGENTE",
+          "en": "IT'S URGENT"
+        }
+      },
+      {
+        "id": "balanced",
+        "icon": "⚖️",
+        "label": {
+          "es": "MEJOR EQUILIBRIO",
+          "en": "BEST BALANCE"
+        }
+      },
+      {
+        "id": "compare_all",
+        "icon": "🔎",
+        "label": {
+          "es": "QUIERO COMPARAR",
+          "en": "COMPARE OPTIONS"
+        }
+      },
+      {
+        "id": "other",
+        "icon": "✍️",
+        "label": {
+          "es": "OTRA NECESIDAD",
+          "en": "OTHER NEED"
+        }
+      }
+    ],
+    "free_text": {
+      "enabled": true,
+      "placeholder": {
+        "es": "También puedes escribir lo que necesitas...",
+        "en": "You can also write what you need..."
+      },
+      "examples": {
+        "es": [
+          "Quiero mandar $500 a México y que llegue hoy.",
+          "Necesito mandar dinero a Cuba.",
+          "Quiero que mi familia reciba lo máximo posible.",
+          "Quiero comparar antes de enviar.",
+          "Necesito mandar una cantidad grande."
+        ],
+        "en": [
+          "I want to send $500 to Mexico and have it arrive today.",
+          "I need to send money to Cuba.",
+          "I want my family to receive as much as possible.",
+          "I want to compare before sending.",
+          "I need to send a large amount."
+        ]
+      }
+    }
+  },
+
+  "conversation_logic": {
+    "goal": "obtain_only_information_that_can_change_available_or_relevant_options",
+    "question_priority": [
+      "amount",
+      "destination",
+      "urgency",
+      "delivery_method",
+      "payment_method",
+      "special_requirement"
+    ],
+    "do_not_ask": [
+      "information_that_does_not_change_results",
+      "information_already_provided",
+      "information_that_can_be_requested_later_by_provider",
+      "unnecessary_personal_information"
+    ],
+    "question_rules": [
+      {
+        "id": "destination_required_for_comparison",
+        "condition": "destination_missing",
+        "action": "ask_destination"
+      },
+      {
+        "id": "amount_required_for_price_comparison",
+        "condition": "amount_missing",
+        "action": "ask_amount"
+      },
+      {
+        "id": "delivery_method",
+        "condition": "available_options_change_by_delivery_method",
+        "action": "ask_only_if_needed"
+      },
+      {
+        "id": "urgency",
+        "condition": "priority_is_speed_or_urgent",
+        "action": "confirm_required_delivery_time_only_if_needed"
+      }
+    ]
+  },
+
+  "kernel": {
+    "name": "temporary_remittance_kernel",
+    "server_persistence": false,
+    "clear_after_session": true,
+    "client_local_storage_allowed": true,
+    "fields": {
+      "session_id": "temporary",
+      "language": "es",
+      "amount": null,
+      "send_currency": "USD",
+      "destination_country": null,
+      "destination_region": null,
+      "priority": null,
+      "urgency": null,
+      "delivery_method": null,
+      "payment_method": null,
+      "recipient_amount_target": null,
+      "special_need": null,
+      "parsed_user_need": null,
+      "candidate_providers": [],
+      "verified_results": [],
+      "selected_option": null,
+      "final_check": {},
+      "current_step": "opening"
+    },
+    "never_store": [
+      "full_recipient_identity",
+      "recipient_account_number",
+      "recipient_card_number",
+      "bank_password",
+      "payment_card_number",
+      "cvv",
+      "government_id_number",
+      "provider_password",
+      "authentication_code",
+      "full_sensitive_transaction_credentials"
+    ],
+    "session_end": [
+      "clear_kernel",
+      "clear_sensitive_runtime_data"
+    ]
+  },
+
+  "local_storage": {
+    "enabled": true,
+    "purpose": [
+      "language_preference",
+      "app_version",
+      "brain_version",
+      "user_interface_preferences",
+      "optional_non_sensitive_preferences",
+      "temporary_session_recovery"
+    ],
+    "never_store": [
+      "payment_credentials",
+      "bank_credentials",
+      "government_identifiers",
+      "provider_passwords",
+      "authentication_codes",
+      "full_recipient_sensitive_data"
+    ],
+    "keys": {
+      "language": "remesas_language",
+      "app_version": "remesas_app_version",
+      "brain_version": "remesas_brain_version",
+      "preferences": "remesas_preferences",
+      "session": "remesas_session",
+      "consent": "remesas_consent"
+    },
+    "user_controls": {
+      "delete_local_data": true,
+      "label": {
+        "es": "BORRAR MIS DATOS DE ESTE DISPOSITIVO",
+        "en": "DELETE MY DATA FROM THIS DEVICE"
+      }
+    }
+  },
+
+  "brain_loading": {
+    "source": "data/app_brain.json",
+    "load_on_start": true,
+    "validate_on_start": true,
+    "cache_locally": true,
+    "update_when_version_changes": true,
+    "never_use_invalid_brain": true,
+    "fallback_mode": "safe_read_only",
+    "required_sections": [
+      "app",
+      "experience",
+      "opening",
+      "conversation_logic",
+      "kernel",
+      "providers",
+      "countries",
+      "comparison",
+      "validation",
+      "security",
+      "languages"
+    ]
+  },
+
+  "data_truth": {
+    "core_rule": "never_invent_data",
+    "commercial_data_requires_verification": true,
+    "required_metadata": [
+      "source",
+      "verified_at",
+      "status"
+    ],
+    "statuses": [
+      "verified",
+      "stale",
+      "unavailable",
+      "restricted",
+      "not_applicable"
+    ],
+    "stale_data_must_not_be_presented_as_current": true,
+    "unknown_value": null,
+    "if_data_missing": {
+      "action": "do_not_guess",
+      "client_message": {
+        "es": "No pudimos confirmar ese dato ahora.",
+        "en": "We could not confirm that information right now."
+      }
+    }
+  },
+
+  "providers": [
+    {
+      "id": "western_union",
+      "name": "Western Union",
+      "enabled": true,
+      "category": "remittance_provider",
+      "official_site": "https://www.westernunion.com/",
+      "supports_online": true,
+      "supports_agent": true,
+      "supports_multiple_delivery_methods": true,
+      "coverage_must_be_verified_by_corridor": true,
+      "commercial_data": {
+        "fee": null,
+        "exchange_rate": null,
+        "delivery_time": null,
+        "recipient_amount": null,
+        "source": null,
+        "verified_at": null,
+        "status": "unavailable"
+      }
+    },
+    {
+      "id": "moneygram",
+      "name": "MoneyGram",
+      "enabled": true,
+      "category": "remittance_provider",
+      "official_site": "https://www.moneygram.com/",
+      "supports_online": true,
+      "supports_agent": true,
+      "supports_multiple_delivery_methods": true,
+      "coverage_must_be_verified_by_corridor": true,
+      "commercial_data": {
+        "fee": null,
+        "exchange_rate": null,
+        "delivery_time": null,
+        "recipient_amount": null,
+        "source": null,
+        "verified_at": null,
+        "status": "unavailable"
+      }
+    },
+    {
+      "id": "remitly",
+      "name": "Remitly",
+      "enabled": true,
+      "category": "remittance_provider",
+      "official_site": "https://www.remitly.com/",
+      "supports_online": true,
+      "supports_agent": false,
+      "supports_multiple_delivery_methods": true,
+      "coverage_must_be_verified_by_corridor": true,
+      "commercial_data": {
+        "fee": null,
+        "exchange_rate": null,
+        "delivery_time": null,
+        "recipient_amount": null,
+        "source": null,
+        "verified_at": null,
+        "status": "unavailable"
+      }
+    },
+    {
+      "id": "xoom",
+      "name": "Xoom",
+      "enabled": true,
+      "category": "remittance_provider",
+      "official_site": "https://www.xoom.com/",
+      "supports_online": true,
+      "supports_agent": false,
+      "supports_multiple_delivery_methods": true,
+      "coverage_must_be_verified_by_corridor": true,
+      "commercial_data": {
+        "fee": null,
+        "exchange_rate": null,
+        "delivery_time": null,
+        "recipient_amount": null,
+        "source": null,
+        "verified_at": null,
+        "status": "unavailable"
+      }
+    }
+  ],
+
+  "provider_rules": {
+    "comparison_requires_current_data": true,
+    "provider_must_not_be_marked_best_globally": true,
+    "provider_order_is_not_recommendation": true,
+    "provider_results_must_be_corridor_specific": true,
+    "provider_data_may_vary_by": [
+      "destination_country",
+      "destination_currency",
+      "send_amount",
+      "payment_method",
+      "delivery_method",
+      "customer_profile",
+      "promotion",
+      "time",
+      "day",
+      "provider_rules"
+    ]
+  },
+
+  "countries": {
+    "region": "Latin America and Caribbean",
+    "mode": "destination_country",
+    "initial_supported": [
+      "AR",
+      "BO",
+      "BR",
+      "CL",
+      "CO",
+      "CR",
+      "CU",
+      "DO",
+      "EC",
+      "SV",
+      "GT",
+      "HN",
+      "HT",
+      "MX",
+      "NI",
+      "PA",
+      "PY",
+      "PE",
+      "UY",
+      "VE"
+    ],
+    "country_names": {
+      "AR": { "es": "Argentina", "en": "Argentina", "currency": "ARS" },
+      "BO": { "es": "Bolivia", "en": "Bolivia", "currency": "BOB" },
+      "BR": { "es": "Brasil", "en": "Brazil", "currency": "BRL" },
+      "CL": { "es": "Chile", "en": "Chile", "currency": "CLP" },
+      "CO": { "es": "Colombia", "en": "Colombia", "currency": "COP" },
+      "CR": { "es": "Costa Rica", "en": "Costa Rica", "currency": "CRC" },
+      "CU": { "es": "Cuba", "en": "Cuba", "currency": "CUP" },
+      "DO": { "es": "República Dominicana", "en": "Dominican Republic", "currency": "DOP" },
+      "EC": { "es": "Ecuador", "en": "Ecuador", "currency": "USD" },
+      "SV": { "es": "El Salvador", "en": "El Salvador", "currency": "USD" },
+      "GT": { "es": "Guatemala", "en": "Guatemala", "currency": "GTQ" },
+      "HN": { "es": "Honduras", "en": "Honduras", "currency": "HNL" },
+      "HT": { "es": "Haití", "en": "Haiti", "currency": "HTG" },
+      "MX": { "es": "México", "en": "Mexico", "currency": "MXN" },
+      "NI": { "es": "Nicaragua", "en": "Nicaragua", "currency": "NIO" },
+      "PA": { "es": "Panamá", "en": "Panama", "currency": "PAB" },
+      "PY": { "es": "Paraguay", "en": "Paraguay", "currency": "PYG" },
+      "PE": { "es": "Perú", "en": "Peru", "currency": "PEN" },
+      "UY": { "es": "Uruguay", "en": "Uruguay", "currency": "UYU" },
+      "VE": { "es": "Venezuela", "en": "Venezuela", "currency": "VES" }
+    }
+  },
+
+  "delivery_methods": [
+    {
+      "id": "bank_account",
+      "label": {
+        "es": "Cuenta bancaria",
+        "en": "Bank account"
+      }
+    },
+    {
+      "id": "cash_pickup",
+      "label": {
+        "es": "Retiro en efectivo",
+        "en": "Cash pickup"
+      }
+    },
+    {
+      "id": "debit_card",
+      "label": {
+        "es": "Tarjeta de débito",
+        "en": "Debit card"
+      }
+    },
+    {
+      "id": "mobile_wallet",
+      "label": {
+        "es": "Billetera móvil",
+        "en": "Mobile wallet"
+      }
+    },
+    {
+      "id": "home_delivery",
+      "label": {
+        "es": "Entrega a domicilio",
+        "en": "Home delivery"
+      }
+    },
+    {
+      "id": "other",
+      "label": {
+        "es": "Otro método",
+        "en": "Other method"
+      }
+    }
+  ],
+
+  "payment_methods": [
+    {
+      "id": "bank_account",
+      "label": {
+        "es": "Cuenta bancaria",
+        "en": "Bank account"
+      }
+    },
+    {
+      "id": "debit_card",
+      "label": {
+        "es": "Tarjeta de débito",
+        "en": "Debit card"
+      }
+    },
+    {
+      "id": "credit_card",
+      "label": {
+        "es": "Tarjeta de crédito",
+        "en": "Credit card"
+      }
+    },
+    {
+      "id": "cash",
+      "label": {
+        "es": "Efectivo",
+        "en": "Cash"
+      }
+    },
+    {
+      "id": "digital_wallet",
+      "label": {
+        "es": "Billetera digital",
+        "en": "Digital wallet"
+      }
+    }
+  ],
+
+  "comparison": {
+    "enabled": true,
+    "default_sort": "relevance_to_user_need",
+    "never_sort_as_best_overall": true,
+    "dimensions": [
+      "total_cost",
+      "exchange_rate",
+      "recipient_amount",
+      "delivery_speed",
+      "delivery_method",
+      "payment_method",
+      "availability",
+      "important_conditions"
+    ],
+    "calculation": {
+      "total_cost": "amount_sent_plus_fee",
+      "recipient_amount": "provider_verified_recipient_amount",
+      "effective_cost": "amount_sent_plus_fee_minus_value_delivered_after_currency_conversion",
+      "never_estimate_missing_values": true
+    },
+    "priority_mapping": {
+      "fastest": [
+        "delivery_speed",
+        "availability",
+        "delivery_method"
+      ],
+      "urgent": [
+        "delivery_speed",
+        "availability"
+      ],
+      "save": [
+        "fee",
+        "effective_cost"
+      ],
+      "recipient_gets_more": [
+        "recipient_amount",
+        "exchange_rate",
+        "fee"
+      ],
+      "balanced": [
+        "recipient_amount",
+        "fee",
+        "delivery_speed",
+        "availability"
+      ],
+      "compare_all": [
+        "total_cost",
+        "exchange_rate",
+        "recipient_amount",
+        "delivery_speed",
+        "delivery_method",
+        "conditions"
+      ]
+    }
+  },
+
+  "result_card": {
+    "visible_fields": [
+      "provider_name",
+      "amount_sent",
+      "fee",
+      "exchange_rate",
+      "recipient_amount",
+      "delivery_method",
+      "estimated_delivery",
+      "important_condition",
+      "continue_button"
+    ],
+    "hidden_fields": [
+      "internal_score",
+      "source_processing",
+      "rule_ids",
+      "provider_api_data",
+      "technical_status"
+    ],
+    "buttons": {
+      "continue": {
+        "es": "VER ESTA OPCIÓN",
+        "en": "VIEW THIS OPTION"
+      },
+      "details": {
+        "es": "VER DETALLES",
+        "en": "VIEW DETAILS"
+      }
+    }
+  },
+
+  "explanation": {
+    "enabled": true,
+    "simple_language": true,
+    "show_only_when_useful": true,
+    "examples": {
+      "fee": {
+        "es": "Este es el cargo que aparece para este envío.",
+        "en": "This is the fee shown for this transfer."
+      },
+      "exchange_rate": {
+        "es": "Esta es la tasa utilizada para convertir tu dinero.",
+        "en": "This is the rate used to convert your money."
+      },
+      "recipient_amount": {
+        "es": "Esta es la cantidad que aparece para recibir.",
+        "en": "This is the amount shown for the recipient."
+      },
+      "delivery_time": {
+        "es": "Es el tiempo indicado por el proveedor para esta opción.",
+        "en": "This is the delivery time indicated by the provider for this option."
+      }
+    }
+  },
+
+  "validation": {
+    "enabled": true,
+    "purpose": "prevent_user_errors_before_external_transfer",
+    "checks": [
+      {
+        "id": "destination",
+        "label": {
+          "es": "País de destino",
+          "en": "Destination country"
+        }
+      },
+      {
+        "id": "amount",
+        "label": {
+          "es": "Cantidad",
+          "en": "Amount"
+        }
+      },
+      {
+        "id": "currency",
+        "label": {
+          "es": "Moneda",
+          "en": "Currency"
+        }
+      },
+      {
+        "id": "delivery_method",
+        "label": {
+          "es": "Forma de entrega",
+          "en": "Delivery method"
+        }
+      },
+      {
+        "id": "recipient_information",
+        "label": {
+          "es": "Datos del destinatario",
+          "en": "Recipient information"
+        }
+      },
+      {
+        "id": "fee",
+        "label": {
+          "es": "Cargo",
+          "en": "Fee"
+        }
+      },
+      {
+        "id": "exchange_rate",
+        "label": {
+          "es": "Tasa de cambio",
+          "en": "Exchange rate"
+        }
+      },
+      {
+        "id": "recipient_amount",
+        "label": {
+          "es": "Cantidad que recibe",
+          "en": "Recipient amount"
+        }
+      }
+    ],
+    "final_message": {
+      "es": "REVISA ESTOS DATOS ANTES DE CONTINUAR.",
+      "en": "REVIEW THESE DETAILS BEFORE CONTINUING."
+    },
+    "do_not_block_for": [
+      "optional_information"
+    ]
+  },
+
+  "risk_handling": {
+    "purpose": "inform_without_creating_fear",
+    "style": "calm",
+    "never_use_alarmist_language": true,
+    "message_patterns": {
+      "unknown": {
+        "es": "No pudimos confirmar este dato ahora.",
+        "en": "We could not confirm this information right now."
+      },
+      "changed": {
+        "es": "Este dato puede cambiar. Revisa el valor mostrado por el proveedor antes de enviar.",
+        "en": "This information can change. Check the value shown by the provider before sending."
+      },
+      "restriction": {
+        "es": "Esta opción tiene una condición que debes revisar antes de continuar.",
+        "en": "This option has a condition you should review before continuing."
+      },
+      "recipient_data": {
+        "es": "Es importante escribir los datos del destinatario exactamente como los solicita el proveedor.",
+        "en": "Enter the recipient's information exactly as requested by the provider."
+      }
+    }
+  },
+
+  "special_cases": {
+    "large_amount": {
+      "enabled": true,
+      "action": "verify_provider_limits_and_requirements",
+      "client_message": {
+        "es": "Para esta cantidad pueden existir condiciones adicionales. Vamos a comprobarlas antes de continuar.",
+        "en": "This amount may have additional conditions. We will check them before you continue."
+      }
+    },
+    "cuba": {
+      "enabled": true,
+      "requires_corridor_specific_verification": true,
+      "requires_provider_specific_verification": true,
+      "never_assume_availability": true,
+      "never_assume_delivery_method": true,
+      "never_assume_fee": true,
+      "never_assume_exchange_rate": true,
+      "client_message": {
+        "es": "Para Cuba, las opciones pueden depender especialmente del proveedor y del método de entrega. Vamos a comprobar las opciones disponibles.",
+        "en": "For Cuba, available options can depend especially on the provider and delivery method. We will check the available options."
+      }
+    },
+    "promotions": {
+      "enabled": true,
+      "must_show_expiration_when_known": true,
+      "must_not_present_promotion_as_standard_price": true
+    }
+  },
+
+  "provider_handoff": {
+    "enabled": true,
+    "app_does_not_execute_transfer": true,
+    "external_provider_required": true,
+    "before_redirect": [
+      "show_selected_option",
+      "show_final_check",
+      "show_provider_name",
+      "show_that_provider_is_external"
+    ],
+    "button": {
+      "es": "CONTINUAR CON EL PROVEEDOR",
+      "en": "CONTINUE WITH PROVIDER"
+    },
+    "external_notice": {
+      "es": "Vas a continuar directamente con el proveedor.",
+      "en": "You are about to continue directly with the provider."
+    }
+  },
+
+  "pdf": {
+    "enabled": true,
+    "purpose": "personalized_user_guide",
+    "language_selection": true,
+    "include": [
+      "user_need",
+      "destination",
+      "amount",
+      "selected_priority",
+      "selected_option",
+      "fee",
+      "exchange_rate",
+      "recipient_amount",
+      "delivery_method",
+      "provider",
+      "important_conditions",
+      "final_check",
+      "verification_timestamp"
+    ],
+    "exclude": [
+      "payment_credentials",
+      "passwords",
+      "security_codes",
+      "full_sensitive_identity_data"
+    ],
+    "title": {
+      "es": "MI GUÍA DE ENVÍO DE DINERO",
+      "en": "MY MONEY TRANSFER GUIDE"
+    }
+  },
+
+  "ui": {
+    "design": {
+      "priority": "simple",
+      "mobile_first": true,
+      "large_controls": true,
+      "high_readability": true,
+      "minimal_form_fields": true,
+      "progressive_disclosure": true
+    },
+    "navigation": {
+      "home": true,
+      "back": true,
+      "restart": true,
+      "help": true
+    },
+    "help": {
+      "persistent": true,
+      "label": {
+        "es": "NO SÉ QUÉ HACER",
+        "en": "I DON'T KNOW WHAT TO DO"
+      },
+      "behavior": "explain_current_step_using_kernel"
+    }
+  },
+
+  "messages": {
+    "loading": {
+      "es": "Estoy buscando opciones para lo que necesitas.",
+      "en": "I'm looking for options that fit what you need."
+    },
+    "no_results": {
+      "es": "No encontramos una opción que podamos confirmar ahora.",
+      "en": "We could not find an option we can confirm right now."
+    },
+    "results_ready": {
+      "es": "Estas son las opciones que pudimos encontrar para ti.",
+      "en": "These are the options we found for you."
+    },
+    "session_expired": {
+      "es": "Tu sesión terminó. Podemos comenzar de nuevo.",
+      "en": "Your session ended. We can start again."
+    },
+    "restart": {
+      "es": "EMPEZAR DE NUEVO",
+      "en": "START OVER"
+    }
+  },
+
+  "security": {
+    "server_must_not_store_personal_session_data": true,
+    "server_logs_must_not_include_sensitive_user_data": true,
+    "never_log_payment_credentials": true,
+    "never_log_government_ids": true,
+    "never_log_bank_credentials": true,
+    "never_expose_internal_kernel_to_client": true,
+    "never_expose_private_rules_to_client": true,
+    "sanitize_errors": true
+  },
+
+  "languages": {
+    "default": "es",
+    "supported": ["es", "en"],
+    "all_client_messages_must_have_translation": true,
+    "allow_user_switch_without_restart": true
+  },
+
+  "verification": {
+    "commercial_information": {
+      "must_have_source": true,
+      "must_have_verified_at": true,
+      "must_have_status": true,
+      "must_be_corridor_specific": true
+    },
+    "source_priority": [
+      "official_provider",
+      "official_government",
+      "official_regulatory_source",
+      "trusted_secondary_source"
+    ],
+    "never_claim_verified_without_source": true
+  },
+
+  "analytics": {
+    "enabled": false,
+    "personal_tracking": false,
+    "server_side_user_profiles": false
+  },
+
+  "compliance_behavior": {
+    "app_role": "information_comparison_guidance",
+    "does_not_hold_customer_funds": true,
+    "does_not_execute_remittance": true,
+    "does_not impersonate_provider": true,
+    "does_not_guarantee_transaction": true,
+    "does_not_make_decision_for_user": true,
+    "user_controls_final_choice": true
+  },
+
+  "future_expansion": {
+    "additional_providers_supported": true,
+    "additional_countries_supported": true,
+    "additional_delivery_methods_supported": true,
+    "provider_schema_is_modular": true,
+    "corridor_schema_is_modular": true,
+    "api_integrations_can_be_added_later": true
+  },
+
+  "quality_rules": [
+    "Never invent a fee.",
+    "Never invent an exchange rate.",
+    "Never invent delivery speed.",
+    "Never invent availability.",
+    "Never invent provider requirements.",
+    "Never present stale data as current.",
+    "Never call a provider universally best.",
+    "Never overwhelm the user with internal complexity.",
+    "Never ask a question that does not change the result.",
+    "Never request sensitive information unnecessarily.",
+    "Never store sensitive credentials.",
+    "Always preserve user control.",
+    "Always distinguish verified information from unavailable information.",
+    "Always prefer a simple useful explanation over technical language."
+  ]
 }
