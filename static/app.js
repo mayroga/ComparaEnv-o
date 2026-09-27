@@ -1,35 +1,212 @@
-const APP={config:{},sessionId:null,language:localStorage.getItem("remesas_language")||"es",amount:null,destination:"",priority:"balanced",urgency:null,delivery_method:null,payment_method:null,free_text:"",analysis:null,comparison:[],preparation:null,send_guide:null,selectedProvider:null,finalCheck:null};
-const TEXT={es:{brand:"REMESAS",tagline:"Entiende tu situación antes de enviar dinero",start:"¿QUÉ NECESITAS HOY?",amount:"¿Cuánto quieres enviar?",destination:"¿A qué país enviarás el dinero?",priority:"¿Qué es más importante para ti?",urgency:"¿Cuándo necesita recibirlo?",delivery:"¿Cómo quieres que lo reciba?",payment:"¿Cómo quieres pagar?",details:"Cuéntame cualquier detalle importante",analyze:"Analizar mi situación",compare:"Ver opciones compatibles",prepare:"Preparar mi envío",guide:"Ver cómo hacerlo",check:"Verificación final",provider:"Continuar con el proveedor",restart:"Empezar de nuevo",back:"Atrás",fastest:"Rapidez",save:"Pagar menos",recipient_gets_more:"Que reciba más",urgent:"Lo necesito urgente",balanced:"Un equilibrio",compare_all:"Quiero comparar",today:"Hoy",soon:"Pronto",normal:"Sin urgencia",bank_account:"Cuenta bancaria",cash_pickup:"Retiro en efectivo",debit_card:"Tarjeta de débito",mobile_wallet:"Billetera móvil",home_delivery:"Entrega a domicilio",credit_card:"Tarjeta de crédito",cash:"Efectivo",digital_wallet:"Billetera digital",loading:"Cargando...",error:"No pudimos completar esta operación. Intenta nuevamente.",noResults:"No hay opciones que puedan mostrarse con los datos verificados disponibles.",verified:"Verificado",unverified:"No verificado",amountSent:"Monto enviado",fee:"Comisión",total:"Total a pagar",rate:"Tipo de cambio",recipientAmount:"Recibe",deliveryTime:"Entrega",whatToConfirm:"Qué debes confirmar",compatible:"Compatible",conditional:"Condicional",incompatible:"No compatible",analysisTitle:"TU SITUACIÓN",preparationTitle:"PREPARA TU ENVÍO",guideTitle:"CÓMO HACER EL ENVÍO",finalTitle:"VERIFICACIÓN FINAL",ready:"Puedes continuar cuando los datos estén confirmados.",notReady:"Faltan datos o verificaciones antes de continuar.",language:"EN"},en:{brand:"REMESAS",tagline:"Understand your situation before sending money",start:"WHAT DO YOU NEED TODAY?",amount:"How much do you want to send?",destination:"Which country are you sending to?",priority:"What matters most to you?",urgency:"When does the recipient need it?",delivery:"How do you want them to receive it?",payment:"How do you want to pay?",details:"Tell me any important detail",analyze:"Analyze my situation",compare:"See compatible options",prepare:"Prepare my transfer",guide:"See how to send it",check:"Final verification",provider:"Continue to provider",restart:"Start over",back:"Back",fastest:"Speed",save:"Pay less",recipient_gets_more:"Recipient gets more",urgent:"I need it urgently",balanced:"A balance",compare_all:"I want to compare",today:"Today",soon:"Soon",normal:"No urgency",bank_account:"Bank account",cash_pickup:"Cash pickup",debit_card:"Debit card",mobile_wallet:"Mobile wallet",home_delivery:"Home delivery",credit_card:"Credit card",cash:"Cash",digital_wallet:"Digital wallet",loading:"Loading...",error:"We could not complete this operation. Please try again.",noResults:"No options can be shown with the verified data currently available.",verified:"Verified",unverified:"Not verified",amountSent:"Amount sent",fee:"Fee",total:"Total to pay",rate:"Exchange rate",recipientAmount:"Recipient receives",deliveryTime:"Delivery",whatToConfirm:"What you must confirm",compatible:"Compatible",conditional:"Conditional",incompatible:"Incompatible",analysisTitle:"YOUR SITUATION",preparationTitle:"PREPARE YOUR TRANSFER",guideTitle:"HOW TO SEND IT",finalTitle:"FINAL VERIFICATION",ready:"You can continue once the data is confirmed.",notReady:"Some information or verification is still required.",language:"ES"}};
-const t=k=>TEXT[APP.language]?.[k]||TEXT.es[k]||k;
+const app=document.getElementById("app");let CFG=null,SESSION=null,LANG="es";
+
+const $=(s,r=document)=>r.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
-const money=(v,c="USD")=>v==null?"—":new Intl.NumberFormat(APP.language==="es"?"es-US":"en-US",{style:"currency",currency:c}).format(Number(v));
-const fmtDate=v=>v?new Date(v).toLocaleString(APP.language==="es"?"es-US":"en-US"):"—";
-async function api(url,opt={}){const r=await fetch(url,{...opt,headers:{"Content-Type":"application/json",...(opt.headers||{})}});let d=null;try{d=await r.json()}catch{}if(!r.ok)throw new Error(d?.detail||d?.message||t("error"));return d}
-function shell(c){document.getElementById("app").innerHTML='<header class="topbar"><div><strong>'+t("brand")+'</strong><span>'+t("tagline")+'</span></div><div class="actions"><button class="ghost" onclick="toggleLanguage()">'+t("language")+'</button></div></header><main class="container">'+c+"</main>"}
-function loading(){shell('<section class="loading"><div class="loader"></div><p>'+t("loading")+"</p></section>")}
-function fail(e){shell('<section class="card error-card"><h2>'+esc(t("error"))+'</h2><p>'+esc(e?.message||t("error"))+'</p><button onclick="resetApp()">'+t("restart")+"</button></section>")}
-function choice(n,v,l,s){return '<button type="button" class="choice '+(s===v?"selected":"")+'" onclick="setChoice(\''+n+"','"+v+"')\">"+esc(l)+"</button>"}
-function renderOpening(){let countries=APP.config?.countries?.initial_supported||APP.config?.countries?.supported||APP.config?.countries||{},opts="";if(Array.isArray(countries))opts=countries.map(c=>{let v=typeof c==="string"?c:c.code||c.id||"",n=typeof c==="string"?c:c.name||c.label||c.code||"";return '<option value="'+esc(v)+'">'+esc(n)+"</option>"}).join("");else if(countries&&typeof countries==="object")opts=Object.entries(countries).map(([k,v])=>{let n=typeof v==="string"?v:v?.name||v?.label||k;return '<option value="'+esc(k)+'">'+esc(n)+"</option>"}).join("");
-shell('<section class="hero"><p class="eyebrow">'+t("brand")+'</p><h1>'+t("start")+'</h1><p>'+esc(APP.config?.app?.product_promise||t("tagline"))+'</p></section><section class="card form-card"><div class="section-head"><h2>'+t("amount")+'</h2></div><div class="amount-wrap"><span>$</span><input id="amount" type="number" min="0.01" step="0.01" value="'+esc(APP.amount||"")+'" placeholder="500"></div><div class="section-head"><h2>'+t("destination")+'</h2></div><select id="destination"><option value="">'+t("destination")+"</option>"+opts+'</select><div class="section-head"><h2>'+t("priority")+'</h2></div><div class="choice-grid">'+choice("priority","fastest",t("fastest"),APP.priority)+choice("priority","save",t("save"),APP.priority)+choice("priority","recipient_gets_more",t("recipient_gets_more"),APP.priority)+choice("priority","urgent",t("urgent"),APP.priority)+choice("priority","balanced",t("balanced"),APP.priority)+choice("priority","compare_all",t("compare_all"),APP.priority)+'</div><div class="section-head"><h2>'+t("urgency")+'</h2></div><div class="choice-grid">'+choice("urgency","today",t("today"),APP.urgency)+choice("urgency","soon",t("soon"),APP.urgency)+choice("urgency","normal",t("normal"),APP.urgency)+'</div><div class="section-head"><h2>'+t("delivery")+'</h2></div><div class="choice-grid">'+choice("delivery_method","bank_account",t("bank_account"),APP.delivery_method)+choice("delivery_method","cash_pickup",t("cash_pickup"),APP.delivery_method)+choice("delivery_method","debit_card",t("debit_card"),APP.delivery_method)+choice("delivery_method","mobile_wallet",t("mobile_wallet"),APP.delivery_method)+choice("delivery_method","home_delivery",t("home_delivery"),APP.delivery_method)+'</div><div class="section-head"><h2>'+t("payment")+'</h2></div><div class="choice-grid">'+choice("payment_method","bank_account",t("bank_account"),APP.payment_method)+choice("payment_method","debit_card",t("debit_card"),APP.payment_method)+choice("payment_method","credit_card",t("credit_card"),APP.payment_method)+choice("payment_method","cash",t("cash"),APP.payment_method)+choice("payment_method","digital_wallet",t("digital_wallet"),APP.payment_method)+'</div><div class="section-head"><h2>'+t("details")+'</h2></div><textarea id="free_text" rows="4" placeholder="'+esc(t("details"))+'">'+esc(APP.free_text)+'</textarea><button class="primary" onclick="startNeed()">'+t("analyze")+"</button></section>");
-if(APP.destination){let d=document.getElementById("destination");if(d)d.value=APP.destination}}
-function setChoice(n,v){APP[n]=v;renderOpening()}
-function collect(){let a=document.getElementById("amount"),d=document.getElementById("destination"),f=document.getElementById("free_text");APP.amount=a?.value?Number(a.value):null;APP.destination=d?.value||"";APP.free_text=f?.value||""}
-async function startNeed(){collect();if(!APP.amount||APP.amount<=0)return alert(t("amount"));if(!APP.destination)return alert(t("destination"));try{loading();let parsed=null;if(APP.free_text.trim())parsed=await api("/api/need/parse",{method:"POST",body:JSON.stringify({language:APP.language,text:APP.free_text})});if(parsed){if(parsed.amount!=null)APP.amount=parsed.amount;if(parsed.destination)APP.destination=parsed.destination;if(parsed.priority)APP.priority=parsed.priority;if(parsed.urgency)APP.urgency=parsed.urgency;if(parsed.delivery_method)APP.delivery_method=parsed.delivery_method;if(parsed.payment_method)APP.payment_method=parsed.payment_method}let d=await api("/api/need",{method:"POST",body:JSON.stringify({language:APP.language,amount:APP.amount,destination:APP.destination,priority:APP.priority,urgency:APP.urgency,delivery_method:APP.delivery_method,payment_method:APP.payment_method,free_text:APP.free_text})});APP.sessionId=d?.session?.session_id||d?.session_id;if(!APP.sessionId)throw new Error(t("error"));await loadAnalysis()}catch(e){fail(e)}}
-async function loadAnalysis(){try{let d=await api("/api/session/"+encodeURIComponent(APP.sessionId)+"/analysis");APP.analysis=d?.analysis||d;renderAnalysis()}catch(e){fail(e)}}
-function renderAnalysis(){let a=APP.analysis||{},f=a.decision_factors||[],c=a.constraints||[],m=a.missing_information||[];let html='<section class="section-head"><h1>'+t("analysisTitle")+'</h1></section><section class="card"><h2>'+esc(a.main_need||a.summary||"")+'</h2>';if(a.summary&&a.main_need!==a.summary)html+='<p>'+esc(a.summary)+"</p>";if(c.length)html+='<h3>Restricciones</h3><div class="info-grid">'+c.map(x=>'<div><strong>'+esc(x.label||x.id)+'</strong><p>'+esc(x.reason||x.value||"")+"</p></div>").join("")+"</div>";if(f.length)html+='<h3>Lo que puede cambiar la decisión</h3><div class="factor-list">'+f.map(x=>'<div><strong>'+esc(x.name||x.id)+'</strong><span>'+esc(x.reason||x.value||"")+"</span></div>").join("")+"</div>";if(m.length)html+='<div class="warning"><strong>Información que falta</strong><ul>'+m.map(x=>"<li>"+esc(x.question||x.label)+"</li>").join("")+"</ul></div>";html+='<button class="primary" onclick="goComparison()">'+t("compare")+'</button><button class="secondary" onclick="renderOpening()">'+t("back")+"</button></section>";shell(html)}
-async function goComparison(){try{loading();let d=await api("/api/session/"+encodeURIComponent(APP.sessionId)+"/compare",{method:"POST",body:JSON.stringify({language:APP.language,session_id:APP.sessionId,priority:APP.priority})});APP.comparison=d?.results||[];renderComparison(d)}catch(e){fail(e)}}
-function renderComparison(d){let r=d?.results||APP.comparison||[];let html='<section class="section-head"><h1>'+t("compare")+'</h1><p>'+esc(d?.summary||"")+"</p></section>";html+=r.length?r.map(renderProviderCard).join(""):'<section class="card"><p>'+t("noResults")+"</p></section>";html+='<button class="secondary" onclick="loadAnalysis()">'+t("back")+"</button>";shell(html)}
-function renderProviderCard(r){let c=r.compatibility||{},q=r.quote||{},z=r.cost||{},s=c.status||"conditional";let html='<section class="card provider-card"><div class="provider-head"><div><h2>'+esc(r.provider_name||r.provider_id)+'</h2><span class="status '+esc(s)+'">'+esc(s==="compatible"?t("compatible"):s==="incompatible"?t("incompatible"):t("conditional"))+"</span></div></div><p>"+esc(r.why_it_appears||c.reason||"")+'</p><div class="data-grid"><div><small>'+t("amountSent")+'</small><strong>'+money(z.amount_sent??q.send_amount,q.send_currency||z.send_currency||"USD")+'</strong></div><div><small>'+t("fee")+'</small><strong>'+(z.fee!=null?money(z.fee,q.send_currency||"USD"):"—")+'</strong></div><div><small>'+t("total")+'</small><strong>'+(z.total_out_of_pocket!=null?money(z.total_out_of_pocket,q.send_currency||"USD"):"—")+'</strong></div><div><small>'+t("rate")+'</small><strong>'+esc(q.exchange_rate??"—")+'</strong></div><div><small>'+t("recipientAmount")+'</small><strong>'+(q.recipient_amount!=null?money(q.recipient_amount,q.recipient_currency||"USD"):"—")+'</strong></div><div><small>'+t("deliveryTime")+'</small><strong>'+esc(q.delivery_time||"—")+"</strong></div></div><p class=\"small\">"+(q.status==="verified"?t("verified"):t("unverified"))+(q.verified_at?" · "+fmtDate(q.verified_at):"")+"</p>";if(r.what_to_confirm?.length)html+='<div class="warning"><strong>'+t("whatToConfirm")+'</strong><ul>'+r.what_to_confirm.map(x=>"<li>"+esc(typeof x==="string"?x:x.label||x.description||"")+"</li>").join("")+"</ul></div>";html+='<button class="primary" onclick="selectProvider(\''+esc(r.provider_id)+'\')">'+t("prepare")+"</button></section>";return html}
-async function selectProvider(id){try{loading();let d=await api("/api/session/"+encodeURIComponent(APP.sessionId)+"/select/"+encodeURIComponent(id),{method:"POST"});APP.selectedProvider=d?.session?.selected_provider||d?.selected_provider||APP.comparison.find(x=>x.provider_id===id)||null;await loadPreparation()}catch(e){fail(e)}}
-async function loadPreparation(){try{let d=await api("/api/session/"+encodeURIComponent(APP.sessionId)+"/preparation");APP.preparation=d?.preparation||d;renderPreparation()}catch(e){fail(e)}}
-function itemText(x){return typeof x==="string"?x:x?.label||x?.description||x?.text||""}
-function renderPreparation(){let p=APP.preparation||{},groups=[["Remitente",p.sender_items],["Destinatario",p.recipient_items],["Proveedor",p.provider_items],["Antes de empezar",p.before_start],["Antes de pagar",p.before_payment]],html='<section class="section-head"><h1>'+esc(p.title||t("preparationTitle"))+'</h1><p>'+esc(p.introduction||"")+'</p></section><section class="card"><div class="info-grid">';groups.forEach(g=>{if(Array.isArray(g[1])&&g[1].length)html+='<div><h3>'+g[0]+'</h3><ul>'+g[1].map(x=>"<li>"+esc(itemText(x))+"</li>").join("")+"</ul></div>"});html+="</div>";if(p.important_conditions?.length)html+='<div class="warning"><strong>Condiciones importantes</strong><ul>'+p.important_conditions.map(x=>"<li>"+esc(itemText(x))+"</li>").join("")+"</ul></div>";html+='<button class="primary" onclick="loadGuide()">'+t("guide")+'</button><button class="secondary" onclick="goComparison()">'+t("back")+"</button></section>";shell(html)}
-async function loadGuide(){try{loading();let d=await api("/api/session/"+encodeURIComponent(APP.sessionId)+"/guide");APP.send_guide=d?.send_guide||d;renderGuide()}catch(e){fail(e)}}
-function renderGuide(){let g=APP.send_guide||{},steps=(g.steps||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)),html='<section class="section-head"><h1>'+esc(g.title||t("guideTitle"))+'</h1><p>'+esc(g.introduction||"")+'</p></section><section class="card"><div class="steps">';steps.forEach((s,i)=>{html+='<div class="step"><b>'+(i+1)+'</b><div><h3>'+esc(s.title||"")+'</h3><p>'+esc(s.description||s.instruction||s.text||"")+'</p>'+(s.what_to_check?'<small>'+esc(s.what_to_check)+"</small>":"")+"</div></div>"});html+="</div>";if(g.rules?.length)html+='<div class="warning"><ul>'+g.rules.map(x=>"<li>"+esc(x)+"</li>").join("")+"</ul></div>";html+='<button class="primary" onclick="loadFinalCheck()">'+t("check")+'</button><button class="secondary" onclick="loadPreparation()">'+t("back")+"</button></section>";shell(html)}
-async function loadFinalCheck(){try{loading();let d=await api("/api/session/"+encodeURIComponent(APP.sessionId)+"/final-check",{method:"POST",body:JSON.stringify({language:APP.language,provider_id:APP.selectedProvider?.provider_id||null,confirm_provider_data:false})});APP.finalCheck=d;renderFinalCheck()}catch(e){fail(e)}}
-function renderFinalCheck(){let f=APP.finalCheck||{},html='<section class="section-head"><h1>'+t("finalTitle")+'</h1></section><section class="card">';(f.items||[]).forEach(x=>{html+='<div class="check-item '+esc(x.status)+'"><strong>'+esc(x.label)+'</strong><span>'+esc(x.message||x.description||x.value||x.status)+"</span></div>"});html+='<div class="'+(f.ready||f.can_continue?"success":"warning")+'"><strong>'+(f.ready||f.can_continue?t("ready"):t("notReady"))+'</strong><p>'+esc(f.message||"")+"</p></div>";if(f.ready||f.can_continue)html+='<button class="primary" onclick="continueProvider()">'+t("provider")+"</button>";html+='<button class="secondary" onclick="loadGuide()">'+t("back")+"</button></section>";shell(html)}
-function continueProvider(){let u=APP.finalCheck?.official_url||APP.selectedProvider?.official_url;if(u)window.open(u,"_blank","noopener,noreferrer");else alert(t("error"))}
-async function resetApp(){if(APP.sessionId)fetch("/api/session/"+encodeURIComponent(APP.sessionId),{method:"DELETE"}).catch(()=>{});localStorage.removeItem("remesas_session_id");APP.sessionId=null;APP.amount=null;APP.destination="";APP.priority="balanced";APP.urgency=null;APP.delivery_method=null;APP.payment_method=null;APP.free_text="";APP.analysis=null;APP.comparison=[];APP.preparation=null;APP.send_guide=null;APP.selectedProvider=null;APP.finalCheck=null;renderOpening()}
-function toggleLanguage(){APP.language=APP.language==="es"?"en":"es";localStorage.setItem("remesas_language",APP.language);renderOpening()}
-async function init(){try{APP.sessionId=null;localStorage.removeItem("remesas_session_id");APP.config=await api("/api/config");renderOpening()}catch(e){fail(e)}}
-window.setChoice=setChoice;window.startNeed=startNeed;window.goComparison=goComparison;window.selectProvider=selectProvider;window.loadPreparation=loadPreparation;window.loadGuide=loadGuide;window.loadFinalCheck=loadFinalCheck;window.continueProvider=continueProvider;window.resetApp=resetApp;window.toggleLanguage=toggleLanguage;window.loadAnalysis=loadAnalysis;window.renderOpening=renderOpening;document.addEventListener("DOMContentLoaded",init);
+const money=(v,c="USD")=>v==null?"No verificado":`${Number(v).toLocaleString(LANG==="es"?"es-US":"en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} ${c}`;
+const post=async(u,b)=>{const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw Error(await r.text());return r.json()};
+const get=async u=>{const r=await fetch(u);if(!r.ok)throw Error(await r.text());return r.json()};
+const del=async u=>{const r=await fetch(u,{method:"DELETE"});if(!r.ok)throw Error(await r.text());return r.json()};
+const text=(es,en)=>LANG==="es"?es:en;
+
+async function init(){
+ try{
+  CFG=await get("/api/config");
+  renderOpening();
+ }catch(e){renderError(e)}
+}
+function renderError(e){
+ app.innerHTML=`<div class="container"><div class="card error"><h2>${text("No pudimos completar esta operación.","We couldn't complete this operation.")}</h2><p>${esc(e.message||"")}</p><button class="primary" onclick="init()">${text("Intentar nuevamente","Try again")}</button></div></div>`;
+}
+function renderOpening(){
+ const o=CFG?.opening||{},countries=CFG?.countries?.items||CFG?.countries?.list||[];
+ app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><div class="top-actions"><button class="ghost" id="langBtn">${LANG==="es"?"EN":"ES"}</button></div></header>
+ <main class="container">
+ <section class="hero"><p class="eyebrow">MAY ROGA LLC</p><h1>${text("Antes de mandar el dinero, entiende tu situación.","Before you send money, understand your situation.")}</h1><p>${text("Te ayudamos a identificar lo que necesitas, qué debes preparar, qué debes verificar y qué opciones son compatibles con tu caso.","We help identify what you need, what to prepare, what to verify, and which options fit your situation.")}</p></section>
+ <section class="card"><div class="section-head"><h2>${text("Cuéntame qué necesitas","Tell me what you need")}</h2><p>${text("Puedes escribirlo con tus propias palabras o completar los datos.","You can describe it in your own words or complete the details.")}</p></div>
+ <form id="needForm">
+ <div class="field"><label>${text("¿Qué quieres hacer?","What do you want to do?")}</label><textarea id="freeText" rows="4" placeholder="${text("Ej.: Quiero mandar $500 a México. Mi mamá necesita recibirlos hoy y no tiene cuenta bancaria.","Example: I want to send $500 to Mexico. My mom needs to receive it today and doesn't have a bank account.")}"></textarea></div>
+ <div class="form-grid">
+ <div class="field"><label>${text("Cantidad","Amount")}</label><input id="amount" type="number" min="0.01" step="0.01" placeholder="500"></div>
+ <div class="field"><label>${text("País de destino","Destination country")}</label><input id="destination" list="countryList" placeholder="${text("México","Mexico")}"><datalist id="countryList">${countries.map(c=>`<option value="${esc(c.name||c.label||c)}">`).join("")}</datalist></div>
+ </div>
+ <div class="field"><label>${text("¿Qué es lo más importante para ti?","What's most important to you?")}</label><div class="choice-grid">
+ ${choice("priority","balanced",text("Equilibrar","Balance"))}
+ ${choice("priority","fastest",text("Rapidez","Speed"))}
+ ${choice("priority","save",text("Pagar menos","Lower cost"))}
+ ${choice("priority","recipient_gets_more",text("Que reciba más","Recipient gets more"))}
+ ${choice("priority","compare_all",text("Entender opciones","Understand options"))}
+ </div></div>
+ <div class="form-grid">
+ <div class="field"><label>${text("¿Cuándo necesita recibirlo?","When does it need to arrive?")}</label><select id="urgency"><option value="">${text("No estoy seguro","Not sure")}</option><option value="today">${text("Hoy","Today")}</option><option value="soon">${text("Pronto","Soon")}</option><option value="normal">${text("No es urgente","Not urgent")}</option></select></div>
+ <div class="field"><label>${text("¿Cómo debe recibirlo?","How should it be received?")}</label><select id="delivery"><option value="">${text("Todavía no sé","Not sure yet")}</option><option value="cash_pickup">${text("Efectivo / recoger","Cash pickup")}</option><option value="bank_account">${text("Cuenta bancaria","Bank account")}</option><option value="mobile_wallet">${text("Billetera móvil","Mobile wallet")}</option></select></div>
+ </div>
+ <div class="field"><label>${text("Si quieres, agrega algún detalle","If you want, add a detail")}</label><input id="special" placeholder="${text("Ej.: es la primera vez, será mensual, no tengo cuenta bancaria...","Example: first transfer, monthly transfer, I don't have a bank account...")}"></div>
+ <button class="primary full" type="submit">${text("Analizar mi situación","Analyze my situation")}</button>
+ </form></section>
+ </main>`;
+ $("#langBtn").onclick=()=>{LANG=LANG==="es"?"en":"es";renderOpening()};
+ $("#needForm").onsubmit=submitNeed;
+}
+function choice(name,value,label){return `<label class="choice"><input type="radio" name="${name}" value="${value}"><span>${label}</span></label>`}
+
+async function submitNeed(e){
+ e.preventDefault();
+ const free=$("#freeText").value.trim(),amount=$("#amount").value,destination=$("#destination").value.trim();
+ if(!free&&!amount&&!destination)return;
+ setLoading(text("Entendiendo tu situación…","Understanding your situation…"));
+ try{
+  let parsed=free?await post("/api/need/parse",{language:LANG,text:free}):null;
+  const p=parsed?.parsed||parsed||{};
+  const body={
+   language:LANG,
+   amount:amount?Number(amount):(p.amount||0),
+   destination:destination||p.destination||"",
+   priority:$('input[name="priority"]:checked')?.value||p.priority||"balanced",
+   urgency:$("#urgency").value||p.urgency||null,
+   delivery_method:$("#delivery").value||p.delivery_method||null,
+   free_text:free||null,
+   special_need:$("#special").value.trim()||p.special_need||null,
+   recipient_has_bank_account:p.recipient_has_bank_account??null,
+   recipient_has_mobile_wallet:p.recipient_has_mobile_wallet??null,
+   first_transfer:p.first_transfer??null,
+   recurring_transfer:p.recurring_transfer??null
+  };
+  if(!body.amount||!body.destination)throw Error(text("Falta la cantidad o el país de destino.","Amount or destination is missing."));
+  const r=await post("/api/need",body);SESSION=r.session||r;
+  await showAnalysis();
+ }catch(e){renderError(e)}
+}
+
+async function showAnalysis(){
+ setLoading(text("Preparando el análisis…","Preparing the analysis…"));
+ try{
+  const r=await get(`/api/session/${SESSION.session_id}/analysis`);SESSION=r.session||SESSION;
+  renderAnalysis(r);
+ }catch(e){renderError(e)}
+}
+function setLoading(msg){
+ app.innerHTML=`<div class="container"><div class="loading card"><div class="loader"></div><p>${esc(msg)}</p></div></div>`;
+}
+function renderAnalysis(r){
+ const s=r.session||SESSION,a=s.need_analysis||r.analysis||{},ctx=a.detected_context||s.detected_context||{};
+ const factors=(a.decision_factors||[]).map(x=>`<div class="info-item"><strong>${esc(x.name||x.id)}</strong><span>${esc(x.reason||x.value||"")}</span></div>`).join("");
+ const cons=(a.constraints||[]).map(x=>`<li><strong>${esc(x.label||x.id)}:</strong> ${esc(x.value??x.reason??"")}</li>`).join("");
+ app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
+ <main class="container"><section class="hero compact"><p class="eyebrow">${text("SEGÚN LO QUE ME DIJISTE","BASED ON WHAT YOU TOLD ME")}</p><h1>${esc(a.main_need||a.summary||text("Tu situación está lista para revisar.","Your situation is ready to review."))}</h1><p>${esc(a.summary||"")}</p></section>
+ <section class="card"><h2>${text("Lo que cambia el resultado","What changes the result")}</h2><div class="info-grid">
+ <div class="info-item"><strong>${text("Cantidad","Amount")}</strong><span>${money(s.amount)}</span></div>
+ <div class="info-item"><strong>${text("Destino","Destination")}</strong><span>${esc(s.destination)}</span></div>
+ <div class="info-item"><strong>${text("Urgencia","Urgency")}</strong><span>${esc(s.urgency||text("No definida","Not defined"))}</span></div>
+ <div class="info-item"><strong>${text("Entrega","Delivery")}</strong><span>${esc(s.delivery_method||text("Por determinar","To determine"))}</span></div>
+ </div></section>
+ ${cons?`<section class="card"><h2>${text("Restricciones detectadas","Detected constraints")}</h2><ul class="clean-list">${cons}</ul></section>`:""}
+ ${factors?`<section class="card"><h2>${text("Factores importantes","Important factors")}</h2><div class="info-grid">${factors}</div></section>`:""}
+ <section class="card warning"><strong>${text("Antes de pagar","Before paying")}</strong><p>${text("Las tarifas, tasas de cambio y cantidades recibidas deben estar verificadas. Si un dato no está verificado, no lo trataremos como un precio real.","Fees, exchange rates and recipient amounts must be verified. If a value is not verified, we will not present it as a real price.")}</p></section>
+ <button class="primary full" onclick="compare()">${text("Ver opciones compatibles","See compatible options")}</button>
+ </main>`;
+}
+
+async function compare(){
+ setLoading(text("Revisando opciones compatibles…","Checking compatible options…"));
+ try{
+  const r=await post(`/api/session/${SESSION.session_id}/compare`,{language:LANG,priority:SESSION.priority||"balanced"});
+  SESSION=r.session||SESSION;renderComparison(r);
+ }catch(e){renderError(e)}
+}
+function renderComparison(r){
+ const s=r.session||SESSION,results=r.results||s.comparison_results||[];
+ const cards=results.map((x,i)=>{
+  const q=x.quote,c=x.cost||{},status=x.compatibility?.status||"conditional";
+  const verified=x.quote?.status==="verified";
+  return `<article class="provider-card ${status}">
+   <div class="provider-head"><div><h3>${esc(x.provider_name)}</h3><span class="status">${esc(status)}</span></div></div>
+   <p>${esc(x.why_it_appears||x.compatibility?.reason||"")}</p>
+   <div class="provider-data">
+    <div><span>${text("Cantidad enviada","Amount sent")}</span><strong>${money(c.amount_sent)}</strong></div>
+    <div><span>${text("Tarifa","Fee")}</span><strong>${money(c.fee)}</strong></div>
+    <div><span>${text("Total pagado","Total paid")}</span><strong>${money(c.total_out_of_pocket)}</strong></div>
+    <div><span>${text("Recibe","Recipient gets")}</span><strong>${money(c.recipient_amount,c.recipient_currency||"")}</strong></div>
+    <div><span>${text("Tipo de cambio","Exchange rate")}</span><strong>${c.exchange_rate==null?text("No verificado","Not verified"):esc(c.exchange_rate)}</strong></div>
+    <div><span>${text("Entrega","Delivery")}</span><strong>${esc(x.delivery_method||text("No verificado","Not verified"))}</strong></div>
+   </div>
+   <p class="${verified?"success":"warning"}">${verified?text("Datos comerciales verificados.","Verified commercial data."):text("Datos comerciales no verificados. Confirma el costo directamente antes de pagar.","Commercial data is not verified. Confirm the cost directly before paying.")}</p>
+   ${(x.what_to_confirm||[]).length?`<details><summary>${text("Qué debes confirmar","What to confirm")}</summary><ul class="clean-list">${x.what_to_confirm.map(v=>`<li>${esc(v)}</li>`).join("")}</ul></details>`:""}
+   <button class="secondary full" onclick="selectProvider('${esc(x.provider_id)}')">${text("Usar esta opción","Use this option")}</button>
+  </article>`}).join("");
+ app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
+ <main class="container"><section class="hero compact"><p class="eyebrow">${text("OPCIONES COMPATIBLES","COMPATIBLE OPTIONS")}</p><h1>${text("No hay una opción universal.","There is no universal option.")}</h1><p>${text("Las opciones aparecen según lo que necesitas. Esto no es un ranking.","Options appear according to your needs. This is not a ranking.")}</p></section>
+ <section class="provider-list">${cards||`<div class="card"><p>${text("No hay opciones disponibles para estas condiciones.","No options are available for these conditions.")}</p></div>`}</section>
+ <button class="secondary full" onclick="showAnalysis()">${text("Volver al análisis","Back to analysis")}</button>
+ </main>`;
+}
+
+async function selectProvider(id){
+ setLoading(text("Preparando la opción seleccionada…","Preparing the selected option…"));
+ try{
+  const r=await post(`/api/session/${SESSION.session_id}/select/${encodeURIComponent(id)}`,{});
+  SESSION=r.session||SESSION;
+  await showPreparation();
+ }catch(e){renderError(e)}
+}
+async function showPreparation(){
+ try{
+  const r=await get(`/api/session/${SESSION.session_id}/preparation`);SESSION=r.session||SESSION;renderPreparation(r);
+ }catch(e){renderError(e)}
+}
+function renderPreparation(r){
+ const s=r.session||SESSION,p=s.preparation||r.preparation||{};
+ const list=a=>(a||[]).map(x=>`<li><strong>${esc(x.label||x.title||"")}</strong>${x.description?`<span>${esc(x.description)}</span>`:""}</li>`).join("");
+ app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
+ <main class="container"><section class="hero compact"><p class="eyebrow">${text("PREPARACIÓN","PREPARATION")}</p><h1>${esc(p.title||text("Prepara tu envío","Prepare your transfer"))}</h1><p>${esc(p.introduction||"")}</p></section>
+ <section class="card"><h2>${text("Antes de comenzar","Before you start")}</h2><ul class="guide-list">${list(p.before_start)}</ul></section>
+ <section class="card"><h2>${text("Información del destinatario","Recipient information")}</h2><ul class="guide-list">${list(p.recipient_items)}</ul></section>
+ <section class="card"><h2>${text("Antes de pagar","Before paying")}</h2><ul class="guide-list">${list(p.before_payment)}</ul></section>
+ <section class="card warning"><strong>${text("Importante","Important")}</strong><p>${text("No introduzcas aquí contraseñas, PIN, códigos de seguridad ni datos bancarios sensibles. REMESAS funciona como guía y preparación.","Do not enter passwords, PINs, security codes, or sensitive banking credentials here. REMESAS is a guidance and preparation layer.")}</p></section>
+ <button class="primary full" onclick="showGuide()">${text("Aprender cómo hacer el envío","Learn how to send it")}</button>
+ </main>`;
+}
+async function showGuide(){
+ try{
+  const r=await get(`/api/session/${SESSION.session_id}/guide`);SESSION=r.session||SESSION;renderGuide(r);
+ }catch(e){renderError(e)}
+}
+function renderGuide(r){
+ const s=r.session||SESSION,g=s.send_guide||r.guide||{};
+ const steps=(g.steps||[]).sort((a,b)=>(a.order||0)-(b.order||0)).map((x,i)=>`<div class="step"><b>${i+1}</b><div><h3>${esc(x.title||"")}</h3><p>${esc(x.description||x.instruction||x.text||"")}</p>${x.what_to_check?`<small>${text("Comprueba:","Check:")} ${esc(x.what_to_check)}</small>`:""}</div></div>`).join("");
+ app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
+ <main class="container"><section class="hero compact"><p class="eyebrow">${text("GUÍA DE ENVÍO","SEND GUIDE")}</p><h1>${esc(g.title||text("Haz el envío paso a paso","Send it step by step"))}</h1><p>${esc(g.introduction||"")}</p></section>
+ <section class="card"><div class="steps">${steps}</div></section>
+ <section class="card"><h2>${text("Reglas importantes","Important rules")}</h2><ul class="clean-list">${(g.rules||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></section>
+ <button class="primary full" onclick="showFinalCheck()">${text("Verificar antes de continuar","Verify before continuing")}</button>
+ </main>`;
+}
+async function showFinalCheck(){
+ try{
+  const r=await post(`/api/session/${SESSION.session_id}/final-check`,{language:LANG,provider_id:SESSION.selected_provider_id||null,confirm_provider_data:false});
+  SESSION=r.session||SESSION;renderFinalCheck(r);
+ }catch(e){renderError(e)}
+}
+function renderFinalCheck(r){
+ const s=r.session||SESSION,f=s.final_check||r,items=f.items||[];
+ app.innerHTML=`<header class="topbar"><div class="brand">REMESAS</div><button class="ghost" onclick="restart()">${text("Reiniciar","Restart")}</button></header>
+ <main class="container"><section class="hero compact"><p class="eyebrow">${text("VERIFICACIÓN FINAL","FINAL CHECK")}</p><h1>${text("Comprueba estos datos antes de pagar","Check these details before paying")}</h1><p>${esc(f.message||"")}</p></section>
+ <section class="card final-check">${items.map(x=>`<div class="check-item ${esc(x.status)}"><div><strong>${esc(x.label)}</strong><span>${esc(x.message||x.description||"")}</span></div><b>${x.status==="ok"?"✓":x.status==="missing"?"!":"?"}</b></div>`).join("")}</section>
+ <section class="card warning"><strong>${text("Último paso","Last step")}</strong><p>${text("El precio, tipo de cambio, método de entrega y cantidad que recibirá el destinatario deben coincidir con la información mostrada por el proveedor en el momento del pago.","The price, exchange rate, delivery method, and recipient amount must match the provider's information at the time of payment.")}</p></section>
+ ${f.can_continue?`<button class="primary full" onclick="providerHandoff()">${text("Continuar con el proveedor","Continue to provider")}</button>`:`<button class="secondary full" onclick="showPreparation()">${text("Revisar preparación","Review preparation")}</button>`}
+ </main>`;
+}
+async function providerHandoff(){
+ try{
+  const r=await post(`/api/session/${SESSION.session_id}/final-check`,{language:LANG,provider_id:SESSION.selected_provider_id||null,confirm_provider_data:true});
+  const s=r.session||SESSION,f=s.final_check||r;
+  if(!f.can_continue){renderFinalCheck(r);return}
+  const url=f.official_url||s.selected_provider?.official_url;
+  if(url)window.open(url,"_blank","noopener,noreferrer");
+  else renderError(Error(text("No hay una página oficial disponible para este proveedor.","No official page is available for this provider.")));
+ }catch(e){renderError(e)}
+}
+async function restart(){
+ try{if(SESSION?.session_id)await del(`/api/session/${SESSION.session_id}`)}catch(_){}
+ SESSION=null;renderOpening();
+}
+init();
