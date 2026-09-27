@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Any,Dict,List,Literal,Optional
-from pydantic import BaseModel,ConfigDict,Field
+from pydantic import BaseModel,Field
 
 class Language(str,Enum):
     es="es"
@@ -54,20 +54,17 @@ class QuestionType(str,Enum):
     recurring_transfer="recurring_transfer"
     other="other"
 
-class StrictModel(BaseModel):
-    model_config=ConfigDict(extra="ignore",use_enum_values=True)
-
-class Money(StrictModel):
+class Money(BaseModel):
     amount:Optional[float]=None
     currency:Optional[str]=None
 
-class Verification(StrictModel):
+class Verification(BaseModel):
     status:DataStatus=DataStatus.unverified
     source:Optional[str]=None
     verified_at:Optional[str]=None
     expires_at:Optional[str]=None
 
-class ProviderQuote(StrictModel):
+class ProviderQuote(BaseModel):
     provider_id:str
     provider_name:Optional[str]=None
     origin_country:Optional[str]=None
@@ -88,14 +85,14 @@ class ProviderQuote(StrictModel):
     verified_at:Optional[str]=None
     expires_at:Optional[str]=None
 
-class Compatibility(StrictModel):
+class Compatibility(BaseModel):
     status:Literal["compatible","conditional","incompatible"]="conditional"
     reason:Optional[str]=None
     matched_constraints:List[str]=Field(default_factory=list)
     unmet_constraints:List[str]=Field(default_factory=list)
     conditions:List[str]=Field(default_factory=list)
 
-class ProviderOption(StrictModel):
+class ProviderOption(BaseModel):
     provider_id:str
     name:str
     official_url:Optional[str]=None
@@ -109,7 +106,7 @@ class ProviderOption(StrictModel):
     what_to_confirm:List[str]=Field(default_factory=list)
     important_conditions:List[str]=Field(default_factory=list)
 
-class UserNeedRequest(StrictModel):
+class UserNeedRequest(BaseModel):
     language:Language=Language.es
     amount:float=Field(gt=0)
     destination:str=Field(min_length=2)
@@ -124,18 +121,18 @@ class UserNeedRequest(StrictModel):
     recurring_transfer:Optional[bool]=None
     special_need:Optional[str]=None
 
-class ParseNeedRequest(StrictModel):
+class ParseNeedRequest(BaseModel):
     language:Language=Language.es
     text:str=Field(min_length=1,max_length=5000)
 
-class MissingInformation(StrictModel):
+class MissingInformation(BaseModel):
     field:QuestionType
     label:str
     question:str
     reason:Optional[str]=None
     required:bool=False
 
-class DetectedContext(StrictModel):
+class DetectedContext(BaseModel):
     amount:Optional[float]=None
     destination:Optional[str]=None
     priority:Optional[Priority]=None
@@ -154,7 +151,7 @@ class DetectedContext(StrictModel):
     bank_account_needed:bool=False
     wallet_needed:bool=False
 
-class ParsedNeed(StrictModel):
+class ParsedNeed(BaseModel):
     language:Language=Language.es
     raw_text:str
     amount:Optional[float]=None
@@ -172,7 +169,7 @@ class ParsedNeed(StrictModel):
     missing_information:List[MissingInformation]=Field(default_factory=list)
     confidence:float=0.0
 
-class Constraint(StrictModel):
+class Constraint(BaseModel):
     id:str
     label:str
     value:Any=None
@@ -180,14 +177,14 @@ class Constraint(StrictModel):
     source:Optional[str]=None
     affects_options:bool=True
 
-class DecisionFactor(StrictModel):
+class DecisionFactor(BaseModel):
     id:str
     name:str
     importance:Optional[str]=None
     reason:Optional[str]=None
     value:Any=None
 
-class NeedAnalysis(StrictModel):
+class NeedAnalysis(BaseModel):
     summary:Optional[str]=None
     main_need:Optional[str]=None
     detected_context:DetectedContext=Field(default_factory=DetectedContext)
@@ -198,13 +195,13 @@ class NeedAnalysis(StrictModel):
     compatible_payment_methods:List[str]=Field(default_factory=list)
     notes:List[str]=Field(default_factory=list)
 
-class ComparisonRequest(StrictModel):
+class ComparisonRequest(BaseModel):
     language:Language=Language.es
     session_id:Optional[str]=None
     priority:Optional[Priority]=None
     provider_ids:List[str]=Field(default_factory=list)
 
-class CostSummary(StrictModel):
+class CostSummary(BaseModel):
     amount_sent:Optional[float]=None
     send_currency:Optional[str]=None
     fee:Optional[float]=None
@@ -214,7 +211,7 @@ class CostSummary(StrictModel):
     recipient_currency:Optional[str]=None
     status:DataStatus=DataStatus.unverified
 
-class ComparisonResult(StrictModel):
+class ComparisonResult(BaseModel):
     provider_id:str
     provider_name:str
     compatibility:Compatibility=Field(default_factory=Compatibility)
@@ -227,7 +224,7 @@ class ComparisonResult(StrictModel):
     important_conditions:List[str]=Field(default_factory=list)
     official_url:Optional[str]=None
 
-class ComparisonResponse(StrictModel):
+class ComparisonResponse(BaseModel):
     session_id:Optional[str]=None
     language:Language=Language.es
     summary:Optional[str]=None
@@ -240,14 +237,14 @@ class ComparisonResponse(StrictModel):
     selected_provider_id:Optional[str]=None
     next_step:Optional[str]=None
 
-class PreparationItem(StrictModel):
+class PreparationItem(BaseModel):
     id:str
     label:str
     description:Optional[str]=None
     required:bool=False
     category:Optional[str]=None
 
-class RecipientInformation(StrictModel):
+class RecipientInformation(BaseModel):
     full_name:Optional[str]=None
     phone:Optional[str]=None
     country:Optional[str]=None
@@ -257,7 +254,7 @@ class RecipientInformation(StrictModel):
     wallet:Optional[str]=None
     pickup_location:Optional[str]=None
 
-class PreparationGuide(StrictModel):
+class PreparationGuide(BaseModel):
     title:Optional[str]=None
     introduction:Optional[str]=None
     sender_items:List[Any]=Field(default_factory=list)
@@ -268,7 +265,7 @@ class PreparationGuide(StrictModel):
     important_conditions:List[Any]=Field(default_factory=list)
     recipient_information:Optional[RecipientInformation]=None
 
-class GuideStep(StrictModel):
+class GuideStep(BaseModel):
     id:str
     title:Optional[str]=None
     description:Optional[str]=None
@@ -277,13 +274,13 @@ class GuideStep(StrictModel):
     what_to_check:Optional[str]=None
     order:int=0
 
-class SendGuide(StrictModel):
+class SendGuide(BaseModel):
     title:Optional[str]=None
     introduction:Optional[str]=None
     steps:List[GuideStep]=Field(default_factory=list)
     rules:List[str]=Field(default_factory=list)
 
-class FinalCheckItem(StrictModel):
+class FinalCheckItem(BaseModel):
     id:str
     label:str
     status:Literal["ok","missing","verify","not_applicable"]="verify"
@@ -292,13 +289,13 @@ class FinalCheckItem(StrictModel):
     description:Optional[str]=None
     required:bool=True
 
-class FinalCheckRequest(StrictModel):
+class FinalCheckRequest(BaseModel):
     language:Language=Language.es
     provider_id:Optional[str]=None
     recipient:Optional[RecipientInformation]=None
     confirm_provider_data:bool=False
 
-class FinalCheckResponse(StrictModel):
+class FinalCheckResponse(BaseModel):
     session_id:Optional[str]=None
     language:Language=Language.es
     items:List[FinalCheckItem]=Field(default_factory=list)
@@ -309,7 +306,7 @@ class FinalCheckResponse(StrictModel):
     provider_name:Optional[str]=None
     official_url:Optional[str]=None
 
-class SessionState(StrictModel):
+class SessionState(BaseModel):
     session_id:str
     language:Language=Language.es
     created_at:str
@@ -339,32 +336,32 @@ class SessionState(StrictModel):
     final_check:Optional[FinalCheckResponse]=None
     consent:bool=False
 
-class SessionResponse(StrictModel):
+class SessionResponse(BaseModel):
     session:SessionState
     message:Optional[str]=None
 
-class LocalData(StrictModel):
+class LocalData(BaseModel):
     language:Language=Language.es
     preferences:Dict[str,Any]=Field(default_factory=dict)
     consent:bool=False
 
-class BrainValidationResponse(StrictModel):
+class BrainValidationResponse(BaseModel):
     valid:bool
     version:Optional[str]=None
     missing_sections:List[str]=Field(default_factory=list)
     warnings:List[str]=Field(default_factory=list)
 
-class HealthResponse(StrictModel):
+class HealthResponse(BaseModel):
     status:str="ok"
     app:str="REMESAS"
     version:Optional[str]=None
 
-class HelpResponse(StrictModel):
+class HelpResponse(BaseModel):
     title:Optional[str]=None
     message:Optional[str]=None
     topics:List[str]=Field(default_factory=list)
 
-class PublicConfig(StrictModel):
+class PublicConfig(BaseModel):
     app:Dict[str,Any]=Field(default_factory=dict)
     experience:Dict[str,Any]=Field(default_factory=dict)
     opening:Dict[str,Any]=Field(default_factory=dict)
