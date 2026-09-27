@@ -133,7 +133,7 @@ class RemittanceEngine:
             return "USD"
         return currency.strip().upper()
 
-def language_text(
+    def language_text(
         self,
         key: str,
         language: str = "es",
@@ -179,7 +179,7 @@ def language_text(
             language,
             messages.get(key, {}).get("es", ""),
         )
-
+        
     # ------------------------------------------------------------------
     # COUNTRIES
     # ------------------------------------------------------------------
