@@ -96,8 +96,8 @@
 
   "opening": {
     "primary_question": {
-      "en": "WHAT DO YOU NEED TODAY?"
-      "es": "¿QUÉ NECESITAS HOY?",      
+      "en": "WHAT DO YOU NEED TODAY?",
+      "es": "¿QUÉ NECESITAS HOY?"      
     },
     "secondary_text": {
       "es": "Dime cuánto quieres enviar y qué es lo más importante para ti.",
