@@ -1,224 +1,251 @@
-from datetime import datetime,timezone
+# main.py — REMESAS | May Roga LLC
+import os,secrets
 from pathlib import Path
-from typing import Optional
-
-from fastapi import FastAPI,HTTPException
-from fastapi.responses import FileResponse
+from typing import Any,Dict,Optional
+import stripe
+from fastapi import FastAPI,HTTPException,Request
+from fastapi.responses import FileResponse,JSONResponse
 from fastapi.staticfiles import StaticFiles
+from remittance_engine import engine
+from schemas import ComparisonRequest,ComparisonResponse,DeleteLocalDataResponse,FinalCheckRequest,FinalCheckResponse,ParseNeedRequest,SessionResponse,UserNeedRequest
 
-from schemas import UserNeedRequest,ParseNeedRequest,ComparisonRequest,FinalCheckRequest,Language
-from remittance_engine import create_session,get_session,update_from_parsed,parse_need_text,compare_options,select_provider,preparation_guide,send_guide,final_check,public_config,validate_brain,help_data,provider_registry
-
-APP_NAME="REMESAS | May Roga LLC"
+APP_NAME="REMESAS"
 APP_VERSION="1.0.0"
 BASE_DIR=Path(__file__).resolve().parent
 STATIC_DIR=BASE_DIR/"static"
 
-app=FastAPI(title=APP_NAME,version=APP_VERSION)
-app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
+app=FastAPI(title=APP_NAME,version=APP_VERSION,description="Plataforma de comparación y asistencia para remesas.",docs_url="/docs",redoc_url="/redoc")
 
-def update_session_timestamp(session):
-session.updated_at=datetime.now(timezone.utc).isoformat()
-return session
+if STATIC_DIR.exists():app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
 
-def provider_official_url(provider):
-url=provider.get("official_url") or provider.get("url")
-if url:
-return url
-urls=provider.get("official_urls") or {}
-if isinstance(urls,dict):
-for key in ("us_send","us_en","us_es","main","us","home"):
-value=urls.get(key)
-if value:
-return value
-for value in urls.values():
-if isinstance(value,str) and value.startswith(("http://","https://")):
-return value
-return None
+ADMIN_USERNAME=os.getenv("ADMIN_USERNAME","")
+ADMIN_PASSWORD=os.getenv("ADMIN_PASSWORD","")
+GEMINI_API_KEY=os.getenv("GEMINI_API_KEY","")
+STRIPE_PRICE_ID1=os.getenv("STRIPE_PRICE_ID1","")
+STRIPE_PUBLISHABLE_KEY=os.getenv("STRIPE_PUBLISHABLE_KEY","")
+STRIPE_SECRET_KEY=os.getenv("STRIPE_SECRET_KEY","")
+STRIPE_WEBHOOK_SECRET=os.getenv("STRIPE_WEBHOOK_SECRET","")
 
-@app.get("/")
-def home():
-index=STATIC_DIR/"index.html"
-if index.exists():
-return FileResponse(index)
-return {"app":APP_NAME,"version":APP_VERSION}
+if STRIPE_SECRET_KEY:stripe.api_key=STRIPE_SECRET_KEY
+
+ALLOWED_LANGUAGES={"es","en"}
+MAX_BODY_SIZE=1024*1024
+
+@app.on_event("startup")
+async def startup_event():engine.load_brain()
+
+@app.get("/",include_in_schema=False)
+async def root():
+    index=STATIC_DIR/"index.html"
+    if not index.exists():raise HTTPException(404,"Application interface not found.")
+    return FileResponse(str(index))
 
 @app.get("/health")
-def health():
-return {"status":"ok","app":APP_NAME,"version":APP_VERSION}
+async def health():
+    return {"status":"ok","app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"brain_version":engine.brain.get("app",{}).get("version"),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)}
 
-@app.get("/api/health")
-def api_health():
-return health()
-
-@app.get("/api")
-def api_info():
-return {"app":APP_NAME,"version":APP_VERSION,"status":"ok","modules":{"need_analysis":True,"comparison":True,"preparation":True,"send_guide":True,"final_check":True}}
+@app.get("/ping",include_in_schema=False)
+async def ping():return {"status":"ok"}
 
 @app.get("/api/config")
-def config():
-return public_config()
+async def public_configuration(language:str="es"):
+    language=normalize_language(language)
+    config=engine.public_config(language)
+    config["stripe"]={"enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),"publishable_key":STRIPE_PUBLISHABLE_KEY,"price":15.99,"currency":"USD","period":"1_month"}
+    return config
 
-@app.get("/api/providers")
-def providers():
-return {"providers":[{"id":str(p.get("id") or p.get("provider_id") or ""),"name":str(p.get("name") or ""),"official_url":provider_official_url(p),"delivery_methods":p.get("delivery_methods",[]),"payment_methods":p.get("payment_methods",[]),"enabled":p.get("enabled",True)} for p in provider_registry()]}
+@app.get("/api/brain/version")
+async def brain_version():
+    return {"app":APP_NAME,"version":engine.brain.get("app",{}).get("version"),"engine_version":APP_VERSION}
 
-@app.post("/api/need/parse")
-def parse_need(request:ParseNeedRequest):
-return parse_need_text(request.text,request.language)
+@app.post("/api/session",response_model=SessionResponse)
+async def create_session(language:str="es")->SessionResponse:
+    language=normalize_language(language)
+    return SessionResponse(success=True,session=engine.create_session(language),message=localized("Sesión iniciada.","Session started.",language))
 
-@app.post("/api/need")
-def create_need(request:UserNeedRequest):
-session=create_session(request)
-return {"session":session,"message":("Necesidad identificada. Ahora podemos revisar qué factores cambian la decisión y qué información falta." if request.language==Language.es else "Need identified. We can now review which factors change the decision and what information is missing.")}
-
-@app.get("/api/session/{session_id}")
-def session(session_id:str):
-try:
-return {"session":get_session(session_id)}
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-
-@app.post("/api/session/{session_id}/parse")
-def session_parse(session_id:str,request:ParseNeedRequest):
-try:
-current_session=get_session(session_id)
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-parsed=parse_need_text(request.text,request.language)
-update_from_parsed(current_session,parsed)
-return {"session":current_session,"parsed":parsed}
-
-@app.get("/api/session/{session_id}/analysis")
-def session_analysis(session_id:str):
-try:
-current_session=get_session(session_id)
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-if not current_session.need_analysis:
-raise HTTPException(status_code=409,detail="Need analysis is not available")
-return current_session.need_analysis
-
-@app.post("/api/session/{session_id}/compare")
-def session_compare(session_id:str,request:Optional=None):
-try:
-current_session=get_session(session_id)
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-
-```
-if not current_session.amount:
-    raise HTTPException(status_code=422,detail="Amount is required before comparison")
-if not current_session.destination:
-    raise HTTPException(status_code=422,detail="Destination is required before comparison")
-
-priority=request.priority if request and request.priority is not None else current_session.priority
-
-req=UserNeedRequest(
-    language=current_session.language,
-    amount=current_session.amount,
-    destination=current_session.destination,
-    priority=priority,
-    urgency=current_session.urgency,
-    delivery_method=current_session.delivery_method,
-    payment_method=current_session.payment_method,
-    free_text=current_session.free_text,
-    recipient_has_bank_account=current_session.recipient_has_bank_account,
-    recipient_has_mobile_wallet=current_session.recipient_has_mobile_wallet,
-    first_transfer=current_session.first_transfer,
-    recurring_transfer=current_session.recurring_transfer,
-    special_need=current_session.special_need
-)
-
-result=compare_options(req,session_id)
-current_session.step="comparison"
-
-if current_session.free_text:
-    parsed=parse_need_text(current_session.free_text,current_session.language)
-    update_from_parsed(current_session,parsed)
-    current_session.step="comparison"
-else:
-    update_session_timestamp(current_session)
-
-return result
-```
-
-@app.post("/api/session/{session_id}/select/{provider_id}")
-def session_select_provider(session_id:str,provider_id:str):
-try:
-option=select_provider(session_id,provider_id)
-except KeyError as exc:
-raise HTTPException(status_code=404,detail=str(exc))
-return {"session":get_session(session_id),"provider":option,"message":"Opción seleccionada. Ahora prepara la información antes de continuar."}
-
-@app.get("/api/session/{session_id}/preparation")
-def session_preparation(session_id:str):
-try:
-current_session=get_session(session_id)
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-guide=preparation_guide(current_session)
-current_session.preparation=guide
-current_session.step="preparation"
-update_session_timestamp(current_session)
-return guide
-
-@app.get("/api/session/{session_id}/guide")
-def session_guide(session_id:str):
-try:
-current_session=get_session(session_id)
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-guide=send_guide(current_session)
-current_session.send_guide=guide
-current_session.step="guide"
-update_session_timestamp(current_session)
-return guide
-
-@app.post("/api/session/{session_id}/final-check")
-def session_final_check(session_id:str,request:FinalCheckRequest):
-try:
-current_session=get_session(session_id)
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-result=final_check(current_session,request.provider_id,request.recipient,request.confirm_provider_data)
-current_session.final_check=result
-current_session.step="final_check"
-update_session_timestamp(current_session)
-return result
-
-@app.get("/api/session/{session_id}/provider")
-def session_provider(session_id:str):
-try:
-current_session=get_session(session_id)
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-if not current_session.selected_provider:
-raise HTTPException(status_code=404,detail="No provider selected")
-return current_session.selected_provider
+@app.get("/api/session/{session_id}",response_model=SessionResponse)
+async def get_session(session_id:str):
+    validate_session_id(session_id)
+    session=engine.get_session(session_id)
+    if session is None:raise HTTPException(404,"Session not found.")
+    return SessionResponse(success=True,session=session)
 
 @app.delete("/api/session/{session_id}")
-def delete_session(session_id:str):
-try:
-get_session(session_id)
-except KeyError:
-raise HTTPException(status_code=404,detail="Session not found")
-from remittance_engine import SESSIONS
-SESSIONS.pop(session_id,None)
-return {"ok":True,"message":"Session deleted"}
+async def delete_session(session_id:str):
+    validate_session_id(session_id)
+    deleted=engine.clear_session(session_id)
+    return {"success":deleted,"message":"Session cleared." if deleted else "Session already cleared."}
 
-@app.get("/api/help")
-def help_endpoint(language:Language=Language.es):
-return help_data(language)
+@app.post("/api/need",response_model=SessionResponse)
+async def apply_need(request:Request):
+    try:body=await request.json()
+    except Exception:raise HTTPException(400,"Invalid request body.")
+    if not isinstance(body,dict):raise HTTPException(400,"Invalid request body.")
+    session_id=str(body.get("session_id") or "")
+    language=normalize_language(body.get("language","es"))
+    if session_id:
+        validate_session_id(session_id)
+        if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
+    else:
+        session_id=engine.create_session(language)["session_id"]
+    body.pop("session_id",None)
+    body["language"]=language
+    try:
+        user_request=UserNeedRequest(**body)
+        session=engine.apply_need(session_id,user_request)
+    except KeyError:raise HTTPException(404,"Session not found.")
+    except ValueError as exc:raise HTTPException(400,str(exc))
+    return SessionResponse(success=True,session=session)
 
-@app.get("/api/brain/validate")
-def brain_validate():
-return validate_brain()
+@app.post("/api/need/parse")
+async def parse_need(request:ParseNeedRequest):return {"success":True,"parsed":engine.parse_need(request)}
 
-@app.get("/api/sources")
-def sources():
-return {"policy":"Commercial information is shown only when verified.","providers":[{"id":str(p.get("id") or p.get("provider_id") or ""),"name":str(p.get("name") or ""),"official_url":provider_official_url(p)} for p in provider_registry()]}
+@app.post("/api/session/{session_id}/need/parse")
+async def parse_need_into_session(session_id:str,request:ParseNeedRequest):
+    validate_session_id(session_id)
+    if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
+    parsed=engine.parse_need(request)
+    values={k:parsed[k] for k in ("amount","destination_country","priority","urgency","delivery_method","payment_method") if parsed.get(k) is not None}
+    values["parsed_user_need"]=parsed
+    return {"success":True,"parsed":parsed,"session":engine.update_session(session_id,**values)}
 
-@app.get("/api/disclaimer")
-def disclaimer():
-return {"title":"Información importante","text":"REMESAS es una herramienta de preparación, comparación y verificación. No realiza ni procesa la transferencia de dinero. El envío y el pago se realizan directamente con el proveedor."}
+@app.post("/api/compare",response_model=ComparisonResponse)
+async def compare(request:ComparisonRequest):
+    return engine.compare(request)
+
+@app.post("/api/session/{session_id}/compare",response_model=ComparisonResponse)
+async def compare_session(session_id:str):
+    validate_session_id(session_id)
+    session=engine.get_session(session_id)
+    if session is None:raise HTTPException(404,"Session not found.")
+    if not session.get("amount"):raise HTTPException(422,"Amount is required.")
+    if not session.get("destination_country"):raise HTTPException(422,"Destination country is required.")
+    return engine.compare_session(session_id)
+
+@app.post("/api/session/{session_id}/select/{provider_id}")
+async def select_provider_option(session_id:str,provider_id:str):
+    validate_session_id(session_id)
+    try:option=engine.select_provider(session_id,provider_id)
+    except KeyError as exc:
+        code=str(exc).strip("'")
+        messages={"session_expired":(404,"Session not found."),"provider_not_found":(404,"Provider not found."),"provider_not_available":(404,"Provider not available.")}
+        status,msg=messages.get(code,(404,"Provider option not found."))
+        raise HTTPException(status,msg)
+    return {"success":True,"selected_option":option,"session":engine.get_session(session_id)}
+
+@app.post("/api/final-check",response_model=FinalCheckResponse)
+async def final_check(request:FinalCheckRequest):
+    return engine.final_check(request)
+
+@app.post("/api/session/{session_id}/final-check",response_model=FinalCheckResponse)
+async def session_final_check(session_id:str):
+    validate_session_id(session_id)
+    session=engine.get_session(session_id)
+    if session is None:raise HTTPException(404,"Session not found.")
+    option=session.get("selected_option")
+    if not option:raise HTTPException(422,"No option selected.")
+    request=FinalCheckRequest(
+        language=session.get("language","es"),
+        provider_id=option.get("provider_id"),
+        amount=session.get("amount") or 0,
+        send_currency=session.get("send_currency","USD"),
+        destination_country=session.get("destination_country") or "",
+        delivery_method=option.get("delivery_method") or session.get("delivery_method"),
+        payment_method=session.get("payment_method"),
+        recipient_amount=option.get("recipient_amount"),
+        fee=option.get("fee"),
+        exchange_rate=option.get("exchange_rate")
+    )
+    return engine.final_check(request,session_id)
+
+@app.get("/api/session/{session_id}/help")
+async def session_help(session_id:str,language:str="es"):
+    validate_session_id(session_id)
+    session=engine.get_session(session_id)
+    if session is None:raise HTTPException(404,"Session not found.")
+    language=normalize_language(language)
+    messages={
+        "opening":{"es":"Indica cuánto quieres enviar, a qué país y qué es más importante para ti.","en":"Enter how much you want to send, the destination country, and what matters most to you."},
+        "comparison":{"es":"Compara las opciones disponibles según tus necesidades.","en":"Compare the available options according to your needs."},
+        "results":{"es":"Revisa las opciones disponibles y continúa con el proveedor que elijas.","en":"Review the available options and continue with the provider you choose."},
+        "final_check":{"es":"Revisa los datos antes de continuar con el proveedor.","en":"Review the information before continuing with the provider."}
+    }
+    return {"success":True,"message":messages.get(session.get("current_step","opening"),messages["opening"]).get(language)}
+
+@app.post("/api/session/{session_id}/reset")
+async def reset_session(session_id:str):
+    validate_session_id(session_id)
+    return {"success":True,"cleared":engine.clear_session(session_id),"message":"Sesión borrada."}
+
+@app.delete("/api/local-data",response_model=DeleteLocalDataResponse)
+async def local_data_info():
+    return DeleteLocalDataResponse(success=True,message="El borrado de datos locales se realiza en este dispositivo.")
+
+@app.get("/api/subscription/status")
+async def subscription_status():
+    return {"configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),"price":15.99,"currency":"USD","period":"1_month"}
+
+@app.get("/api/stripe/public")
+async def stripe_public():
+    return {"enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),"publishable_key":STRIPE_PUBLISHABLE_KEY}
+
+@app.post("/api/create-checkout-session")
+async def create_checkout_session(request:Request):
+    if not STRIPE_SECRET_KEY or not STRIPE_PRICE_ID1:raise HTTPException(503,"Stripe is not configured.")
+    base_url=str(request.base_url).rstrip("/")
+    try:
+        checkout=stripe.checkout.Session.create(mode="subscription",line_items=[{"price":STRIPE_PRICE_ID1,"quantity":1}],success_url=f"{base_url}/?payment=success&session_id={{CHECKOUT_SESSION_ID}}",cancel_url=f"{base_url}/?payment=cancelled",allow_promotion_codes=True,billing_address_collection="auto")
+    except stripe.error.StripeError as exc:raise HTTPException(502,"Unable to create the payment session.") from exc
+    return {"success":True,"checkout_url":checkout.url}
+
+@app.get("/api/payment/check")
+async def payment_check(session_id:Optional[str]=None):
+    if not STRIPE_SECRET_KEY:return {"success":False,"active":False,"message":"Stripe not configured."}
+    if not session_id:return {"success":False,"active":False,"message":"Payment session not provided."}
+    try:
+        checkout=stripe.checkout.Session.retrieve(session_id,expand=["subscription"])
+        paid=checkout.payment_status=="paid"
+        sub=getattr(checkout,"subscription",None)
+        status=getattr(sub,"status",None) if sub else None
+        return {"success":True,"active":bool(paid and status in {"active","trialing"}),"payment_status":checkout.payment_status,"checkout_status":checkout.status,"mode":checkout.mode,"subscription_status":status}
+    except stripe.error.StripeError as exc:raise HTTPException(502,"Unable to verify payment.") from exc
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request:Request):
+    if not STRIPE_WEBHOOK_SECRET:raise HTTPException(503,"Stripe webhook is not configured.")
+    payload=await request.body()
+    if len(payload)>MAX_BODY_SIZE:raise HTTPException(413,"Webhook payload too large.")
+    signature=request.headers.get("stripe-signature")
+    if not signature:raise HTTPException(400,"Missing Stripe signature.")
+    try:event=stripe.Webhook.construct_event(payload,signature,STRIPE_WEBHOOK_SECRET)
+    except ValueError as exc:raise HTTPException(400,"Invalid webhook payload.") from exc
+    except stripe.error.SignatureVerificationError as exc:raise HTTPException(400,"Invalid webhook signature.") from exc
+    handled={"checkout.session.completed","customer.subscription.created","customer.subscription.updated","customer.subscription.deleted","invoice.paid","invoice.payment_failed"}
+    return {"success":True,"received":True,"event_type":event.get("type",""),"handled":event.get("type","") in handled}
+
+@app.get("/api/admin/config-status")
+async def admin_config_status(request:Request):
+    username=request.headers.get("X-Admin-Username","")
+    password=request.headers.get("X-Admin-Password","")
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD:raise HTTPException(503,"Admin access is not configured.")
+    if not secrets.compare_digest(username,ADMIN_USERNAME) or not secrets.compare_digest(password,ADMIN_PASSWORD):raise HTTPException(401,"Unauthorized.")
+    return {"success":True,"app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"gemini_configured":bool(GEMINI_API_KEY),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),"stripe_webhook_configured":bool(STRIPE_WEBHOOK_SECRET)}
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request:Request,exc:ValueError):
+    return JSONResponse(status_code=400,content={"success":False,"error":str(exc)})
+
+@app.exception_handler(Exception)
+async def generic_error_handler(request:Request,exc:Exception):
+    return JSONResponse(status_code=500,content={"success":False,"error":"Ocurrió un problema. Intenta nuevamente."})
+
+def normalize_language(language:Optional[str])->str:
+    value=(language or "es").lower().strip()
+    return value if value in ALLOWED_LANGUAGES else "es"
+
+def validate_session_id(session_id:str)->None:
+    if not session_id or len(session_id)>128:raise HTTPException(400,"Invalid session.")
+    allowed=set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+    if any(c not in allowed for c in session_id):raise HTTPException(400,"Invalid session.")
+
+def localized(es:str,en:str,language:str)->str:return en if language=="en" else es
