@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="description" content="REMESAS — compara opciones para enviar dinero y decide con información clara antes de realizar tu envío.">
+<title>REMESAS | May Roga LLC</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <div class="loading">
+    <div class="loader"></div>
+    <p>Cargando...</p>
+  </div>
+</div>
+
+<noscript>
+  <div class="noscript">
+    Necesitas activar JavaScript para utilizar REMESAS.
+  </div>
+</noscript>
+
+<script>
+(function(){
+"use strict";
+
+const state={
+  config:null,
+  sessionId:null,
+  need:null,
+  comparison:null,
+  selectedProvider:null,
+  language:localStorage.getItem("remesas_language")||"es",
+  amount:"",
+  destination:"",
+  priority:"",
+  delivery:"",
+  freeText:""
+};
+
+const $=id=>document.getElementById(id);
+
+const texts={
+  es:{
+    loading:"Cargando...",
+    title:"REMESAS",
+    subtitle:"Encuentra la opción que mejor se adapta a lo que necesitas hoy.",
+    question:"¿QUÉ NECESITAS HOY?",
+    amount:"¿Cuánto quieres enviar?",
+    amountPlaceholder:"Ej. 500",
+    destination:"¿A qué país quieres enviar?",
+    destinationPlaceholder:"Selecciona un país",
+    priority:"¿Qué es lo más importante para ti?",
+    fastest:"MÁS RÁPIDO",
+    save:"AHORRAR",
+    receiveMore:"QUE RECIBA MÁS",
+    urgent:"URGENTE",
+    balanced:"MEJOR EQUILIBRIO",
+    compare:"COMPARAR TODO",
+    other:"OTRA NECESIDAD",
+    freeText:"Cuéntame qué necesitas",
+    freeTextPlaceholder:"Ej. Quiero mandar $500 a México y necesito que llegue hoy.",
+    continue:"CONTINUAR",
+    compareNow:"COMPARAR OPCIONES",
+    back:"ATRÁS",
+    clear:"EMPEZAR DE NUEVO",
+    help:"NO SÉ QUÉ HACER",
+    options:"Opciones para ti",
+    verified:"Información verificada",
+    fee:"Tarifa",
+    rate:"Tipo de cambio",
+    receive:"Recibe",
+    delivery:"Entrega",
+    method:"Forma de entrega",
+    official:"IR AL PROVEEDOR",
+    review:"REVISA ANTES DE ENVIAR",
+    country:"País",
+    sendAmount:"Monto a enviar",
+    receiveAmount:"Monto que recibe",
+    payment:"Forma de pago",
+    check:"VERIFICAR",
+    selected:"Opción seleccionada",
+    finalText:"Antes de continuar, revisa que los datos coincidan con lo que quieres enviar.",
+    yes:"CONFIRMAR",
+    no:"VOLVER",
+    noResults:"No encontramos una opción verificada para esta combinación todavía.",
+    tryAgain:"Prueba cambiar la forma de entrega o el monto.",
+    error:"No pudimos completar la consulta. Inténtalo nuevamente.",
+    helpTitle:"Te ayudamos a decidir",
+    helpText:"No necesitas saber qué plataforma usar. Dime qué es lo más importante para ti y te mostramos las opciones disponibles.",
+    close:"CERRAR",
+    language:"EN"
+  },
+  en:{
+    loading:"Loading...",
+    title:"REMITTANCES",
+    subtitle:"Find the option that best fits what you need today.",
+    question:"WHAT DO YOU NEED TODAY?",
+    amount:"How much do you want to send?",
+    amountPlaceholder:"Example: 500",
+    destination:"Which country are you sending to?",
+    destinationPlaceholder:"Select a country",
+    priority:"What matters most to you?",
+    fastest:"FASTEST",
+    save:"SAVE MONEY",
+    receiveMore:"RECIPIENT GETS MORE",
+    urgent:"URGENT",
+    balanced:"BEST BALANCE",
+    compare:"COMPARE EVERYTHING",
+    other:"OTHER NEED",
+    freeText:"Tell me what you need",
+    freeTextPlaceholder:"Example: I want to send $500 to Mexico and need it there today.",
+    continue:"CONTINUE",
+    compareNow:"COMPARE OPTIONS",
+    back:"BACK",
+    clear:"START OVER",
+    help:"I DON'T KNOW WHAT TO DO",
+    options:"Options for you",
+    verified:"Verified information",
+    fee:"Fee",
+    rate:"Exchange rate",
+    receive:"Recipient gets",
+    delivery:"Delivery",
+    method:"Delivery method",
+    official:"GO TO PROVIDER",
+    review:"REVIEW BEFORE SENDING",
+    country:"Country",
+    sendAmount:"Amount to send",
+    receiveAmount:"Recipient gets",
+    payment:"Payment method",
+    check:"VERIFY",
+    selected:"Selected option",
+    finalText:"Before continuing, make sure the details match what you want to send.",
+    yes:"CONFIRM",
+    no:"GO BACK",
+    noResults:"We couldn't find a verified option for this combination yet.",
+    tryAgain:"Try changing the delivery method or amount.",
+    error:"We couldn't complete the request. Please try again.",
+    helpTitle:"We'll help you decide",
+    helpText:"You don't need to know which platform to use. Tell us what matters most and we'll show you the available options.",
+    close:"CLOSE",
+    language:"ES"
+  }
+};
+
+function t(k){
+  return (texts[state.language]||texts.es)[k]||k;
+}
+
+function esc(v){
+  return String(v==null?"":v)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+}
+
+function money(v,currency){
+  if(v===null||v===undefined||v==="") return "—";
+  const n=Number(v);
+  if(!Number.isFinite(n)) return esc(v);
+  try{
+    return new Intl.NumberFormat(state.language==="es"?"es-US":"en-US",{
+      style:"currency",
+      currency:currency||"USD",
+      maximumFractionDigits:2
+    }).format(n);
+  }catch(e){
+    return `${n.toFixed(2)} ${currency||""}`.trim();
+  }
+}
+
+function saveLocal(){
+  localStorage.setItem("remesas_language",state.language);
+  if(state.destination) localStorage.setItem("remesas_destination",state.destination);
+}
+
+function loadLocal(){
+  state.destination=localStorage.getItem("remesas_destination")||"";
+}
+
+async function api(url,options={}){
+  const opts={...options,headers:{"Content-Type":"application/json",...(options.headers||{})}};
+  const r=await fetch(url,opts);
+  let data=null;
+  try{data=await r.json()}catch(e){}
+  if(!r.ok){
+    throw new Error(data?.detail||data?.message||t("error"));
+  }
+  return data;
+}
+
+async function loadConfig(){
+  try{
+    state.config=await api("/api/config");
+    loadLocal();
+    renderHome();
+  }catch(e){
+    renderFatal(e.message);
+  }
+}
+
+async function createSession(){
+  try{
+    const data=await api("/api/session",{method:"POST",body:"{}"});
+    state.sessionId=data.session_id||data.id||null;
+    return state.sessionId;
+  }catch(e){
+    return null;
+  }
+}
+
+async function ensureSession(){
+  if(!state.sessionId) await createSession();
+  return state.sessionId;
+}
+
+function renderHeader(){
+  return `
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">R</div>
+        <div>
+          <strong>${esc(t("title"))}</strong>
+          <span>May Roga LLC</span>
+        </div>
+      </div>
+      <button class="language-btn" id="languageBtn">${esc(t("language"))}</button>
+    </header>`;
+}
+
+function renderHome(){
+  const c=state.config||{};
+  const countries=c.countries||[];
+  const priorities=(c.opening?.priorities||c.priorities||[]);
+  const amountValue=state.amount||"";
+  const destination=state.destination||"";
+
+  const priorityMap={
+    fastest:"fastest",
+    save:"save",
+    recipient_gets_more:"receiveMore",
+    urgent:"urgent",
+    balanced:"balanced",
+    compare_all:"compare"
+  };
+
+  const priorityButtons=priorities.length?
+    priorities.map(p=>{
+      const id=typeof p==="string"?p:(p.id||p.value);
+      const label=typeof p==="string"?(priorityMap[id]?t(priorityMap[id]):id):(p.label||p.name||id);
+      return `<button class="priority-btn ${state.priority===id?"active":""}" data-priority="${esc(id)}">${esc(label)}</button>`;
+    }).join(""):
+    ["fastest","save","recipient_gets_more","urgent","balanced","compare_all"].map(id=>
+      `<button class="priority-btn ${state.priority===id?"active":""}" data-priority="${id}">${esc(t(priorityMap[id]))}</button>`
+    ).join("");
+
+  let countryOptions=`<option value="">${esc(t("destinationPlaceholder"))}</option>`;
+  countries.forEach(cn=>{
+    const id=typeof cn==="string"?cn:(cn.code||cn.id||"");
+    const name=typeof cn==="string"?cn:(cn.name||cn.country||id);
+    countryOptions+=`<option value="${esc(id)}" ${destination===id?"selected":""}>${esc(name)}</option>`;
+  });
+
+  document.getElementById("app").innerHTML=`
+    ${renderHeader()}
+    <main class="shell">
+      <section class="hero">
+        <div class="hero-badge">● SIMPLE · CLARO · DIRECTO</div>
+        <h1>${esc(t("question"))}</h1>
+        <p>${esc(t("subtitle"))}</p>
+      </section>
+
+      <section class="main-card">
+        <div class="field">
+          <label>${esc(t("amount"))}</label>
+          <div class="amount-wrap">
+            <span>$</span>
+            <input id="amountInput" inputmode="decimal" type="number" min="1" step="0.01"
+              placeholder="${esc(t("amountPlaceholder"))}" value="${esc(amountValue)}">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>${esc(t("destination"))}</label>
+          <select id="destinationInput">${countryOptions}</select>
+        </div>
+
+        <div class="field">
+          <label>${esc(t("priority"))}</label>
+          <div class="priority-grid">${priorityButtons}</div>
+        </div>
+
+        <button class="help-link" id="helpBtn">?</button>
+        <button class="primary-btn" id="continueBtn">${esc(t("continue"))}</button>
+
+        <button class="secondary-btn" id="freeTextBtn">${esc(t("other"))}</button>
+        <div id="freeTextArea" class="free-text-area hidden">
+          <label>${esc(t("freeText"))}</label>
+          <textarea id="freeTextInput" rows="3" placeholder="${esc(t("freeTextPlaceholder"))}">${esc(state.freeText)}</textarea>
+          <button class="primary-btn" id="freeTextContinue">${esc(t("continue"))}</button>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>© May Roga LLC</span>
+        <button id="clearBtn">${esc(t("clear"))}</button>
+      </footer>
+    </main>
+
+    <div id="modal"></div>`;
+
+  bindHome();
+}
+
+function bindHome(){
+  $("languageBtn")?.addEventListener("click",()=>{
+    state.language=state.language==="es"?"en":"es";
+    saveLocal();
+    renderHome();
+  });
+
+  $("amountInput")?.addEventListener("input",e=>state.amount=e.target.value);
+  $("destinationInput")?.addEventListener("change",e=>{
+    state.destination=e.target.value;
+    saveLocal();
+  });
+
+  document.querySelectorAll(".priority-btn").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      state.priority=btn.dataset.priority;
+      document.querySelectorAll(".priority-btn").forEach(x=>x.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+
+  $("continueBtn")?.addEventListener("click",startComparison);
+  $("freeTextBtn")?.addEventListener("click",()=>{
+    $("freeTextArea")?.classList.toggle("hidden");
+    $("freeTextInput")?.focus();
+  });
+  $("freeTextContinue")?.addEventListener("click",startFreeText);
+  $("helpBtn")?.addEventListener("click",showHelp);
+  $("clearBtn")?.addEventListener("click",resetAll);
+}
+
+async function startComparison(){
+  const amount=Number(state.amount);
+  if(!amount||amount<=0){
+    focusField("amountInput");
+    return;
+  }
+  if(!state.destination){
+    focusField("destinationInput");
+    return;
+  }
+  if(!state.priority) state.priority="balanced";
+
+  renderLoading();
+
+  try{
+    await ensureSession();
+
+    const payload={
+      session_id:state.sessionId,
+      amount,
+      destination_country:state.destination,
+      priority:state.priority
+    };
+
+    const need=await api("/api/need",{
+      method:"POST",
+      body:JSON.stringify(payload)
+    });
+
+    state.need=need;
+
+    const comparison=await api("/api/compare",{
+      method:"POST",
+      body:JSON.stringify({
+        session_id:state.sessionId,
+        amount,
+        destination_country:state.destination,
+        priority:state.priority,
+        delivery_method:state.delivery||null
+      })
+    });
+
+    state.comparison=comparison;
+    renderResults();
+  }catch(e){
+    renderError(e.message);
+  }
+}
+
+async function startFreeText(){
+  const text=$("freeTextInput")?.value.trim();
+  if(!text)return;
+
+  state.freeText=text;
+  renderLoading();
+
+  try{
+    await ensureSession();
+
+    const parsed=await api("/api/need/parse",{
+      method:"POST",
+      body:JSON.stringify({
+        text,
+        session_id:state.sessionId
+      })
+    });
+
+    if(parsed.amount) state.amount=parsed.amount;
+    if(parsed.destination_country) state.destination=parsed.destination_country;
+    if(parsed.priority) state.priority=parsed.priority;
+    if(parsed.delivery_method) state.delivery=parsed.delivery_method;
+
+    if(!state.amount||!state.destination){
+      renderNeedMissing(parsed);
+      return;
+    }
+
+    await startComparison();
+  }catch(e){
+    renderError(e.message);
+  }
+}
+
+function focusField(id){
+  const el=$(id);
+  if(!el)return;
+  el.focus();
+  el.classList.add("input-error");
+  setTimeout(()=>el.classList.remove("input-error"),1400);
+}
+
+function renderLoading(){
+  document.getElementById("app").innerHTML=`
+    ${renderHeader()}
+    <main class="shell centered">
+      <section class="loading-card">
+        <div class="loader large"></div>
+        <h2>${esc(t("options"))}</h2>
+        <p>${esc(t("loading"))}</p>
+      </section>
+    </main>`;
+  $("languageBtn")?.addEventListener("click",()=>{
+    state.language=state.language==="es"?"en":"es";
+    saveLocal();
+    renderLoading();
+  });
+}
+
+function getResults(){
+  const c=state.comparison||{};
+  return c.results||c.options||c.providers||[];
+}
+
+function resultId(r){
+  return r.provider_id||r.id||r.provider?.id||"";
+}
+
+function resultName(r){
+  return r.provider_name||r.name||r.provider?.name||resultId(r);
+}
+
+function resultValue(r,key){
+  if(r[key]!==undefined)return r[key];
+  if(r.commercial_data&&r.commercial_data[key]!==undefined)return r.commercial_data[key];
+  if(r.quote&&r.quote[key]!==undefined)return r.quote[key];
+  return null;
+}
+
+function renderResults(){
+  const results=getResults();
+
+  document.getElementById("app").innerHTML=`
+    ${renderHeader()}
+    <main class="shell">
+      <section class="results-head">
+        <button class="back-btn" id="backBtn">← ${esc(t("back"))}</button>
+        <div>
+          <div class="hero-badge">● ${esc(t("verified"))}</div>
+          <h1>${esc(t("options"))}</h1>
+          <p>${esc(formatNeedSummary())}</p>
+        </div>
+      </section>
+
+      <section class="results-list">
+        ${results.length?results.map((r,i)=>renderResultCard(r,i)).join(""):`
+          <div class="empty-card">
+            <div class="empty-icon">—</div>
+            <h2>${esc(t("noResults"))}</h2>
+            <p>${esc(t("tryAgain"))}</p>
+          </div>`}
+      </section>
+
+      <footer class="footer">
+        <button id="clearBtn">${esc(t("clear"))}</button>
+      </footer>
+    </main>`;
+
+  $("backBtn")?.addEventListener("click",renderHome);
+  $("clearBtn")?.addEventListener("click",resetAll);
+
+  document.querySelectorAll("[data-provider]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const id=btn.dataset.provider;
+      state.selectedProvider=results.find(r=>resultId(r)===id)||null;
+      renderFinalCheck(state.selectedProvider);
+    });
+  });
+
+  $("languageBtn")?.addEventListener("click",()=>{
+    state.language=state.language==="es"?"en":"es";
+    saveLocal();
+    renderResults();
+  });
+}
+
+function formatNeedSummary(){
+  const amount=state.amount?money(Number(state.amount),"USD"):"";
+  let country=state.destination||"";
+  const countries=state.config?.countries||[];
+  const found=countries.find(c=>(typeof c==="string"?c:(c.code||c.id))===country);
+  if(found)country=typeof found==="string"?found:(found.name||found.country||country);
+  return `${amount} → ${country}`;
+}
+
+function renderResultCard(r,i){
+  const id=resultId(r);
+  const name=resultName(r);
+  const fee=resultValue(r,"fee");
+  const rate=resultValue(r,"exchange_rate");
+  const recipient=resultValue(r,"recipient_amount");
+  const delivery=resultValue(r,"delivery_time");
+  const method=resultValue(r,"delivery_method");
+  const currency=resultValue(r,"receive_currency")||resultValue(r,"currency")||"";
+  const source=resultValue(r,"source");
+  const verified=resultValue(r,"verified_at");
+
+  return `
+    <article class="provider-card">
+      <div class="provider-top">
+        <div>
+          <span class="provider-number">${i+1}</span>
+          <h2>${esc(name)}</h2>
+        </div>
+        <span class="verified-pill">✓ ${esc(t("verified"))}</span>
+      </div>
+
+      <div class="provider-main">
+        <div class="receive-box">
+          <span>${esc(t("receive"))}</span>
+          <strong>${recipient!==null&&recipient!==undefined?money(recipient,currency):"—"}</strong>
+        </div>
+
+        <div class="details-grid">
+          <div>
+            <span>${esc(t("fee"))}</span>
+            <strong>${fee!==null&&fee!==undefined?money(fee,"USD"):"—"}</strong>
+          </div>
+          <div>
+            <span>${esc(t("rate"))}</span>
+            <strong>${rate!==null&&rate!==undefined?esc(rate):"—"}</strong>
+          </div>
+          <div>
+            <span>${esc(t("delivery"))}</span>
+            <strong>${delivery!==null&&delivery!==undefined?esc(delivery):"—"}</strong>
+          </div>
+          <div>
+            <span>${esc(t("method"))}</span>
+            <strong>${method?esc(formatMethod(method)):"—"}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="provider-foot">
+        ${verified?`<small>✓ ${esc(verified)}</small>`:""}
+        ${source?`<a href="${esc(source)}" target="_blank" rel="noopener noreferrer">${esc(t("verified"))}</a>`:""}
+      </div>
+
+      <button class="primary-btn provider-btn" data-provider="${esc(id)}">
+        ${esc(t("check"))}
+      </button>
+    </article>`;
+}
+
+function formatMethod(v){
+  const map={
+    cash_pickup:state.language==="es"?"Efectivo":"Cash pickup",
+    bank_account:state.language==="es"?"Cuenta bancaria":"Bank account",
+    debit_card:state.language==="es"?"Tarjeta de débito":"Debit card",
+    mobile_wallet:state.language==="es"?"Billetera móvil":"Mobile wallet",
+    home_delivery:state.language==="es"?"Entrega a domicilio":"Home delivery"
+  };
+  return map[v]||v;
+}
+
+async function renderFinalCheck(provider){
+  if(!provider){
+    renderError(t("error"));
+    return;
+  }
+
+  const id=resultId(provider);
+  const name=resultName(provider);
+  const recipient=resultValue(provider,"recipient_amount");
+  const fee=resultValue(provider,"fee");
+  const rate=resultValue(provider,"exchange_rate");
+  const method=resultValue(provider,"delivery_method");
+  const currency=resultValue(provider,"receive_currency")||resultValue(provider,"currency")||"";
+
+  document.getElementById("app").innerHTML=`
+    ${renderHeader()}
+    <main class="shell">
+      <section class="results-head">
+        <button class="back-btn" id="backBtn">← ${esc(t("back"))}</button>
+        <div>
+          <div class="hero-badge">● ${esc(t("selected"))}</div>
+          <h1>${esc(name)}</h1>
+          <p>${esc(t("finalText"))}</p>
+        </div>
+      </section>
+
+      <section class="review-card">
+        <h2>${esc(t("review"))}</h2>
+
+        <div class="review-row">
+          <span>${esc(t("country"))}</span>
+          <strong>${esc(getCountryName(state.destination))}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>${esc(t("sendAmount"))}</span>
+          <strong>${money(Number(state.amount),"USD")}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>${esc(t("fee"))}</span>
+          <strong>${fee!==null&&fee!==undefined?money(fee,"USD"):"—"}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>${esc(t("rate"))}</span>
+          <strong>${rate!==null&&rate!==undefined?esc(rate):"—"}</strong>
+        </div>
+
+        <div class="review-row highlight">
+          <span>${esc(t("receiveAmount"))}</span>
+          <strong>${recipient!==null&&recipient!==undefined?money(recipient,currency):"—"}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>${esc(t("method"))}</span>
+          <strong>${method?esc(formatMethod(method)):"—"}</strong>
+        </div>
+
+        <div class="review-actions">
+          <button class="secondary-btn" id="backResults">${esc(t("no"))}</button>
+          <button class="primary-btn" id="verifyBtn">${esc(t("yes"))}</button>
+        </div>
+
+        <div id="finalStatus"></div>
+      </section>
+
+      <footer class="footer">
+        <button id="clearBtn">${esc(t("clear"))}</button>
+      </footer>
+    </main>`;
+
+  $("backBtn")?.addEventListener("click",renderResults);
+  $("backResults")?.addEventListener("click",renderResults);
+  $("clearBtn")?.addEventListener("click",resetAll);
+  $("verifyBtn")?.addEventListener("click",()=>performFinalCheck(provider,id));
+
+  $("languageBtn")?.addEventListener("click",()=>{
+    state.language=state.language==="es"?"en":"es";
+    saveLocal();
+    renderFinalCheck(provider);
+  });
+}
+
+async function performFinalCheck(provider,id){
+  const status=$("finalStatus");
+  if(!status)return;
+
+  status.innerHTML=`<div class="checking"><div class="loader"></div>${esc(t("loading"))}</div>`;
+
+  try{
+    await ensureSession();
+
+    const payload={
+      session_id:state.sessionId,
+      provider_id:id,
+      amount:Number(state.amount),
+      destination_country:state.destination,
+      delivery_method:resultValue(provider,"delivery_method")||state.delivery||null
+    };
+
+    const result=await api("/api/final-check",{
+      method:"POST",
+      body:JSON.stringify(payload)
+    });
+
+    const url=result.provider_url||result.official_url||result.checkout_url||result.url||null;
+
+    status.innerHTML=`
+      <div class="success-box">
+        <strong>✓ ${esc(t("verified"))}</strong>
+        <p>${esc(result.message||t("finalText"))}</p>
+        ${url?`<a class="primary-btn link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("official"))}</a>`:""}
+      </div>`;
+  }catch(e){
+    status.innerHTML=`<div class="error-box">${esc(e.message||t("error"))}</div>`;
+  }
+}
+
+function renderNeedMissing(parsed){
+  const missing=[];
+  if(!state.amount)missing.push(t("amount"));
+  if(!state.destination)missing.push(t("destination"));
+
+  document.getElementById("app").innerHTML=`
+    ${renderHeader()}
+    <main class="shell">
+      <section class="main-card">
+        <div class="hero-badge">● ${esc(t("helpTitle"))}</div>
+        <h1>${esc(t("question"))}</h1>
+        <p>${esc(t("helpText"))}</p>
+
+        <div class="missing-box">
+          ${missing.map(x=>`<div>• ${esc(x)}</div>`).join("")}
+        </div>
+
+        <button class="primary-btn" id="completeBtn">${esc(t("continue"))}</button>
+        <button class="secondary-btn" id="backBtn">${esc(t("back"))}</button>
+      </section>
+    </main>`;
+
+  $("completeBtn")?.addEventListener("click",renderHome);
+  $("backBtn")?.addEventListener("click",renderHome);
+
+  $("languageBtn")?.addEventListener("click",()=>{
+    state.language=state.language==="es"?"en":"es";
+    saveLocal();
+    renderNeedMissing(parsed);
+  });
+}
+
+function showHelp(){
+  $("modal").innerHTML=`
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal-card">
+        <button class="modal-close" id="modalClose">×</button>
+        <div class="hero-badge">?</div>
+        <h2>${esc(t("helpTitle"))}</h2>
+        <p>${esc(t("helpText"))}</p>
+        <button class="primary-btn" id="modalStart">${esc(t("continue"))}</button>
+      </div>
+    </div>`;
+
+  $("modalClose")?.addEventListener("click",closeModal);
+  $("modalBackdrop")?.addEventListener("click",e=>{
+    if(e.target.id==="modalBackdrop")closeModal();
+  });
+  $("modalStart")?.addEventListener("click",()=>{
+    closeModal();
+    $("amountInput")?.focus();
+  });
+}
+
+function closeModal(){
+  const m=$("modal");
+  if(m)m.innerHTML="";
+}
+
+function renderError(message){
+  document.getElementById("app").innerHTML=`
+    ${renderHeader()}
+    <main class="shell centered">
+      <section class="error-card">
+        <div class="error-icon">!</div>
+        <h2>${esc(t("error"))}</h2>
+        <p>${esc(message||"")}</p>
+        <button class="primary-btn" id="retryBtn">${esc(t("back"))}</button>
+      </section>
+    </main>`;
+  $("retryBtn")?.addEventListener("click",renderHome);
+  $("languageBtn")?.addEventListener("click",()=>{
+    state.language=state.language==="es"?"en":"es";
+    saveLocal();
+    renderError(message);
+  });
+}
+
+function renderFatal(message){
+  document.getElementById("app").innerHTML=`
+    <main class="shell centered">
+      <section class="error-card">
+        <div class="error-icon">!</div>
+        <h1>REMESAS</h1>
+        <p>${esc(message||t("error"))}</p>
+        <button class="primary-btn" onclick="location.reload()">REINTENTAR</button>
+      </section>
+    </main>`;
+}
+
+function resetAll(){
+  state.sessionId=null;
+  state.need=null;
+  state.comparison=null;
+  state.selectedProvider=null;
+  state.amount="";
+  state.destination="";
+  state.priority="";
+  state.delivery="";
+  state.freeText="";
+  localStorage.removeItem("remesas_destination");
+  renderHome();
+}
+
+function getCountryName(code){
+  const countries=state.config?.countries||[];
+  const found=countries.find(c=>(typeof c==="string"?c:(c.code||c.id))===code);
+  if(!found)return code;
+  return typeof found==="string"?found:(found.name||found.country||code);
+}
+
+loadConfig();
+
+})();
+</script>
+</body>
+</html>
