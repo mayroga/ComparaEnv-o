@@ -18,8 +18,13 @@ final_check,public_config,validate_brain,help_data,provider_registry
 
 APP_NAME="REMESAS | May Roga LLC"
 APP_VERSION="1.0.0"
-BASE_DIR=Path(__file__).resolve().parent
+BASE_DIR=Path(**file**).resolve().parent
 STATIC_DIR=BASE_DIR/"static"
+
+app=FastAPI(title=APP_NAME,version=APP_VERSION)
+
+if STATIC_DIR.exists():
+app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
 
 app=FastAPI(title=APP_NAME,version=APP_VERSION)
 
