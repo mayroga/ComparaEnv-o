@@ -24,7 +24,11 @@ STATIC_DIR=BASE_DIR/"static"
 app=FastAPI(title=APP_NAME,version=APP_VERSION)
 
 if STATIC_DIR.exists():
-app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
+app.mount(
+"/static",
+StaticFiles(directory=str(STATIC_DIR)),
+name="static"
+)
 
 def update_session_timestamp(session):
 session.updated_at=datetime.now(timezone.utc).isoformat()
@@ -126,9 +130,12 @@ try:
 current_session=get_session(session_id)
 except KeyError:
 raise HTTPException(status_code=404,detail="Session not found")
+
+```
 parsed=parse_need_text(request.text,request.language)
 update_from_parsed(current_session,parsed)
 return {"session":current_session,"parsed":parsed}
+```
 
 @app.get("/api/session/{session_id}/analysis")
 def session_analysis(session_id:str):
@@ -136,9 +143,16 @@ try:
 current_session=get_session(session_id)
 except KeyError:
 raise HTTPException(status_code=404,detail="Session not found")
+
+```
 if not current_session.need_analysis:
-raise HTTPException(status_code=409,detail="Need analysis is not available")
+    raise HTTPException(
+        status_code=409,
+        detail="Need analysis is not available"
+    )
+
 return current_session.need_analysis
+```
 
 @app.post("/api/session/{session_id}/compare")
 def session_compare(
@@ -151,13 +165,17 @@ except KeyError:
 raise HTTPException(status_code=404,detail="Session not found")
 
 ```
-amount=current_session.amount
-destination=current_session.destination
+if not current_session.amount:
+    raise HTTPException(
+        status_code=422,
+        detail="Amount is required before comparison"
+    )
 
-if not amount:
-    raise HTTPException(status_code=422,detail="Amount is required before comparison")
-if not destination:
-    raise HTTPException(status_code=422,detail="Destination is required before comparison")
+if not current_session.destination:
+    raise HTTPException(
+        status_code=422,
+        detail="Destination is required before comparison"
+    )
 
 priority=(
     request.priority
@@ -167,8 +185,8 @@ priority=(
 
 req=UserNeedRequest(
     language=current_session.language,
-    amount=amount,
-    destination=destination,
+    amount=current_session.amount,
+    destination=current_session.destination,
     priority=priority,
     urgency=current_session.urgency,
     delivery_method=current_session.delivery_method,
@@ -203,11 +221,14 @@ try:
 option=select_provider(session_id,provider_id)
 except KeyError as exc:
 raise HTTPException(status_code=404,detail=str(exc))
+
+```
 return {
-"session":get_session(session_id),
-"provider":option,
-"message":"Opción seleccionada. Ahora prepara la información antes de continuar."
+    "session":get_session(session_id),
+    "provider":option,
+    "message":"Opción seleccionada. Ahora prepara la información antes de continuar."
 }
+```
 
 @app.get("/api/session/{session_id}/preparation")
 def session_preparation(session_id:str):
@@ -240,7 +261,10 @@ return guide
 ```
 
 @app.post("/api/session/{session_id}/final-check")
-def session_final_check(session_id:str,request:FinalCheckRequest):
+def session_final_check(
+session_id:str,
+request:FinalCheckRequest
+):
 try:
 current_session=get_session(session_id)
 except KeyError:
@@ -253,6 +277,7 @@ result=final_check(
     request.recipient,
     request.confirm_provider_data
 )
+
 current_session.final_check=result
 current_session.step="final_check"
 update_session_timestamp(current_session)
@@ -268,7 +293,10 @@ raise HTTPException(status_code=404,detail="Session not found")
 
 ```
 if not current_session.selected_provider:
-    raise HTTPException(status_code=404,detail="No provider selected")
+    raise HTTPException(
+        status_code=404,
+        detail="No provider selected"
+    )
 
 return current_session.selected_provider
 ```
@@ -283,7 +311,11 @@ raise HTTPException(status_code=404,detail="Session not found")
 ```
 from remittance_engine import SESSIONS
 SESSIONS.pop(session_id,None)
-return {"ok":True,"message":"Session deleted"}
+
+return {
+    "ok":True,
+    "message":"Session deleted"
+}
 ```
 
 @app.get("/api/help")
