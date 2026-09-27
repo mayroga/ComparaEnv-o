@@ -1,13 +1,11 @@
-const APP={
-config:null,sessionId:null,language:localStorage.getItem("remesas_language")||"es",
-need:{},comparison:null,selectedProvider:null
-};
+const APP={config:null,sessionId:null,language:localStorage.getItem("remesas_language")||"es",need:{},comparison:null,selectedProvider:null};
 
 const TEXT={
 es:{
 loading:"Estoy buscando opciones para lo que necesitas.",
 noResults:"No pudimos confirmar tarifas o cotizaciones actuales, pero estas son las plataformas disponibles para tu destino.",
 results:"Estas son las opciones que pudimos encontrar para ti.",
+available:"Plataformas disponibles para tu destino.",
 verify:"Los datos comerciales requieren verificación.",
 open:"ABRIR PLATAFORMA",
 select:"VER ESTA OPCIÓN",
@@ -33,6 +31,7 @@ en:{
 loading:"I'm looking for options that fit what you need.",
 noResults:"We could not confirm current rates or quotes, but these are the platforms available for your destination.",
 results:"These are the options we found for you.",
+available:"Platforms available for your destination.",
 verify:"Commercial data requires verification.",
 open:"OPEN PLATFORM",
 select:"VIEW THIS OPTION",
@@ -56,14 +55,10 @@ connection:"We could not complete the request. Please try again."
 }
 };
 
-function t(key){
-return TEXT[APP.language]?.[key]??TEXT.es[key]??key;
-}
+function t(key){return TEXT[APP.language]?.[key]??TEXT.es[key]??key}
 
 function esc(value){
-return String(value??"").replace(/[&<>"']/g,m=>({
-"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-}[m]));
+return String(value??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))
 }
 
 function localizedValue(value,language=APP.language){
@@ -78,71 +73,62 @@ if(value.label!=null)return localizedValue(value.label,language);
 if(value.name!=null)return localizedValue(value.name,language);
 if(value.id!=null)return String(value.id);
 }
-return"";
+return""
 }
 
 async function api(url,options={}){
-const response=await fetch(url,{
-headers:{"Content-Type":"application/json",...(options.headers||{})},
-...options
-});
+const response=await fetch(url,{headers:{"Content-Type":"application/json",...(options.headers||{})},...options});
 let data=null;
 try{data=await response.json()}catch(e){}
 if(!response.ok){
-const message=data?.detail||data?.message||t("connection");
-throw new Error(message);
+const message=data?.detail||data?.message||data?.error||t("connection");
+throw new Error(message)
 }
-return data;
+return data
 }
 
 function setLanguage(language){
 APP.language=language==="en"?"en":"es";
 localStorage.setItem("remesas_language",APP.language);
-if(APP.config)renderHome();
+if(APP.config)renderHome()
 }
 
 async function createSession(){
 try{
-const data=await api("/api/session",{
-method:"POST",
-body:JSON.stringify({language:APP.language})
-});
+const data=await api("/api/session",{method:"POST",body:JSON.stringify({language:APP.language})});
 APP.sessionId=data?.session_id||data?.id||data?.session?.session_id||data?.session?.id||null;
 if(data?.session)APP.need={...APP.need,...data.session};
-return APP.sessionId;
+return APP.sessionId
 }catch(e){
 APP.sessionId=null;
-return null;
+return null
 }
 }
 
 async function loadConfig(){
 const data=await api(`/api/config?language=${encodeURIComponent(APP.language)}`);
 APP.config=data?.config||data;
-return APP.config;
+return APP.config
 }
 
-function priorityId(item){
-if(typeof item==="string")return item;
-return item?.id||"";
-}
+function priorityId(item){return typeof item==="string"?item:item?.id||""}
 
 function priorityLabel(item){
 if(typeof item==="string")return localizedValue(item);
-return localizedValue(item?.label??item?.name??item?.id);
+return localizedValue(item?.label??item?.name??item?.id)
 }
 
 function countryName(item){
 if(typeof item==="string"){
 const found=(APP.config?.countries||[]).find(x=>x.id===item);
-return found?.name||item;
+return found?.name||item
 }
-return localizedValue(item?.name??item?.label??item?.id);
+return localizedValue(item?.name??item?.label??item?.id)
 }
 
 function renderLanguageButton(){
 const button=document.getElementById("language-toggle");
-if(button)button.textContent=APP.language==="es"?"EN":"ES";
+if(button)button.textContent=APP.language==="es"?"EN":"ES"
 }
 
 function renderHome(){
@@ -186,7 +172,7 @@ const id=priorityId(p);
 return`<button type="button" class="priority-btn" data-priority="${esc(id)}">
 <span>${esc(p?.icon||"")}</span>
 <strong>${esc(priorityLabel(p))}</strong>
-</button>`;
+</button>`
 }).join("")}
 </div>
 </div>
@@ -201,20 +187,18 @@ return`<button type="button" class="priority-btn" data-priority="${esc(id)}">
 
 renderLanguageButton();
 
-document.getElementById("language-toggle")?.addEventListener("click",()=>{
-setLanguage(APP.language==="es"?"en":"es");
-});
+document.getElementById("language-toggle")?.addEventListener("click",()=>setLanguage(APP.language==="es"?"en":"es"));
 
 document.querySelectorAll(".priority-btn").forEach(button=>{
 button.addEventListener("click",()=>{
 document.querySelectorAll(".priority-btn").forEach(x=>x.classList.remove("selected"));
 button.classList.add("selected");
-APP.need.priority=button.dataset.priority;
-});
+APP.need.priority=button.dataset.priority
+})
 });
 
 document.getElementById("continue-btn")?.addEventListener("click",startComparison);
-document.getElementById("restart-btn")?.addEventListener("click",restart);
+document.getElementById("restart-btn")?.addEventListener("click",restart)
 }
 
 function showLoading(){
@@ -224,7 +208,7 @@ app.innerHTML=`
 <div class="card validation-card">
 <h2>${esc(t("loading"))}</h2>
 <div class="loader"></div>
-</div>`;
+</div>`
 }
 
 function collectNeed(){
@@ -245,12 +229,12 @@ send_currency:"USD",
 special_need:freeText||null
 };
 
-return APP.need;
+return APP.need
 }
 
 async function ensureSession(){
 if(APP.sessionId)return true;
-return !!(await createSession());
+return!!(await createSession())
 }
 
 async function startComparison(){
@@ -258,12 +242,12 @@ const need=collectNeed();
 
 if(!need.destination_country){
 alert(t("countryRequired"));
-return;
+return
 }
 
 if(!need.amount||need.amount<=0){
 alert(t("amountRequired"));
-return;
+return
 }
 
 showLoading();
@@ -271,20 +255,22 @@ showLoading();
 try{
 await ensureSession();
 
-let needResponse=null;
+let needResponse;
 
 try{
 needResponse=await api("/api/need",{
 method:"POST",
 body:JSON.stringify(need)
-});
+})
 }catch(e){
-if(APP.sessionId){
-needResponse=await api(`/api/session/${encodeURIComponent(APP.sessionId)}/need`,{
+if(!APP.sessionId)throw e;
+needResponse=await api(`/api/session/${encodeURIComponent(APP.sessionId)}/need/parse`,{
 method:"POST",
-body:JSON.stringify(need)
-});
-}else throw e;
+body:JSON.stringify({
+text:need.special_need||"",
+language:APP.language
+})
+})
 }
 
 const sessionFromNeed=needResponse?.session||needResponse?.data?.session;
@@ -296,21 +282,18 @@ if(!APP.sessionId)await ensureSession();
 let result;
 
 try{
-result=await api(`/api/session/${encodeURIComponent(APP.sessionId)}/compare`,{
-method:"POST",
-body:JSON.stringify(need)
-});
+result=await api(`/api/session/${encodeURIComponent(APP.sessionId)}/compare`,{method:"POST"})
 }catch(e){
 result=await api("/api/compare",{
 method:"POST",
 body:JSON.stringify(need)
-});
+})
 }
 
 APP.comparison=result?.comparison||result;
-renderResults(APP.comparison);
+renderResults(APP.comparison)
 }catch(error){
-renderError(error?.message||t("connection"));
+renderError(error?.message||t("connection"))
 }
 }
 
@@ -325,10 +308,7 @@ await ensureSession();
 
 const parsedResponse=await api("/api/need/parse",{
 method:"POST",
-body:JSON.stringify({
-text,
-language:APP.language
-})
+body:JSON.stringify({text,language:APP.language})
 });
 
 const parsed=parsedResponse?.parsed||parsedResponse?.data||parsedResponse;
@@ -347,32 +327,30 @@ language:APP.language
 
 renderHome();
 
-if(APP.need.destination_country&&APP.need.amount){
-await startComparison();
-}
+if(APP.need.destination_country&&APP.need.amount)await startComparison()
 }catch(error){
-renderError(error?.message||t("connection"));
+renderError(error?.message||t("connection"))
 }
 }
 
 function providerDisplayStatus(provider){
 if(provider?.commercial_verified||provider?.commercial_status==="verified")
 return`<span class="status verified">${esc(t("verified"))}</span>`;
-return`<span class="status unavailable">${esc(t("commercialUnavailable"))}</span>`;
+return`<span class="status unavailable">${esc(t("commercialUnavailable"))}</span>`
 }
 
 function providerUrl(provider){
-return provider?.continue_url||provider?.official_site||"#";
+return provider?.continue_url||provider?.official_site||"#"
 }
 
 function renderProviderCard(provider,index){
-const verified=!!provider?.commercial_verified||
-provider?.commercial_status==="verified";
+const verified=!!provider?.commercial_verified||provider?.commercial_status==="verified";
 
 const fee=verified&&provider.fee!=null?provider.fee:null;
 const rate=verified&&provider.exchange_rate!=null?provider.exchange_rate:null;
 const recipient=verified&&provider.recipient_amount!=null?provider.recipient_amount:null;
-const delivery=verified&&provider.delivery_time!=null?provider.delivery_time:null;
+const delivery=verified&&(provider.delivery_time!=null||provider.estimated_delivery!=null)
+?(provider.delivery_time??provider.estimated_delivery):null;
 
 return`
 <div class="provider-card" data-provider="${esc(provider.provider_id||"")}">
@@ -391,17 +369,15 @@ ${verified?`
 <div><small>RECIBE</small><strong>${esc(recipient??t("notAvailable"))}</strong></div>
 <div><small>ENTREGA</small><strong>${esc(delivery??t("notAvailable"))}</strong></div>
 </div>
-`:`
-<div class="provider-message">
-${esc(t("verify"))}
-</div>`}
+`:
+`<div class="provider-message">${esc(t("verify"))}</div>`}
 
 <div class="provider-actions">
 <button type="button" class="provider-select" data-provider="${esc(provider.provider_id||"")}">
 ${esc(verified?t("select"):t("open"))}
 </button>
 </div>
-</div>`;
+</div>`
 }
 
 function renderResults(data){
@@ -409,11 +385,8 @@ const app=document.getElementById("app")||document.getElementById("root");
 if(!app)return;
 
 const results=Array.isArray(data?.results)?data.results:[];
-const providers=Array.isArray(data?.available_providers)
-?data.available_providers
-:Array.isArray(data?.providers)
-?data.providers
-:[];
+const providers=Array.isArray(data?.available_providers)?data.available_providers:
+Array.isArray(data?.providers)?data.providers:[];
 
 const merged=[];
 const seen=new Set();
@@ -428,7 +401,7 @@ provider_name:r.provider_name||id,
 commercial_verified:true,
 commercial_status:"verified",
 continue_url:r.continue_url
-});
+})
 });
 
 providers.forEach(p=>{
@@ -439,15 +412,29 @@ merged.push({
 ...p,
 provider_id:id,
 provider_name:p.provider_name||p.name||id
+})
 });
-});
+
+const hasProviders=merged.length>0;
+const hasVerified=results.length>0;
+
+let heading;
+
+if(hasVerified){
+heading=data?.message&&data.message!==t("noResults")?data.message:t("results")
+}else if(hasProviders){
+heading=t("available")
+}else{
+heading=data?.message||t("noResults")
+}
 
 app.innerHTML=`
 <div class="card validation-card">
 <button id="back-home" class="back-btn" type="button">← ${esc(t("back"))}</button>
-<h2>${esc(data?.message||(
-results.length?t("results"):t("noResults")
-))}</h2>
+<h2>${esc(heading)}</h2>
+
+${hasProviders&&!hasVerified?`
+<p class="small">${esc(t("noResults"))}</p>`:""}
 
 <div class="search-summary">
 <div><small>${esc(t("amount"))}</small><strong>$${esc(APP.need.amount??"")}</strong></div>
@@ -456,9 +443,8 @@ results.length?t("results"):t("noResults")
 </div>
 
 <div class="provider-list">
-${merged.length?merged.map(renderProviderCard).join(""):`
-<div class="provider-message">${esc(t("noResults"))}</div>
-`}
+${hasProviders?merged.map(renderProviderCard).join(""):`
+<div class="provider-message">${esc(t("noResults"))}</div>`}
 </div>
 
 <button id="restart-btn" class="secondary-btn" type="button">${esc(t("restart"))}</button>
@@ -468,39 +454,33 @@ document.getElementById("back-home")?.addEventListener("click",renderHome);
 document.getElementById("restart-btn")?.addEventListener("click",restart);
 
 document.querySelectorAll(".provider-select").forEach(button=>{
-button.addEventListener("click",()=>selectProvider(button.dataset.provider,merged));
-});
+button.addEventListener("click",()=>selectProvider(button.dataset.provider,merged))
+})
 }
 
 async function selectProvider(providerId,providers){
-const provider=providers.find(p=>
-(p.provider_id||p.id)===providerId
-);
-
+const provider=providers.find(p=>(p.provider_id||p.id)===providerId);
 if(!provider)return;
 
 APP.selectedProvider=provider;
 
+const verified=!!provider.commercial_verified||provider.commercial_status==="verified";
+
 try{
 if(APP.sessionId){
 try{
-await api(`/api/session/${encodeURIComponent(APP.sessionId)}/select/${encodeURIComponent(providerId)}`,{
-method:"POST"
-});
+await api(`/api/session/${encodeURIComponent(APP.sessionId)}/select/${encodeURIComponent(providerId)}`,{method:"POST"})
 }catch(e){}
 }
 
-const verified=!!provider.commercial_verified||
-provider.commercial_status==="verified";
-
 if(!verified){
 openProvider(provider);
-return;
+return
 }
 
-await performFinalCheck(provider);
+await performFinalCheck(provider)
 }catch(error){
-renderError(error?.message||t("connection"));
+renderError(error?.message||t("connection"))
 }
 }
 
@@ -519,17 +499,14 @@ try{
 check=await api("/api/final-check",{
 method:"POST",
 body:JSON.stringify(request)
-});
+})
 }catch(e){
 if(APP.sessionId){
-check=await api(`/api/session/${encodeURIComponent(APP.sessionId)}/final-check`,{
-method:"POST",
-body:JSON.stringify(request)
-});
-}else throw e;
+check=await api(`/api/session/${encodeURIComponent(APP.sessionId)}/final-check`,{method:"POST"})
+}else throw e
 }
 
-renderFinalCheck(provider,check);
+renderFinalCheck(provider,check)
 }
 
 function renderFinalCheck(provider,check){
@@ -541,7 +518,6 @@ const checks=Array.isArray(check?.checks)?check.checks:[];
 app.innerHTML=`
 <div class="card validation-card">
 <button id="back-results" class="back-btn" type="button">← ${esc(t("back"))}</button>
-
 <h2>${esc(provider.provider_name||provider.provider_id||"")}</h2>
 <p class="small">${esc(t("external"))}</p>
 
@@ -560,33 +536,25 @@ ${checks.map(item=>`
 ${provider.fee!=null?`<p><strong>Cargo:</strong> ${esc(provider.fee)}</p>`:""}
 ${provider.exchange_rate!=null?`<p><strong>Tasa:</strong> ${esc(provider.exchange_rate)}</p>`:""}
 ${provider.recipient_amount!=null?`<p><strong>Recibe:</strong> ${esc(provider.recipient_amount)}</p>`:""}
-${provider.estimated_delivery!=null?`<p><strong>Entrega:</strong> ${esc(provider.estimated_delivery)}</p>`:""}
+${(provider.estimated_delivery??provider.delivery_time)!=null?`<p><strong>Entrega:</strong> ${esc(provider.estimated_delivery??provider.delivery_time)}</p>`:""}
 </div>
 
 <button id="provider-continue" class="primary-btn" type="button">${esc(t("continue"))}</button>
 <button id="restart-btn" class="secondary-btn" type="button">${esc(t("restart"))}</button>
 </div>`;
 
-document.getElementById("back-results")?.addEventListener("click",()=>{
-renderResults(APP.comparison);
-});
-
+document.getElementById("back-results")?.addEventListener("click",()=>renderResults(APP.comparison));
 document.getElementById("restart-btn")?.addEventListener("click",restart);
-
-document.getElementById("provider-continue")?.addEventListener("click",()=>{
-openProvider(provider);
-});
+document.getElementById("provider-continue")?.addEventListener("click",()=>openProvider(provider))
 }
 
 function openProvider(provider){
 const url=providerUrl(provider);
-
 if(!url||url==="#"){
 alert(t("connection"));
-return;
+return
 }
-
-window.open(url,"_blank","noopener,noreferrer");
+window.open(url,"_blank","noopener,noreferrer")
 }
 
 function renderError(message){
@@ -601,7 +569,7 @@ app.innerHTML=`
 </div>`;
 
 document.getElementById("retry-btn")?.addEventListener("click",renderHome);
-document.getElementById("restart-btn")?.addEventListener("click",restart);
+document.getElementById("restart-btn")?.addEventListener("click",restart)
 }
 
 function restart(){
@@ -609,16 +577,16 @@ APP.sessionId=null;
 APP.need={};
 APP.comparison=null;
 APP.selectedProvider=null;
-createSession().finally(renderHome);
+createSession().finally(renderHome)
 }
 
 async function boot(){
 try{
 await loadConfig();
 await createSession();
-renderHome();
+renderHome()
 }catch(error){
-renderError(error?.message||t("connection"));
+renderError(error?.message||t("connection"))
 }
 }
 
