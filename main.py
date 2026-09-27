@@ -26,11 +26,6 @@ app=FastAPI(title=APP_NAME,version=APP_VERSION)
 if STATIC_DIR.exists():
 app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
 
-app=FastAPI(title=APP_NAME,version=APP_VERSION)
-
-if STATIC_DIR.exists():
-app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
-
 def update_session_timestamp(session):
 session.updated_at=datetime.now(timezone.utc).isoformat()
 return session
