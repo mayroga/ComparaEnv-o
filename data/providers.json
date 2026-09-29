@@ -1,1 +1,329 @@
-{"version":"3.0.0","schema_version":3,"updated_at":"2026-09-29","purpose":"Registro de proveedores de remesas para comparación informativa.","commercial_data_policy":"No se inventan tarifas, tipos de cambio, tiempos de entrega ni cantidades recibidas. Los datos comerciales solo se consideran verificados cuando existe fuente y fecha de verificación.","providers":[{"id":"western_union","name":"Western Union","enabled":true,"official_site":"https://www.westernunion.com/","official_urls":{"main":"https://www.westernunion.com/","us_en":"https://www.westernunion.com/us/en/home.html","us_send":"https://www.westernunion.com/us/en/web/send-money/start","us_es":"https://www.westernunion.com/us/es/home.html","us_send_es":"https://www.westernunion.com/us/es/web/send-money/start"},"supports_online":true,"supports_agent":true,"payment_methods":["bank_account","debit_card","credit_card","cash"],"delivery_methods":["bank_account","cash_pickup","mobile_wallet"],"commercial_data":{"status":"unavailable","source":null,"verified_at":null,"fee":null,"exchange_rate":null,"recipient_amount":null,"delivery_time":null,"currency":null}},{"id":"moneygram","name":"MoneyGram","enabled":true,"official_site":"https://www.moneygram.com/","official_urls":{"main":"https://www.moneygram.com/","us_en":"https://www.moneygram.com/","us_send":"https://www.moneygram.com/mgo/us/en/send-money/","us_es":"https://www.moneygram.com/mgo/us/es/"},"supports_online":true,"supports_agent":true,"payment_methods":["bank_account","debit_card","credit_card","cash"],"delivery_methods":["bank_account","cash_pickup","mobile_wallet"],"commercial_data":{"status":"unavailable","source":null,"verified_at":null,"fee":null,"exchange_rate":null,"recipient_amount":null,"delivery_time":null,"currency":null}},{"id":"remitly","name":"Remitly","enabled":true,"official_site":"https://www.remitly.com/","official_urls":{"main":"https://www.remitly.com/","us_en":"https://www.remitly.com/us/en/home","us_send":"https://www.remitly.com/us/en/home","us_es":"https://www.remitly.com/us/es/home"},"supports_online":true,"supports_agent":false,"payment_methods":["bank_account","debit_card","credit_card"],"delivery_methods":["bank_account","cash_pickup","mobile_wallet"],"commercial_data":{"status":"unavailable","source":null,"verified_at":null,"fee":null,"exchange_rate":null,"recipient_amount":null,"delivery_time":null,"currency":null}},{"id":"xoom","name":"Xoom","enabled":true,"official_site":"https://www.xoom.com/","official_urls":{"main":"https://www.xoom.com/","us_en":"https://www.xoom.com/","us_send":"https://www.xoom.com/","us_es":"https://www.xoom.com/"},"supports_online":true,"supports_agent":false,"payment_methods":["bank_account","debit_card","credit_card"],"delivery_methods":["bank_account","cash_pickup","mobile_wallet"],"commercial_data":{"status":"unavailable","source":null,"verified_at":null,"fee":null,"exchange_rate":null,"recipient_amount":null,"delivery_time":null,"currency":null}}],"corridors":{"default_providers":["western_union","moneygram","remitly","xoom"],"destinations":{"MX":{"providers":["western_union","moneygram","remitly","xoom"]},"GT":{"providers":["western_union","moneygram","remitly","xoom"]},"SV":{"providers":["western_union","moneygram","remitly","xoom"]},"HN":{"providers":["western_union","moneygram","remitly","xoom"]},"NI":{"providers":["western_union","moneygram","remitly","xoom"]},"CR":{"providers":["western_union","moneygram","remitly","xoom"]},"PA":{"providers":["western_union","moneygram","remitly","xoom"]},"DO":{"providers":["western_union","moneygram","remitly","xoom"]},"CO":{"providers":["western_union","moneygram","remitly","xoom"]},"VE":{"providers":["western_union","moneygram","remitly","xoom"]},"EC":{"providers":["western_union","moneygram","remitly","xoom"]},"PE":{"providers":["western_union","moneygram","remitly","xoom"]},"BO":{"providers":["western_union","moneygram","remitly","xoom"]},"PY":{"providers":["western_union","moneygram","remitly","xoom"]},"BR":{"providers":["western_union","moneygram","remitly","xoom"]},"CL":{"providers":["western_union","moneygram","remitly","xoom"]},"AR":{"providers":["western_union","moneygram","remitly","xoom"]},"UY":{"providers":["western_union","moneygram","remitly","xoom"]},"CU":{"providers":["western_union","moneygram","remitly","xoom"]},"HT":{"providers":["western_union","moneygram","remitly","xoom"]}}},"security":{"never_collect":["password","provider_password","cvv","security_code","bank_login","authentication_code"],"handoff":"El usuario continúa directamente en el sitio oficial del proveedor."}}
+{
+  "version": "3.0.0",
+  "schema_version": 3,
+  "updated_at": "2026-09-29",
+  "purpose": "Registro de proveedores de remesas para comparación informativa.",
+  "commercial_data_policy": "No se inventan tarifas, tipos de cambio, tiempos de entrega ni cantidades recibidas. Los datos comerciales solo se consideran verificados cuando existe fuente y fecha de verificación.",
+  "providers": [
+    {
+      "id": "western_union",
+      "name": "Western Union",
+      "enabled": true,
+      "official_site": "https://www.westernunion.com/",
+      "official_urls": {
+        "main": "https://www.westernunion.com/",
+        "us_en": "https://www.westernunion.com/us/en/home.html",
+        "us_send": "https://www.westernunion.com/us/en/web/send-money/start",
+        "us_es": "https://www.westernunion.com/us/es/home.html",
+        "us_send_es": "https://www.westernunion.com/us/es/web/send-money/start"
+      },
+      "supports_online": true,
+      "supports_agent": true,
+      "payment_methods": [
+        "bank_account",
+        "debit_card",
+        "credit_card",
+        "cash"
+      ],
+      "delivery_methods": [
+        "bank_account",
+        "cash_pickup",
+        "mobile_wallet"
+      ],
+      "commercial_data": {
+        "status": "unavailable",
+        "source": null,
+        "verified_at": null,
+        "fee": null,
+        "exchange_rate": null,
+        "recipient_amount": null,
+        "delivery_time": null,
+        "currency": null
+      }
+    },
+    {
+      "id": "moneygram",
+      "name": "MoneyGram",
+      "enabled": true,
+      "official_site": "https://www.moneygram.com/",
+      "official_urls": {
+        "main": "https://www.moneygram.com/",
+        "us_en": "https://www.moneygram.com/",
+        "us_send": "https://www.moneygram.com/mgo/us/en/send-money/",
+        "us_es": "https://www.moneygram.com/mgo/us/es/"
+      },
+      "supports_online": true,
+      "supports_agent": true,
+      "payment_methods": [
+        "bank_account",
+        "debit_card",
+        "credit_card",
+        "cash"
+      ],
+      "delivery_methods": [
+        "bank_account",
+        "cash_pickup",
+        "mobile_wallet"
+      ],
+      "commercial_data": {
+        "status": "unavailable",
+        "source": null,
+        "verified_at": null,
+        "fee": null,
+        "exchange_rate": null,
+        "recipient_amount": null,
+        "delivery_time": null,
+        "currency": null
+      }
+    },
+    {
+      "id": "remitly",
+      "name": "Remitly",
+      "enabled": true,
+      "official_site": "https://www.remitly.com/",
+      "official_urls": {
+        "main": "https://www.remitly.com/",
+        "us_en": "https://www.remitly.com/us/en/home",
+        "us_send": "https://www.remitly.com/us/en/home",
+        "us_es": "https://www.remitly.com/us/es/home"
+      },
+      "supports_online": true,
+      "supports_agent": false,
+      "payment_methods": [
+        "bank_account",
+        "debit_card",
+        "credit_card"
+      ],
+      "delivery_methods": [
+        "bank_account",
+        "cash_pickup",
+        "mobile_wallet"
+      ],
+      "commercial_data": {
+        "status": "unavailable",
+        "source": null,
+        "verified_at": null,
+        "fee": null,
+        "exchange_rate": null,
+        "recipient_amount": null,
+        "delivery_time": null,
+        "currency": null
+      }
+    },
+    {
+      "id": "xoom",
+      "name": "Xoom",
+      "enabled": true,
+      "official_site": "https://www.xoom.com/",
+      "official_urls": {
+        "main": "https://www.xoom.com/",
+        "us_en": "https://www.xoom.com/",
+        "us_send": "https://www.xoom.com/",
+        "us_es": "https://www.xoom.com/"
+      },
+      "supports_online": true,
+      "supports_agent": false,
+      "payment_methods": [
+        "bank_account",
+        "debit_card",
+        "credit_card"
+      ],
+      "delivery_methods": [
+        "bank_account",
+        "cash_pickup",
+        "mobile_wallet"
+      ],
+      "commercial_data": {
+        "status": "unavailable",
+        "source": null,
+        "verified_at": null,
+        "fee": null,
+        "exchange_rate": null,
+        "recipient_amount": null,
+        "delivery_time": null,
+        "currency": null
+      }
+    }
+  ],
+  "corridors": {
+    "default_providers": [
+      "western_union",
+      "moneygram",
+      "remitly",
+      "xoom"
+    ],
+    "destinations": {
+      "MX": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "GT": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "SV": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "HN": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "NI": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "CR": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "PA": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "DO": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "CO": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "VE": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "EC": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "PE": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "BO": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "PY": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "BR": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "CL": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "AR": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "UY": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "CU": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      },
+      "HT": {
+        "providers": [
+          "western_union",
+          "moneygram",
+          "remitly",
+          "xoom"
+        ]
+      }
+    }
+  },
+  "security": {
+    "never_collect": [
+      "password",
+      "provider_password",
+      "cvv",
+      "security_code",
+      "bank_login",
+      "authentication_code"
+    ],
+    "handoff": "El usuario continúa directamente en el sitio oficial del proveedor."
+  }
+}
