@@ -2,22 +2,30 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="theme-color" content="#0b1220">
-<meta name="description" content="REMESAS — asistente de dinero y comparación de opciones para enviar dinero desde Estados Unidos.">
+<meta name="description" content="REMESAS — asistencia sencilla para enviar dinero y entender tus opciones.">
 <title>REMESAS | May Roga LLC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div id="app">
-<div class="loading">
-<div class="loader large"></div>
-<p>Cargando REMESAS...</p>
+ <div class="initial-loader">
+  <div class="loader large"></div>
+  <p>Cargando...</p>
+ </div>
 </div>
-</div>
+
 <noscript>
-<div class="noscript">Necesitas activar JavaScript para utilizar REMESAS.</div>
+ <div style="max-width:600px;margin:40px auto;padding:25px;font-family:Arial,sans-serif;text-align:center">
+  <h2>REMESAS</h2>
+  <p>Esta aplicación necesita JavaScript para funcionar.</p>
+ </div>
 </noscript>
-<script src="/static/app.js"></script>
+
+<script src="/static/app.js" defer></script>
 </body>
 </html>
