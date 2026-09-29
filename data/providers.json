@@ -1,604 +1,151 @@
 {
-  "version": "2.0.0",
-  "updated_at": "2026-09-26",
-  "data_policy": {
-    "purpose": "Verified provider registry for REMESAS",
-    "currency_origin": "USD",
-    "origin_country": "US",
-    "source_rule": "official_provider_only",
-    "never_invent_data": true,
-    "never_estimate_commercial_values": true,
-    "commercial_values_require_verification": true,
-    "verification_required": [
-      "source",
-      "verified_at",
-      "status"
-    ],
-    "status_values": [
-      "verified",
-      "unverified",
-      "unavailable",
-      "expired"
-    ],
-    "expired_after_hours": 24,
-    "important_rule": "Provider availability, fees, exchange rates, recipient amounts and delivery times must be verified for the exact corridor, amount, payment method and delivery method before being shown as current."
-  },
-  "providers": [
+  "version":"3.0.0",
+  "schema_version":3,
+  "updated_at":"2026-09-29",
+  "purpose":"Registro verificable de proveedores de remesas y corredores disponibles para comparación informativa.",
+  "commercial_data_policy":"No se inventan tarifas, tipos de cambio, tiempos de entrega ni cantidades recibidas. Los datos comerciales solo se muestran cuando exista fuente y fecha de verificación.",
+  "providers":[
     {
-      "id": "western_union",
-      "name": "Western Union",
-      "legal_name": "Western Union",
-      "enabled": true,
-      "status": "verified",
-      "provider_type": "money_transfer",
-      "origin_countries": [
-        "US"
-      ],
-      "coverage_scope": "international",
-      "official_urls": {
-        "main": "https://www.westernunion.com/",
-        "us_send": "https://www.westernunion.com/us/en/send-money.html",
-        "us_send_es": "https://www.westernunion.com/us/es/send-money.html",
-        "fees": "https://www.westernunion.com/us/en/transfer-fees.html",
-        "fees_es": "https://www.westernunion.com/us/es/transfer-fees.html",
-        "terms": "https://www.westernunion.com/us/en/legal/terms-conditions.html"
+      "id":"western_union",
+      "name":"Western Union",
+      "enabled":true,
+      "official_site":"https://www.westernunion.com/",
+      "official_urls":{
+        "main":"https://www.westernunion.com/",
+        "us_en":"https://www.westernunion.com/us/en/home.html",
+        "us_send":"https://www.westernunion.com/us/en/web/send-money/start",
+        "us_es":"https://www.westernunion.com/us/es/home.html",
+        "us_send_es":"https://www.westernunion.com/us/es/web/send-money/start"
       },
-      "official_source_confirmed": {
-        "coverage": true,
-        "fees": true,
-        "exchange_rate": true,
-        "delivery_options": true,
-        "source": "https://www.westernunion.com/us/en/transfer-fees.html",
-        "verified_at": "2026-09-26"
-      },
-      "payment_methods": [
-        "bank_account",
-        "debit_card",
-        "credit_card",
-        "cash"
-      ],
-      "delivery_methods": [
-        "bank_account",
-        "cash_pickup",
-        "debit_card",
-        "mobile_wallet"
-      ],
-      "commercial_data": {
-        "status": "unverified",
-        "fee": null,
-        "exchange_rate": null,
-        "recipient_amount": null,
-        "delivery_time": null,
-        "currency": null,
-        "source": null,
-        "verified_at": null,
-        "expires_at": null
-      },
-      "verification": {
-        "method": "official_provider_quote",
-        "required_inputs": [
-          "origin_country",
-          "destination_country",
-          "send_amount",
-          "payment_method",
-          "delivery_method"
-        ],
-        "source_required": true,
-        "timestamp_required": true
+      "supports_online":true,
+      "supports_agent":true,
+      "payment_methods":["bank_account","debit_card","credit_card","cash"],
+      "delivery_methods":["bank_account","cash_pickup","mobile_wallet"],
+      "commercial_data":{
+        "status":"unavailable",
+        "source":null,
+        "verified_at":null,
+        "fee":null,
+        "exchange_rate":null,
+        "recipient_amount":null,
+        "delivery_time":null,
+        "currency":null
       }
     },
     {
-      "id": "moneygram",
-      "name": "MoneyGram",
-      "legal_name": "MoneyGram",
-      "enabled": true,
-      "status": "verified",
-      "provider_type": "money_transfer",
-      "origin_countries": [
-        "US"
-      ],
-      "coverage_scope": "international",
-      "official_urls": {
-        "main": "https://www.moneygram.com/",
-        "us_es": "https://www.moneygram.com/us/es/",
-        "corridors": "https://www.moneygram.com/us/en/corridor",
-        "countries_es": "https://www.moneygram.com/us/es/help-center/faq/enviar-recibir/preguntas-generales/a-que-paises-puedo-enviar-dinero"
+      "id":"moneygram",
+      "name":"MoneyGram",
+      "enabled":true,
+      "official_site":"https://www.moneygram.com/",
+      "official_urls":{
+        "main":"https://www.moneygram.com/",
+        "us_en":"https://www.moneygram.com/",
+        "us_send":"https://www.moneygram.com/mgo/us/en/send-money/",
+        "us_es":"https://www.moneygram.com/mgo/us/es/"
       },
-      "official_source_confirmed": {
-        "coverage": true,
-        "fees": true,
-        "exchange_rate": true,
-        "delivery_options": true,
-        "source": "https://www.moneygram.com/us/en/corridor",
-        "verified_at": "2026-09-26"
-      },
-      "payment_methods": [
-        "bank_account",
-        "debit_card",
-        "credit_card",
-        "cash"
-      ],
-      "delivery_methods": [
-        "bank_account",
-        "cash_pickup",
-        "debit_card",
-        "mobile_wallet"
-      ],
-      "commercial_data": {
-        "status": "unverified",
-        "fee": null,
-        "exchange_rate": null,
-        "recipient_amount": null,
-        "delivery_time": null,
-        "currency": null,
-        "source": null,
-        "verified_at": null,
-        "expires_at": null
-      },
-      "verification": {
-        "method": "official_provider_quote",
-        "required_inputs": [
-          "origin_country",
-          "destination_country",
-          "send_amount",
-          "payment_method",
-          "delivery_method"
-        ],
-        "source_required": true,
-        "timestamp_required": true
+      "supports_online":true,
+      "supports_agent":true,
+      "payment_methods":["bank_account","debit_card","credit_card","cash"],
+      "delivery_methods":["bank_account","cash_pickup","mobile_wallet"],
+      "commercial_data":{
+        "status":"unavailable",
+        "source":null,
+        "verified_at":null,
+        "fee":null,
+        "exchange_rate":null,
+        "recipient_amount":null,
+        "delivery_time":null,
+        "currency":null
       }
     },
     {
-      "id": "remitly",
-      "name": "Remitly",
-      "legal_name": "Remitly",
-      "enabled": true,
-      "status": "verified",
-      "provider_type": "money_transfer",
-      "origin_countries": [
-        "US"
-      ],
-      "coverage_scope": "international",
-      "official_urls": {
-        "main": "https://www.remitly.com/",
-        "us_en": "https://www.remitly.com/us/en/money-transfer",
-        "us_es": "https://www.remitly.com/us/es/money-transfer"
+      "id":"remitly",
+      "name":"Remitly",
+      "enabled":true,
+      "official_site":"https://www.remitly.com/",
+      "official_urls":{
+        "main":"https://www.remitly.com/",
+        "us_en":"https://www.remitly.com/us/en/home",
+        "us_send":"https://www.remitly.com/us/en/home",
+        "us_es":"https://www.remitly.com/us/es/home"
       },
-      "official_source_confirmed": {
-        "coverage": true,
-        "fees": true,
-        "exchange_rate": true,
-        "delivery_options": true,
-        "source": "https://www.remitly.com/us/en/money-transfer",
-        "verified_at": "2026-09-26"
-      },
-      "payment_methods": [
-        "bank_account",
-        "debit_card",
-        "credit_card",
-        "apple_pay",
-        "google_pay"
-      ],
-      "delivery_methods": [
-        "bank_account",
-        "cash_pickup",
-        "debit_card",
-        "mobile_wallet",
-        "home_delivery"
-      ],
-      "commercial_data": {
-        "status": "unverified",
-        "fee": null,
-        "exchange_rate": null,
-        "recipient_amount": null,
-        "delivery_time": null,
-        "currency": null,
-        "source": null,
-        "verified_at": null,
-        "expires_at": null
-      },
-      "verification": {
-        "method": "official_provider_quote",
-        "required_inputs": [
-          "origin_country",
-          "destination_country",
-          "send_amount",
-          "payment_method",
-          "delivery_method"
-        ],
-        "source_required": true,
-        "timestamp_required": true
+      "supports_online":true,
+      "supports_agent":false,
+      "payment_methods":["bank_account","debit_card","credit_card"],
+      "delivery_methods":["bank_account","cash_pickup","mobile_wallet"],
+      "commercial_data":{
+        "status":"unavailable",
+        "source":null,
+        "verified_at":null,
+        "fee":null,
+        "exchange_rate":null,
+        "recipient_amount":null,
+        "delivery_time":null,
+        "currency":null
       }
     },
     {
-      "id": "xoom",
-      "name": "Xoom",
-      "legal_name": "Xoom, a PayPal service",
-      "enabled": true,
-      "status": "verified",
-      "provider_type": "money_transfer",
-      "origin_countries": [
-        "US"
-      ],
-      "coverage_scope": "international",
-      "official_urls": {
-        "main": "https://www.xoom.com/",
-        "about": "https://www.xoom.com/about?locale=es-es",
-        "send_countries": "https://help.xoom.com/s/article/from-which-countries-can-i-send-with-xoom?language=en_US"
+      "id":"xoom",
+      "name":"Xoom",
+      "enabled":true,
+      "official_site":"https://www.xoom.com/",
+      "official_urls":{
+        "main":"https://www.xoom.com/",
+        "us_en":"https://www.xoom.com/",
+        "us_send":"https://www.xoom.com/",
+        "us_es":"https://www.xoom.com/"
       },
-      "official_source_confirmed": {
-        "coverage": true,
-        "source": "https://help.xoom.com/s/article/from-which-countries-can-i-send-with-xoom?language=en_US",
-        "verified_at": "2026-09-26"
-      },
-      "payment_methods": [
-        "bank_account",
-        "debit_card",
-        "credit_card",
-        "paypal_balance"
-      ],
-      "delivery_methods": [
-        "bank_account",
-        "cash_pickup",
-        "debit_card",
-        "mobile_wallet",
-        "home_delivery"
-      ],
-      "commercial_data": {
-        "status": "unverified",
-        "fee": null,
-        "exchange_rate": null,
-        "recipient_amount": null,
-        "delivery_time": null,
-        "currency": null,
-        "source": null,
-        "verified_at": null,
-        "expires_at": null
-      },
-      "verification": {
-        "method": "official_provider_quote",
-        "required_inputs": [
-          "origin_country",
-          "destination_country",
-          "send_amount",
-          "payment_method",
-          "delivery_method"
-        ],
-        "source_required": true,
-        "timestamp_required": true
+      "supports_online":true,
+      "supports_agent":false,
+      "payment_methods":["bank_account","debit_card","credit_card"],
+      "delivery_methods":["bank_account","cash_pickup","mobile_wallet"],
+      "commercial_data":{
+        "status":"unavailable",
+        "source":null,
+        "verified_at":null,
+        "fee":null,
+        "exchange_rate":null,
+        "recipient_amount":null,
+        "delivery_time":null,
+        "currency":null
       }
     }
   ],
-  "corridors": {
-    "policy": "A provider is available for a corridor only when the provider or an official provider quote confirms the corridor.",
-    "source_country": "US",
-    "destinations": {
-      "MX": {
-        "country": "Mexico",
-        "currency": "MXN",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "GT": {
-        "country": "Guatemala",
-        "currency": "GTQ",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "SV": {
-        "country": "El Salvador",
-        "currency": "USD",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "HN": {
-        "country": "Honduras",
-        "currency": "HNL",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "NI": {
-        "country": "Nicaragua",
-        "currency": "NIO",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "CR": {
-        "country": "Costa Rica",
-        "currency": "CRC",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "PA": {
-        "country": "Panama",
-        "currency": "PAB",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "DO": {
-        "country": "Dominican Republic",
-        "currency": "DOP",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "CO": {
-        "country": "Colombia",
-        "currency": "COP",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "VE": {
-        "country": "Venezuela",
-        "currency": "VES",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "EC": {
-        "country": "Ecuador",
-        "currency": "USD",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "PE": {
-        "country": "Peru",
-        "currency": "PEN",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "BO": {
-        "country": "Bolivia",
-        "currency": "BOB",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "PY": {
-        "country": "Paraguay",
-        "currency": "PYG",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "BR": {
-        "country": "Brazil",
-        "currency": "BRL",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "CL": {
-        "country": "Chile",
-        "currency": "CLP",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "AR": {
-        "country": "Argentina",
-        "currency": "ARS",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "UY": {
-        "country": "Uruguay",
-        "currency": "UYU",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "CU": {
-        "country": "Cuba",
-        "currency": "USD",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "HT": {
-        "country": "Haiti",
-        "currency": "HTG",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "BZ": {
-        "country": "Belize",
-        "currency": "BZD",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "GY": {
-        "country": "Guyana",
-        "currency": "GYD",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "SR": {
-        "country": "Suriname",
-        "currency": "SRD",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "JM": {
-        "country": "Jamaica",
-        "currency": "JMD",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      },
-      "TT": {
-        "country": "Trinidad and Tobago",
-        "currency": "TTD",
-        "providers": [
-          "western_union",
-          "moneygram",
-          "remitly",
-          "xoom"
-        ],
-        "commercial_data_status": "requires_live_verification"
-      }
+  "corridors":{
+    "default_providers":["western_union","moneygram","remitly","xoom"],
+    "destinations":{
+      "MX":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "GT":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "SV":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "HN":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "NI":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "CR":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "PA":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "DO":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "CO":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "VE":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "EC":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "PE":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "BO":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "PY":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "BR":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "CL":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "AR":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "UY":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "CU":{"providers":["western_union","moneygram","remitly","xoom"]},
+      "HT":{"providers":["western_union","moneygram","remitly","xoom"]}
     }
   },
-  "quote_schema": {
-    "required_fields": [
-      "provider_id",
-      "origin_country",
-      "destination_country",
-      "send_amount",
-      "send_currency",
-      "receive_currency",
-      "fee",
-      "exchange_rate",
-      "recipient_amount",
-      "delivery_method",
-      "delivery_time",
-      "source",
-      "verified_at",
-      "status"
-    ],
-    "rules": {
-      "fee": "must come from verified provider quote",
-      "exchange_rate": "must come from verified provider quote",
-      "recipient_amount": "must come from verified provider quote or be calculated only from verified provider values",
-      "delivery_time": "must come from verified provider quote",
-      "source": "must be official provider source",
-      "verified_at": "must contain verification timestamp",
-      "status": "must be verified before current commercial data is displayed"
-    }
+  "data_fields":{
+    "fee":"Tarifa del envío cuando esté verificada.",
+    "exchange_rate":"Tipo de cambio cuando esté verificado.",
+    "recipient_amount":"Cantidad estimada que recibiría el destinatario cuando esté verificada.",
+    "delivery_time":"Tiempo estimado de entrega cuando esté verificado.",
+    "source":"Fuente utilizada para verificar el dato.",
+    "verified_at":"Fecha y hora de verificación."
   },
-  "comparison_rules": {
-    "compare_only_verified": true,
-    "never_fill_missing_values": true,
-    "never_use_old_quote_as_current": true,
-    "never_call_provider_best": true,
-    "never_rank_without_user_priority": true,
-    "primary_value": "recipient_amount",
-    "secondary_values": [
-      "fee",
-      "exchange_rate",
-      "delivery_time",
-      "delivery_method"
-    ],
-    "user_controls_priority": true
-  },
-  "audit": {
-    "created_for": "REMESAS",
-    "owner": "May Roga LLC",
-    "commercial_data_is_not_static": true,
-    "official_provider_sources_are_authoritative_for_provider_quotes": true,
-    "app_must_show_last_verified_time_when_current_quote_is_displayed": true,
-    "app_must_link_to_provider_before_final_transaction": true,
-    "money_assistant_data_is_local_only": true
+  "security":{
+    "never_collect":["password","provider_password","cvv","security_code","bank_login","authentication_code"],
+    "handoff":"El usuario continúa directamente en el sitio oficial del proveedor."
   }
 }
