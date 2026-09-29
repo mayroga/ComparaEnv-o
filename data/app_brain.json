@@ -33,33 +33,56 @@
   "comparison":{"enabled":true,"purpose":"Comparar internamente para resolver la necesidad del usuario.","internal_comparison":true,"user_interface":"single_clear_result","compare_by":["verified_total_cost","verified_recipient_amount","user_priority","verified_delivery_options","verified_payment_options"],"unknown_values":"must_redirect_to_official_source","sort_by_user_need":true,"never_rank_as_best_without_evidence":true,"never_score_provider":true,"never_invent_missing_data":true},
   "provider_comparison":{"fields":["provider_name","verified_status","payment_options","delivery_options","fee_status","exchange_rate_status","availability_status","official_review_url"],"humanize_values":true,"hide":["provider_id","internal_code","schema_version","backend_status"],"single_result_preferred":true},
   "validation":{"before_recommendation":["amount_present","destination_present","priority_present","commercial_source_available"],"before_handoff":["amount_present","destination_present","provider_selected"],"before_final_check":["provider_selected","amount_valid","destination_valid"],"show_missing_information":true,"show_user_impact":true,"no_guarantees":true},
-  "natural_language":{
-    "enabled":true,
-    "examples":["quiero mandar 200 a mexico rapido","quiero mandar 200 a mexico","gano 600 cada semana","quiero guardar 50 cada semana","me quedan 300 y quiero comprar algo de 400","gasto como 20 dolares al dia en cosas pequeñas","quiero mandar lo de siempre a mama","no entiendo por que recibe menos","no se"],
-    "fields":["amount","destination_country","priority","urgency","delivery_method","payment_method","need_type","person","expense","purchase","saving_goal"],
-    "normalization":{
-      "currency_symbols":["$","usd","dolares","dólares"],
-      "priority_words":{
-        "fast":["rapido","rápido","urgente","hoy","ya","asap"],
-        "cheap":["barato","economico","económico","menos costo","ahorrar"],
-        "simple":["facil","fácil","sencillo","simple"]
-      },
-      "delivery_words":{
-        "cash_pickup":["efectivo","cobrar efectivo","retiro","cash"],
-        "bank_account":["banco","cuenta bancaria","deposito","depósito"],
-        "mobile_wallet":["billetera","wallet","monedero"],
-        "debit_card":["tarjeta de debito","tarjeta de débito"]
-      },
-      "payment_words":{
-        "bank_account":["cuenta bancaria","banco"],
-        "debit_card":["tarjeta de debito","tarjeta de débito"],
-        "credit_card":["tarjeta de credito","tarjeta de crédito"],
-        "cash":["efectivo"]
-      }
+"natural_language":{
+  "enabled":true,
+  "examples":[
+    "quiero mandar 200 a mexico rapido",
+    "quiero mandar 200 a mexico",
+    "gano 600 cada semana",
+    "quiero guardar 50 cada semana",
+    "me quedan 300 y quiero comprar algo de 400",
+    "gasto como 20 dolares al dia en cosas pequeñas",
+    "quiero mandar lo de siempre a mama",
+    "no entiendo por que recibe menos",
+    "no se"
+  ],
+  "fields":[
+    "amount",
+    "destination_country",
+    "priority",
+    "urgency",
+    "delivery_method",
+    "payment_method",
+    "need_type",
+    "person",
+    "expense",
+    "purchase",
+    "saving_goal"
+  ],
+  "normalization":{
+    "currency_symbols":["$","usd","dolares","dólares"],
+    "priority_words":{
+      "fast":["rapido","rápido","urgente","hoy","ya","asap"],
+      "cheap":["barato","economico","económico","menos costo","ahorrar"],
+      "simple":["facil","fácil","sencillo","simple"]
     },
-    "ai_fallback_allowed":true,
-    "ai_fallback_only_when_ambiguous":true,
-    "ai_cannot_set_unverified_commercial_values":true
+    "delivery_words":{
+      "cash_pickup":["efectivo","cobrar efectivo","retiro","cash"],
+      "bank_account":["banco","cuenta bancaria","deposito","depósito"],
+      "mobile_wallet":["billetera","wallet","monedero"],
+      "debit_card":["tarjeta de debito","tarjeta de débito"]
+    },
+    "payment_words":{
+      "bank_account":["cuenta bancaria","banco"],
+      "debit_card":["tarjeta de debito","tarjeta de débito"],
+      "credit_card":["tarjeta de credito","tarjeta de crédito"],
+      "cash":["efectivo"]
+    }
+  },
+  "ai_fallback_allowed":true,
+  "ai_fallback_only_when_ambiguous":true,
+  "ai_cannot_set_unverified_commercial_values":true
+ }
   },
   "action_center":{"enabled":true,"actions":["send_money","review_money","plan_week","add_expense","add_family_need","repeat_family_action","plan_purchase","save_money","ask_question","reset_all"],"do_not_force_action":true,"one_primary_action_at_a_time":true},
   "messages":{"home":{"es":"¿Qué necesitas resolver hoy?","en":"What do you need to solve today?"},"send_money":{"es":"Enviar dinero","en":"Send money"},"my_money":{"es":"Mi dinero","en":"My money"},"my_week":{"es":"Mi semana","en":"My week"},"expenses":{"es":"Mis gastos","en":"My expenses"},"family":{"es":"Familia","en":"Family"},"help":{"es":"No entiendo","en":"I don't understand"},"purchase":{"es":"Planear una compra","en":"Plan a purchase"},"save":{"es":"Ahorrar","en":"Save money"},"review":{"es":"Revisar y continuar","en":"Review and continue"},"official_site":{"es":"Sitio oficial","en":"Official site"},"delete_all":{"es":"Borrar todo y empezar de nuevo","en":"Delete everything and start over"},"verified":{"es":"Información verificada","en":"Verified information"},"check_official":{"es":"Comprobar en el sitio oficial","en":"Check on the official site"},"you_decide":{"es":"Tú decides.","en":"You decide."},"change":{"es":"Cambiar","en":"Change"},"confirm":{"es":"Sí, continuar","en":"Yes, continue"},"repeat":{"es":"Enviar lo de siempre","en":"Repeat usual transfer"},"audio":{"es":"Escuchar","en":"Listen"},"saved":{"es":"¡Hecho!","en":"Done!"}},
