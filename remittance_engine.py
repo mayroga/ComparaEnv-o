@@ -1,4 +1,3 @@
-# remittance_engine.py — REMESAS | May Roga LLC
 import json,re,uuid
 from copy import deepcopy
 from datetime import datetime,timezone
@@ -18,112 +17,191 @@ class RemittanceEngine:
         self.sessions:Dict[str,Dict[str,Any]]={}
 
     def _read_json(self,path:Path)->Dict[str,Any]:
-        if not path.exists():raise FileNotFoundError(f"Required data file not found: {path}")
-        with path.open("r",encoding="utf-8") as f:data=json.load(f)
-        if not isinstance(data,dict):raise ValueError(f"Invalid JSON root in {path.name}")
+        if not path.exists():
+            raise FileNotFoundError(f"Required data file not found: {path}")
+        with path.open("r",encoding="utf-8") as f:
+            data=json.load(f)
+        if not isinstance(data,dict):
+            raise ValueError(f"Invalid JSON root in {path.name}")
         return data
 
     def load_brain(self)->Dict[str,Any]:
         data=self._read_json(BRAIN_PATH)
         required=["app","experience","opening","conversation_logic","kernel","providers","countries","comparison","validation","security","languages"]
         missing=[x for x in required if x not in data]
-        if missing:raise ValueError("Invalid app_brain.json. Missing sections: "+", ".join(missing))
+        if missing:
+            raise ValueError("Invalid app_brain.json. Missing sections: "+", ".join(missing))
         return data
 
     def load_providers(self)->Dict[str,Any]:
         if not PROVIDERS_PATH.exists():
-            return {"version":"fallback","providers":deepcopy(self.brain.get("providers",[])),"corridors":{}}
+            return {
+                "version":"fallback",
+                "providers":deepcopy(self.brain.get("providers",[])),
+                "corridors":{"origin":"US","destinations":{}}
+            }
         data=self._read_json(PROVIDERS_PATH)
-        if not isinstance(data.get("providers"),list):data["providers"]=[]
+        if not isinstance(data.get("providers"),list):
+            data["providers"]=[]
+        if not isinstance(data.get("corridors"),dict):
+            data["corridors"]={"origin":"US","destinations":{}}
+        if not isinstance(data["corridors"].get("destinations"),dict):
+            data["corridors"]["destinations"]={}
         return data
 
-    def now(self)->str:return datetime.now(timezone.utc).isoformat()
+    def now(self)->str:
+        return datetime.now(timezone.utc).isoformat()
 
     def localize(self,value:Any,language:str="es")->str:
-        if value is None:return ""
-        if isinstance(value,(str,int,float,bool)):return str(value)
+        if value is None:
+            return ""
+        if isinstance(value,(str,int,float,bool)):
+            return str(value)
         if isinstance(value,dict):
-            if language in value:return self.localize(value[language],language)
-            if "es" in value:return self.localize(value["es"],"es")
-            if "en" in value:return self.localize(value["en"],"en")
-            if "label" in value:return self.localize(value["label"],language)
-            if "name" in value:return self.localize(value["name"],language)
-            if "id" in value:return str(value["id"])
+            if language in value:
+                return self.localize(value[language],language)
+            fallback="es" if language!="es" else "en"
+            if fallback in value:
+                return self.localize(value[fallback],fallback)
+            if "label" in value:
+                return self.localize(value["label"],language)
+            if "name" in value:
+                return self.localize(value["name"],language)
+            if "id" in value:
+                return str(value["id"])
         if isinstance(value,list):
             return ", ".join(x for x in (self.localize(v,language) for v in value) if x)
         return str(value)
 
     def language_text(self,key:str,language:str="es")->str:
-        return self.localize(self.brain.get("messages",{}).get(key,{}),language)
+        messages=self.brain.get("messages",{})
+        value=messages.get(key,{}) if isinstance(messages,dict) else {}
+        return self.localize(value,language)
 
     def _message(self,key:str,language:str="es")->str:
         return self.language_text(key,language)
 
+    def get_supported_countries(self)->List[Dict[str,Any]]:
+        countries=self.brain.get("countries",{})
+        supported=countries.get("supported",[])
+        result=[]
+        if isinstance(supported,list):
+            for item in supported:
+                if isinstance(item,dict):
+                    code=str(item.get("code","")).upper().strip()
+                    if code:
+                        result.append({
+                            "code":code,
+                            "name":deepcopy(item.get("name",{"es":code,"en":code}))
+                        })
+                elif isinstance(item,str):
+                    code=item.upper().strip()
+                    if code:
+                        result.append({"code":code,"name":{"es":code,"en":code}})
+        return result
+
     def get_country(self,country_code:str)->Optional[Dict[str,Any]]:
         code=(country_code or "").strip().upper()
-        value=self.brain.get("countries",{}).get("country_names",{}).get(code)
-        if isinstance(value,dict):return value
-        value=self.providers_data.get("corridors",{}).get("destinations",{}).get(code)
-        return value if isinstance(value,dict) else None
+        if not code:
+            return None
+        for item in self.get_supported_countries():
+            if str(item.get("code","")).upper()==code:
+                return item
+        destinations=self.providers_data.get("corridors",{}).get("destinations",{})
+        if isinstance(destinations,dict):
+            value=destinations.get(code)
+            if isinstance(value,dict):
+                return value
+        return None
 
     def country_name(self,country_code:str,language:str="es")->str:
         code=(country_code or "").strip().upper()
         value=self.get_country(code)
-        if not value:return code
-        name=self.localize(value,language)
-        if name==str(value):name=value.get("name",value.get("country",code))
+        if not value:
+            return code
+        if "name" in value:
+            name=self.localize(value.get("name"),language)
+        else:
+            name=self.localize(value,language)
         return name or code
+
+    def country_supported(self,country_code:str)->bool:
+        code=(country_code or "").strip().upper()
+        return any(str(x.get("code","")).upper()==code for x in self.get_supported_countries())
 
     def get_provider_registry(self)->List[Dict[str,Any]]:
         providers=self.providers_data.get("providers",[])
         if not isinstance(providers,list) or not providers:
             providers=self.brain.get("providers",[])
-        return [deepcopy(p) for p in providers if isinstance(p,dict) and p.get("enabled",True)]
+        result=[]
+        seen=set()
+        for provider in providers:
+            if not isinstance(provider,dict):
+                continue
+            pid=str(provider.get("id","")).strip().lower()
+            if not pid or pid in seen:
+                continue
+            if not bool(provider.get("enabled",True)):
+                continue
+            seen.add(pid)
+            result.append(deepcopy(provider))
+        return result
 
     def get_provider(self,provider_id:str)->Optional[Dict[str,Any]]:
         pid=(provider_id or "").strip().lower()
         for provider in self.get_provider_registry():
-            if str(provider.get("id","")).lower()==pid:return provider
+            if str(provider.get("id","")).lower()==pid:
+                return provider
         return None
 
     def provider_url(self,provider:Dict[str,Any],language:str="es")->Optional[str]:
         urls=provider.get("official_urls",{})
-        if not isinstance(urls,dict):urls={}
-        preferred=["us_send_es","us_es","es","main"] if language=="es" else ["us_send","us_en","en","main"]
-        for key in preferred:
-            value=urls.get(key)
-            if isinstance(value,str) and value.startswith(("http://","https://")):return value
-        value=provider.get("official_site")
-        return value if isinstance(value,str) and value.startswith(("http://","https://")) else None
+        if isinstance(urls,dict):
+            preferred=["us_send_es","us_es","es","home","main"] if language=="es" else ["us_send","us_en","en","home","main"]
+            for key in preferred:
+                value=urls.get(key)
+                if isinstance(value,str) and value.startswith(("http://","https://")):
+                    return value
+        for key in ("official_url","official_site"):
+            value=provider.get(key)
+            if isinstance(value,str):
+                if value.startswith("http://") or value.startswith("https://"):
+                    return value
+        return None
 
     def corridor_provider_ids(self,country:str)->List[str]:
-        code=(country or "").upper()
+        code=(country or "").strip().upper()
         destinations=self.providers_data.get("corridors",{}).get("destinations",{})
-        corridor=destinations.get(code,{}) if isinstance(destinations,dict) else {}
-        ids=corridor.get("providers",[]) if isinstance(corridor,dict) else []
-        if isinstance(ids,list):
-            valid=[]
-            for pid in ids:
-                if self.get_provider(str(pid)):valid.append(str(pid))
-            return valid
-        return [str(p["id"]) for p in self.get_provider_registry() if p.get("id")]
+        if not isinstance(destinations,dict):
+            destinations={}
+        corridor=destinations.get(code,{})
+        if isinstance(corridor,dict):
+            ids=corridor.get("providers",[])
+            if isinstance(ids,list) and ids:
+                valid=[]
+                for pid in ids:
+                    if self.get_provider(str(pid)):
+                        valid.append(str(pid))
+                if valid:
+                    return valid
+        return [str(p.get("id")) for p in self.get_provider_registry() if p.get("id")]
 
     def candidate_provider_ids(self,country:str)->List[str]:
-        code=(country or "").upper()
-        supported=self.brain.get("countries",{}).get("initial_supported",[])
-        if supported and code not in [str(x).upper() for x in supported]:return []
-        ids=self.corridor_provider_ids(code)
-        if not ids:
-            ids=[str(p["id"]) for p in self.get_provider_registry() if p.get("id")]
-        return ids
+        code=(country or "").strip().upper()
+        if not self.country_supported(code):
+            return []
+        return self.corridor_provider_ids(code)
 
     def get_verified_provider_data(self,provider_id:str,country:str,amount:Optional[float]=None,payment_method:Optional[str]=None,delivery_method:Optional[str]=None)->Optional[Dict[str,Any]]:
         provider=self.get_provider(provider_id)
-        if not provider:return None
+        if not provider:
+            return None
         commercial=provider.get("commercial_data",{})
-        if not isinstance(commercial,dict):return None
+        if not isinstance(commercial,dict):
+            return None
         status=str(commercial.get("status","")).lower()
-        if status!="verified" or not commercial.get("source") or not commercial.get("verified_at"):return None
+        if status!="verified" or not commercial.get("source") or not commercial.get("verified_at"):
+            return None
         result=deepcopy(commercial)
         result["provider_id"]=provider_id
         result["destination_country"]=(country or "").upper()
@@ -131,10 +209,16 @@ class RemittanceEngine:
 
     def provider_public_option(self,provider_id:str,country:str,language:str="es")->Optional[Dict[str,Any]]:
         provider=self.get_provider(provider_id)
-        if not provider:return None
+        if not provider:
+            return None
         commercial=provider.get("commercial_data",{})
-        if not isinstance(commercial,dict):commercial={}
-        verified=str(commercial.get("status","")).lower()=="verified" and bool(commercial.get("source")) and bool(commercial.get("verified_at"))
+        if not isinstance(commercial,dict):
+            commercial={}
+        verified=(
+            str(commercial.get("status","")).lower()=="verified"
+            and bool(commercial.get("source"))
+            and bool(commercial.get("verified_at"))
+        )
         url=self.provider_url(provider,language)
         return {
             "provider_id":provider.get("id"),
@@ -155,7 +239,7 @@ class RemittanceEngine:
             "source":commercial.get("source") if verified else None,
             "verified_at":commercial.get("verified_at") if verified else None,
             "continue_url":url,
-            "official_site":provider.get("official_site") or url,
+            "official_site":provider.get("official_site") or provider.get("official_url") or url,
             "supports_online":provider.get("supports_online",True),
             "supports_agent":provider.get("supports_agent",False),
             "payment_methods":deepcopy(provider.get("payment_methods",[])),
@@ -163,17 +247,52 @@ class RemittanceEngine:
             "requirements":deepcopy(provider.get("requirements",[]))
         }
 
+    def _brain_options(self,key:str,language:str="es")->List[Dict[str,Any]]:
+        data=self.brain.get(key,[])
+        result=[]
+        if isinstance(data,list):
+            for item in data:
+                if isinstance(item,dict):
+                    ident=item.get("id") or item.get("code")
+                    if ident:
+                        result.append({
+                            "id":ident,
+                            "label":self.localize(item.get("label") or item.get("name") or ident,language)
+                        })
+        elif isinstance(data,dict):
+            for ident,value in data.items():
+                result.append({
+                    "id":ident,
+                    "label":self.localize(value,language) or str(ident)
+                })
+        return result
+
     def create_session(self,language:str="es")->Dict[str,Any]:
         language=language if language in ("es","en") else "es"
         sid=str(uuid.uuid4())
         state={
-            "session_id":sid,"language":language,"amount":None,"send_currency":"USD",
-            "destination_country":None,"priority":None,"urgency":None,
-            "delivery_method":None,"payment_method":None,"special_need":None,
-            "free_text":None,"parsed_user_need":None,"need_type":None,
-            "candidate_providers":[],"available_providers":[],"verified_results":[],
-            "selected_option":None,"final_check":{},"current_step":"opening",
-            "created_at":self.now(),"updated_at":self.now()
+            "session_id":sid,
+            "language":language,
+            "need_type":None,
+            "amount":None,
+            "send_currency":"USD",
+            "destination_country":None,
+            "priority":None,
+            "urgency":None,
+            "frequency":None,
+            "delivery_method":None,
+            "payment_method":None,
+            "special_need":None,
+            "free_text":None,
+            "parsed_user_need":None,
+            "candidate_providers":[],
+            "available_providers":[],
+            "verified_results":[],
+            "selected_option":None,
+            "final_check":{},
+            "current_step":"opening",
+            "created_at":self.now(),
+            "updated_at":self.now()
         }
         self.sessions[sid]=state
         return deepcopy(state)
@@ -183,9 +302,11 @@ class RemittanceEngine:
 
     def update_session(self,session_id:str,**values:Any)->Optional[Dict[str,Any]]:
         state=self.sessions.get(session_id)
-        if not state:return None
+        if not state:
+            return None
         for key,value in values.items():
-            if value is not None:state[key]=value
+            if value is not None:
+                state[key]=value
         state["updated_at"]=self.now()
         return deepcopy(state)
 
@@ -194,12 +315,13 @@ class RemittanceEngine:
 
     def _amount_from_text(self,text:str)->Optional[float]:
         matches=re.findall(r"(?:\$|USD\s*)?([0-9][0-9,]*(?:\.[0-9]{1,2})?)",text or "",re.I)
-        if not matches:return None
         for raw in matches:
             try:
                 value=float(raw.replace(",",""))
-                if value>0:return value
-            except ValueError:continue
+                if value>0:
+                    return value
+            except ValueError:
+                continue
         return None
 
     def _country_from_text(self,text:str)->Optional[str]:
@@ -207,16 +329,32 @@ class RemittanceEngine:
         aliases={
             "méxico":"MX","mexico":"MX","mexican":"MX","mexicana":"MX",
             "guatemala":"GT","el salvador":"SV","salvador":"SV",
-            "honduras":"HN","nicaragua":"NI","costa rica":"CR","panamá":"PA","panama":"PA",
-            "república dominicana":"DO","republica dominicana":"DO","dominicana":"DO",
-            "colombia":"CO","venezuela":"VE","ecuador":"EC","perú":"PE","peru":"PE",
-            "bolivia":"BO","paraguay":"PY","brasil":"BR","brazil":"BR","chile":"CL",
-            "argentina":"AR","uruguay":"UY","cuba":"CU","haití":"HT","haiti":"HT"
+            "honduras":"HN","nicaragua":"NI","costa rica":"CR",
+            "panamá":"PA","panama":"PA","república dominicana":"DO",
+            "republica dominicana":"DO","dominicana":"DO","colombia":"CO",
+            "venezuela":"VE","ecuador":"EC","perú":"PE","peru":"PE",
+            "bolivia":"BO","paraguay":"PY","brasil":"BR","brazil":"BR",
+            "chile":"CL","argentina":"AR","uruguay":"UY","cuba":"CU",
+            "haití":"HT","haiti":"HT"
         }
+        for item in self.get_supported_countries():
+            code=str(item.get("code","")).lower()
+            name=item.get("name",{})
+            names=[]
+            if isinstance(name,dict):
+                names.extend([name.get("es",""),name.get("en","")])
+            else:
+                names.append(str(name))
+            for n in names:
+                if n and re.search(r"\b"+re.escape(str(n).lower())+r"\b",normalized):
+                    return code.upper()
         for name,code in sorted(aliases.items(),key=lambda x:-len(x[0])):
-            if re.search(r"\b"+re.escape(name)+r"\b",normalized):return code
-        for code in self.brain.get("countries",{}).get("initial_supported",[]):
-            if re.search(r"\b"+re.escape(str(code).lower())+r"\b",normalized):return str(code).upper()
+            if re.search(r"\b"+re.escape(name)+r"\b",normalized):
+                return code
+        for item in self.get_supported_countries():
+            code=str(item.get("code","")).lower()
+            if code and re.search(r"\b"+re.escape(code)+r"\b",normalized):
+                return code.upper()
         return None
 
     def _priority_from_text(self,text:str)->Optional[str]:
@@ -230,7 +368,20 @@ class RemittanceEngine:
             ("compare_all",["comparar","compare","comparación","comparacion","opciones","options"])
         ]
         for priority,terms in patterns:
-            if any(term in value for term in terms):return priority
+            if any(term in value for term in terms):
+                return priority
+        return None
+
+    def _frequency_from_text(self,text:str)->Optional[str]:
+        value=(text or "").lower()
+        if any(x in value for x in ["cada semana","semanal","weekly"]):
+            return "weekly"
+        if any(x in value for x in ["cada dos semanas","quincenal","biweekly"]):
+            return "biweekly"
+        if any(x in value for x in ["cada mes","mensual","monthly"]):
+            return "monthly"
+        if any(x in value for x in ["una vez","puntual","ocasional","one time","once"]):
+            return "one_time"
         return None
 
     def classify_need(self,text:str,language:str="es")->Dict[str,Any]:
@@ -261,33 +412,63 @@ class RemittanceEngine:
 
     def parse_need(self,request:ParseNeedRequest)->Dict[str,Any]:
         text=request.text or ""
-        classification=self.classify_need(text,request.language)
+        language=request.language if request.language in ("es","en") else "es"
+        classification=self.classify_need(text,language)
         priority=self._priority_from_text(text)
         amount=self._amount_from_text(text)
         country=self._country_from_text(text)
+        frequency=self._frequency_from_text(text)
         return {
             "need_type":classification["need_type"],
             "amount":amount,
             "destination_country":country,
             "priority":priority,
             "urgency":True if priority=="urgent" else None,
+            "frequency":frequency,
             "delivery_method":None,
             "payment_method":None,
-            "language":request.language if request.language in ("es","en") else "es",
+            "language":language,
             "raw_text":text
         }
 
+    def _next_step(self,state:Dict[str,Any])->str:
+        if not state.get("need_type"):
+            return "need"
+        if state.get("need_type")!="remittance":
+            return "assistant"
+        if not state.get("amount"):
+            return "amount"
+        if not state.get("destination_country"):
+            return "destination"
+        if state.get("frequency") is None:
+            return "frequency"
+        if state.get("urgency") is None:
+            return "urgency"
+        if not state.get("priority"):
+            return "priority"
+        return "comparison"
+
     def apply_need(self,session_id:str,request:UserNeedRequest)->Dict[str,Any]:
-        if session_id not in self.sessions:raise KeyError("session_expired")
+        if session_id not in self.sessions:
+            raise KeyError("session_expired")
         values={}
-        for field in ("amount","destination_country","priority","urgency","delivery_method","payment_method","special_need","free_text","need_type"):
+        fields=("amount","destination_country","priority","urgency","frequency","delivery_method","payment_method","special_need","free_text","need_type")
+        for field in fields:
             value=getattr(request,field,None)
-            if value is not None:values[field]=value
-        if request.language in ("es","en"):values["language"]=request.language
+            if value is not None:
+                values[field]=value
+        if request.language in ("es","en"):
+            values["language"]=request.language
         if request.free_text and not request.need_type:
             values["need_type"]=self.classify_need(request.free_text,request.language).get("need_type","other")
-        values["current_step"]="comparison" if values.get("need_type","remittance")=="remittance" else "assistant"
-        return self.update_session(session_id,**values) or {}
+        current=deepcopy(self.sessions[session_id])
+        current.update(values)
+        current["current_step"]=self._next_step(current)
+        updated=self.update_session(session_id,**values)
+        if updated:
+            updated["current_step"]=current["current_step"]
+            self.sessions[session_id]["current_step"]=current["current_step"]
+        return updated or {}
 
     def _build_verified_result(self,provider:Dict[str,Any],commercial:Dict[str,Any],request:ComparisonRequest,language:str)->ComparisonResult:
         return ComparisonResult(
@@ -324,15 +505,27 @@ class RemittanceEngine:
             for p in available:
                 value=p.get(key)
                 if value:
-                    values.append({"provider_id":p.get("provider_id"),"provider_name":p.get("provider_name"),"value":value})
+                    values.append({
+                        "provider_id":p.get("provider_id"),
+                        "provider_name":p.get("provider_name"),
+                        "value":value
+                    })
             if values:
-                differences.append({"id":dim,"label":en if language=="en" else es,"values":values})
+                differences.append({
+                    "id":dim,
+                    "label":en if language=="en" else es,
+                    "values":values
+                })
         return differences
 
     def compare_session(self,session_id:str)->Dict[str,Any]:
         state=self.sessions.get(session_id)
-        if not state:raise KeyError("session_expired")
-        if not state.get("amount") or not state.get("destination_country"):raise ValueError("Amount and destination country are required.")
+        if not state:
+            raise KeyError("session_expired")
+        if not state.get("amount"):
+            raise ValueError("Amount is required.")
+        if not state.get("destination_country"):
+            raise ValueError("Destination country is required.")
         request=ComparisonRequest(
             amount=state.get("amount"),
             destination_country=state.get("destination_country"),
@@ -349,40 +542,64 @@ class RemittanceEngine:
 
     def compare(self,request:ComparisonRequest,session_id:Optional[str]=None)->Dict[str,Any]:
         language=request.language if request.language in ("es","en") else "es"
-        country=(request.destination_country or "").upper()
-        if request.amount<=0:raise ValueError("Amount must be greater than zero.")
-        if not country:raise ValueError("Destination country is required.")
+        country=(request.destination_country or "").strip().upper()
+        if request.amount<=0:
+            raise ValueError("Amount must be greater than zero.")
+        if not country:
+            raise ValueError("Destination country is required.")
+        if not self.country_supported(country):
+            raise ValueError("Destination country is not supported.")
+
         provider_ids=self.candidate_provider_ids(country)
         available=[]
         verified_results=[]
+
         for pid in provider_ids:
             public=self.provider_public_option(pid,country,language)
-            if public:available.append(public)
-            commercial=self.get_verified_provider_data(pid,country,request.amount,request.payment_method,request.delivery_method)
+            if public:
+                available.append(public)
+            commercial=self.get_verified_provider_data(
+                pid,country,request.amount,
+                request.payment_method,
+                request.delivery_method
+            )
             provider=self.get_provider(pid)
             if commercial and provider:
-                verified_results.append(self._build_verified_result(provider,commercial,request,language))
+                verified_results.append(
+                    self._build_verified_result(provider,commercial,request,language)
+                )
+
         verified_ids={x.provider_id for x in verified_results}
         for item in available:
-            item["commercial_status"]="verified" if item.get("provider_id") in verified_ids else "unavailable"
-            item["commercial_verified"]=item.get("provider_id") in verified_ids
+            is_verified=item.get("provider_id") in verified_ids
+            item["commercial_status"]="verified" if is_verified else "unavailable"
+            item["commercial_verified"]=is_verified
+
         differences=self._differences(available,language)
+
         if session_id in self.sessions:
             state=self.sessions[session_id]
             state["candidate_providers"]=[x["provider_id"] for x in available]
             state["available_providers"]=deepcopy(available)
-            state["verified_results"]=[x.model_dump() for x in verified_results]
+            state["verified_results"]=[x.model_dump() if hasattr(x,"model_dump") else x.dict() for x in verified_results]
             state["current_step"]="results"
             state["updated_at"]=self.now()
+
         if verified_results:
-            message=self._message("results_ready",language) or ("Opciones verificadas disponibles." if language=="es" else "Verified options are available.")
+            message=self._message("results_ready",language)
+            if not message:
+                message="Opciones verificadas disponibles." if language=="es" else "Verified options are available."
         else:
-            message=self._message("no_results",language) or ("Los datos comerciales actuales no están verificados. Puedes consultar los sitios oficiales de los cuatro proveedores." if language=="es" else "Current commercial data is not verified. You can consult the official sites of the four providers.")
+            message=self._message("no_results",language)
+            if not message:
+                message="Los datos comerciales actuales no están verificados. Puedes consultar los sitios oficiales de los cuatro proveedores." if language=="es" else "Current commercial data is not verified. You can consult the official sites of the four providers."
+
         precautions=self._precautions(language)
+
         return {
             "success":True,
             "message":message,
-            "results":[x.model_dump() for x in verified_results],
+            "results":[x.model_dump() if hasattr(x,"model_dump") else x.dict() for x in verified_results],
             "available_providers":available,
             "provider_count":len(available),
             "verified_count":len(verified_results),
@@ -392,6 +609,7 @@ class RemittanceEngine:
             "amount":request.amount,
             "send_currency":request.send_currency,
             "priority":request.priority,
+            "urgency":request.urgency,
             "language":language,
             "explanation":self.comparison_explanation(language,bool(verified_results)),
             "differences":differences,
@@ -420,11 +638,14 @@ class RemittanceEngine:
 
     def select_provider(self,session_id:str,provider_id:str)->Dict[str,Any]:
         state=self.sessions.get(session_id)
-        if not state:raise KeyError("session_expired")
+        if not state:
+            raise KeyError("session_expired")
         country=state.get("destination_country")
-        if not country:raise KeyError("provider_not_available")
+        if not country:
+            raise KeyError("provider_not_available")
         option=self.provider_public_option(provider_id,country,state.get("language","es"))
-        if not option:raise KeyError("provider_not_found")
+        if not option:
+            raise KeyError("provider_not_found")
         state["selected_option"]=deepcopy(option)
         state["current_step"]="final_check"
         state["updated_at"]=self.now()
@@ -444,21 +665,80 @@ class RemittanceEngine:
             "exchange_rate":{"es":"Tasa de cambio","en":"Exchange rate"},
             "recipient_amount":{"es":"Cantidad que recibiría","en":"Recipient amount"}
         }
-        checks.append({"id":"destination","label":labels["destination"][language],"value":country,"complete":bool(request.destination_country),"status":"ok" if request.destination_country else "review"})
-        checks.append({"id":"amount","label":labels["amount"][language],"value=f":f"{request.amount:.2f} {request.send_currency}","complete":request.amount>0,"status":"ok" if request.amount>0 else "review"})
-        checks.append({"id":"currency","label":labels["currency"][language],"value":request.send_currency,"complete":bool(request.send_currency),"status":"ok" if request.send_currency else "review"})
-        checks.append({"id":"delivery_method","label":labels["delivery_method"][language],"value":request.delivery_method or ("Not selected" if language=="en" else "No seleccionada"),"complete":bool(request.delivery_method),"status":"ok" if request.delivery_method else "review"})
-        checks.append({"id":"recipient_information","label":labels["recipient_information"][language],"value":("Revisar en el proveedor" if language=="es" else "Review on provider site"),"complete":True,"status":"review"})
-        checks.append({"id":"fee","label":labels["fee"][language],"value":request.fee if request.fee is not None else ("No verificada" if language=="es" else "Not verified"),"complete":request.fee is not None,"status":"ok" if request.fee is not None else "review"})
-        checks.append({"id":"exchange_rate","label":labels["exchange_rate"][language],"value":request.exchange_rate if request.exchange_rate is not None else ("No verificada" if language=="es" else "Not verified"),"complete":request.exchange_rate is not None,"status":"ok" if request.exchange_rate is not None else "review"})
-        checks.append({"id":"recipient_amount","label":labels["recipient_amount"][language],"value":request.recipient_amount if request.recipient_amount is not None else ("No verificada" if language=="es" else "Not verified"),"complete":request.recipient_amount is not None,"status":"ok" if request.recipient_amount is not None else "review"})
-        required_ids={"destination","amount","currency","delivery_method"}
+
+        amount=float(request.amount or 0)
+        currency=request.send_currency or "USD"
+
+        checks.append({
+            "id":"destination",
+            "label":labels["destination"][language],
+            "value":country,
+            "complete":bool(request.destination_country) and self.country_supported(request.destination_country),
+            "status":"ok" if request.destination_country and self.country_supported(request.destination_country) else "review"
+        })
+        checks.append({
+            "id":"amount",
+            "label":labels["amount"][language],
+            "value":f"{amount:.2f} {currency}",
+            "complete":amount>0,
+            "status":"ok" if amount>0 else "review"
+        })
+        checks.append({
+            "id":"currency",
+            "label":labels["currency"][language],
+            "value":currency,
+            "complete":bool(currency),
+            "status":"ok" if currency else "review"
+        })
+        checks.append({
+            "id":"delivery_method",
+            "label":labels["delivery_method"][language],
+            "value":request.delivery_method or ("Not selected" if language=="en" else "No seleccionada"),
+            "complete":bool(request.delivery_method),
+            "status":"ok" if request.delivery_method else "review"
+        })
+        checks.append({
+            "id":"recipient_information",
+            "label":labels["recipient_information"][language],
+            "value":"Revisar en el proveedor" if language=="es" else "Review on provider site",
+            "complete":True,
+            "status":"review"
+        })
+        checks.append({
+            "id":"fee",
+            "label":labels["fee"][language],
+            "value":request.fee if request.fee is not None else ("No verificada" if language=="es" else "Not verified"),
+            "complete":request.fee is not None,
+            "status":"ok" if request.fee is not None else "review"
+        })
+        checks.append({
+            "id":"exchange_rate",
+            "label":labels["exchange_rate"][language],
+            "value":request.exchange_rate if request.exchange_rate is not None else ("No verificada" if language=="es" else "Not verified"),
+            "complete":request.exchange_rate is not None,
+            "status":"ok" if request.exchange_rate is not None else "review"
+        })
+        checks.append({
+            "id":"recipient_amount",
+            "label":labels["recipient_amount"][language],
+            "value":request.recipient_amount if request.recipient_amount is not None else ("No verificada" if language=="es" else "Not verified"),
+            "complete":request.recipient_amount is not None,
+            "status":"ok" if request.recipient_amount is not None else "review"
+        })
+
+        required_ids={"destination","amount","currency"}
         valid=all(x["complete"] for x in checks if x["id"] in required_ids)
+
         if session_id in self.sessions:
-            self.sessions[session_id]["final_check"]={"checks":deepcopy(checks),"valid":valid}
+            self.sessions[session_id]["final_check"]={
+                "checks":deepcopy(checks),
+                "valid":valid
+            }
             self.sessions[session_id]["current_step"]="final_check"
             self.sessions[session_id]["updated_at"]=self.now()
+
         message=self._final_message(language,valid)
+
         return {
             "success":True,
             "ready_to_continue":valid,
@@ -477,41 +757,65 @@ class RemittanceEngine:
 
     def provider_requirements(self,provider_id:str,language:str="es")->List[str]:
         provider=self.get_provider(provider_id)
-        if not provider:return []
+        if not provider:
+            return []
         requirements=provider.get("requirements",[])
-        if not isinstance(requirements,list):return []
+        if not isinstance(requirements,list):
+            return []
         result=[]
         for item in requirements:
-            if isinstance(item,str):result.append(item)
+            if isinstance(item,str):
+                result.append(item)
             elif isinstance(item,dict):
                 text=self.localize(item,language)
-                if text:result.append(text)
+                if text:
+                    result.append(text)
         return result
 
     def help_topics(self,language:str="es")->List[Dict[str,Any]]:
-        data=self.brain.get("provider_guidance",{})
-        topics=data.get("help_topics",[]) if isinstance(data,dict) else []
-        if not topics:
-            topics=[
-                {"id":"exchange_rate","label":{"es":"¿Qué es la tasa de cambio?","en":"What is an exchange rate?"},"answer":{"es":"Es la relación entre la moneda que envías y la moneda que recibe la otra persona.","en":"It is the relationship between the currency you send and the currency the other person receives."}},
-                {"id":"fee","label":{"es":"¿Qué es una comisión?","en":"What is a fee?"},"answer":{"es":"Es un cargo que puede aplicar el proveedor por el servicio.","en":"It is a charge the provider may apply for the service."}},
-                {"id":"recipient_amount","label":{"es":"¿Por qué recibe menos?","en":"Why does the recipient receive less?"},"answer":{"es":"La comisión y la tasa de cambio pueden afectar la cantidad final.","en":"The fee and exchange rate can affect the final amount."}},
-                {"id":"identification","label":{"es":"¿Por qué me piden identificación?","en":"Why am I asked for identification?"},"answer":{"es":"El proveedor puede solicitar información para verificar identidad y cumplir sus propios requisitos.","en":"The provider may request information to verify identity and meet its own requirements."}},
-                {"id":"mistake","label":{"es":"¿Qué hago si me equivoqué?","en":"What if I made a mistake?"},"answer":{"es":"No confirmes todavía. Revisa los datos y consulta al proveedor antes de completar el envío.","en":"Do not confirm yet. Review the information and contact the provider before completing the transfer."}},
-                {"id":"security","label":{"es":"¿Qué información no debo compartir aquí?","en":"What information should I not share here?"},"answer":{"es":"No escribas contraseñas, CVV, códigos de seguridad ni claves de acceso.","en":"Do not enter passwords, CVV numbers, security codes or login credentials."}}
-            ]
+        guidance=self.brain.get("help_center",{})
+        topic_ids=guidance.get("topics",[]) if isinstance(guidance,dict) else []
+        defaults=[
+            ("exchange_rate","¿Qué es la tasa de cambio?","What is an exchange rate?","Es la relación entre la moneda que envías y la moneda que recibe la otra persona.","It is the relationship between the currency you send and the currency the other person receives."),
+            ("fee","¿Qué es una comisión?","What is a fee?","Es un cargo que puede aplicar el proveedor por el servicio.","It is a charge the provider may apply for the service."),
+            ("recipient_amount","¿Por qué recibe menos?","Why does the recipient receive less?","La comisión y la tasa de cambio pueden afectar la cantidad final.","The fee and exchange rate can affect the final amount."),
+            ("identification","¿Por qué me piden identificación?","Why am I asked for identification?","El proveedor puede solicitar información para verificar identidad y cumplir sus propios requisitos.","The provider may request information to verify identity and meet its own requirements."),
+            ("mistake","¿Qué hago si me equivoqué?","What if I made a mistake?","No confirmes todavía. Revisa los datos y consulta al proveedor antes de completar el envío.","Do not confirm yet. Review the information and contact the provider before completing the transfer."),
+            ("security","¿Qué información no debo compartir aquí?","What information should I not share here?","No escribas contraseñas, CVV, códigos de seguridad ni claves de acceso.","Do not enter passwords, CVV numbers, security codes or login credentials.")
+        ]
         result=[]
-        for item in topics:
-            if isinstance(item,dict):
-                result.append({"id":item.get("id"),"label":self.localize(item.get("label"),language),"answer":self.localize(item.get("answer"),language)})
+        if isinstance(topic_ids,list) and topic_ids:
+            for topic in topic_ids:
+                if isinstance(topic,dict):
+                    result.append({
+                        "id":topic.get("id"),
+                        "label":self.localize(topic.get("label"),language),
+                        "answer":self.localize(topic.get("answer"),language)
+                    })
+                elif isinstance(topic,str):
+                    for item in defaults:
+                        if item[0]==topic:
+                            result.append({
+                                "id":item[0],
+                                "label":item[1] if language=="es" else item[2],
+                                "answer":item[3] if language=="es" else item[4]
+                            })
+                            break
+        if not result:
+            for item in defaults:
+                result.append({
+                    "id":item[0],
+                    "label":item[1] if language=="es" else item[2],
+                    "answer":item[3] if language=="es" else item[4]
+                })
         return result
 
     def assistant_response(self,need_type:str,language:str="es",text:str="")->Dict[str,Any]:
         lang=language if language in ("es","en") else "es"
         responses={
             "remittance":{
-                "es":"Para ayudarte a comparar un envío necesito principalmente la cantidad y el país de destino. Después podemos revisar las opciones disponibles.",
-                "en":"To compare a transfer, I mainly need the amount and destination country. Then we can review the available options."
+                "es":"Para ayudarte con una remesa necesito la cantidad y el país de destino. Después revisaremos frecuencia, rapidez y lo que más te importa antes de comparar.",
+                "en":"To help with a remittance, I need the amount and destination country. Then we will review frequency, speed and what matters most before comparing."
             },
             "money_available":{
                 "es":"Esta sección sirve para organizar el dinero que tienes y calcular cuánto queda después de tus gastos, ahorros y envíos que tú registres.",
@@ -534,8 +838,8 @@ class RemittanceEngine:
                 "en":"You can record a purchase and review how it would affect the money you have left."
             },
             "family":{
-                "es":"Puedes guardar localmente las personas y destinos que usas con frecuencia para no repetir la información.",
-                "en":"You can store frequent people and destinations locally so you do not have to enter them again."
+                "es":"Puedes organizar cantidades destinadas a familiares sin enviar ni guardar esas cantidades en el servidor.",
+                "en":"You can organize amounts intended for family without sending or storing those amounts on the server."
             },
             "requirements":{
                 "es":"Los requisitos pueden cambiar según el proveedor, país, cantidad y método. La aplicación te ayuda a entender qué puede pedirte el proveedor.",
@@ -558,7 +862,7 @@ class RemittanceEngine:
                 "en":"Delivery time can depend on the provider, country, method and transfer conditions."
             },
             "provider_difference":{
-                "es":"Las diferencias pueden estar en comisión, tasa de cambio, cantidad recibida, velocidad, forma de entrega, forma de pago y requisitos. Solo mostramos datos comerciales como actuales cuando están verificados.",
+                "es":"Las diferencias pueden estar en comisión, tasa de cambio, cantidad recibida, velocidad, forma de entrega, forma de pago y requisitos. Solo mostramos datos comerciales actuales cuando están verificados.",
                 "en":"Differences can include fees, exchange rate, recipient amount, speed, delivery method, payment method and requirements. Commercial data is shown as current only when verified."
             },
             "mistake_prevention":{
@@ -583,21 +887,49 @@ class RemittanceEngine:
             }
         }
         item=responses.get(need_type,responses["other"])
-        return {"success":True,"need_type":need_type,"message":item[lang],"language":lang,"remittance_required":need_type=="remittance"}
+        return {
+            "success":True,
+            "need_type":need_type,
+            "message":item[lang],
+            "language":lang,
+            "remittance_required":need_type=="remittance",
+            "next_step":"amount" if need_type=="remittance" else "assistant"
+        }
+
+    def calculate_money_plan(self,income:float=0,essential:float=0,flexible:float=0,savings:float=0,remittance:float=0)->Dict[str,Any]:
+        values={
+            "income":max(float(income or 0),0),
+            "essential":max(float(essential or 0),0),
+            "flexible":max(float(flexible or 0),0),
+            "savings":max(float(savings or 0),0),
+            "remittance":max(float(remittance or 0),0)
+        }
+        available=values["income"]-values["essential"]-values["flexible"]-values["savings"]-values["remittance"]
+        return {
+            **values,
+            "available":round(available,2),
+            "negative_warning":available<0,
+            "currency":"USD",
+            "informational":True
+        }
 
     def public_config(self,language:str="es")->Dict[str,Any]:
         language=language if language in ("es","en") else "es"
-        priorities=[]
         opening=self.brain.get("opening",{})
-        for item in opening.get("priorities",[]):
-            if isinstance(item,dict):
-                priorities.append({"id":item.get("id"),"icon":item.get("icon",""),"label":self.localize(item.get("label"),language),"why":self.localize(item.get("why"),language)})
+        opening_lang=opening.get(language,{}) if isinstance(opening,dict) else {}
+        if not isinstance(opening_lang,dict):
+            opening_lang={}
+
         countries=[]
-        names=self.brain.get("countries",{}).get("country_names",{})
-        supported=self.brain.get("countries",{}).get("initial_supported",[])
-        for code in supported:
-            item=names.get(code,{})
-            countries.append({"id":code,"name":self.localize(item,language) or item.get("name",code),"currency":item.get("currency") if isinstance(item,dict) else None})
+        for item in self.get_supported_countries():
+            code=item.get("code")
+            countries.append({
+                "id":code,
+                "code":code,
+                "name":self.localize(item.get("name"),language) or code,
+                "currency":self.brain.get("countries",{}).get("default_currency","USD")
+            })
+
         providers=[]
         for provider in self.get_provider_registry():
             providers.append({
@@ -605,31 +937,44 @@ class RemittanceEngine:
                 "name":provider.get("name"),
                 "enabled":provider.get("enabled",True),
                 "continue_url":self.provider_url(provider,language),
-                "official_site":provider.get("official_site"),
+                "official_site":provider.get("official_site") or provider.get("official_url") or self.provider_url(provider,language),
                 "payment_methods":deepcopy(provider.get("payment_methods",[])),
                 "delivery_methods":deepcopy(provider.get("delivery_methods",[]))
             })
+
+        delivery=self._brain_options("delivery_methods",language)
+        payment=self._brain_options("payment_methods",language)
+
+        messages={}
+        raw_messages=self.brain.get("messages",{})
+        if isinstance(raw_messages,dict):
+            for key,value in raw_messages.items():
+                messages[key]=self.localize(value,language)
+
         return {
             "app":deepcopy(self.brain.get("app",{})),
             "language":language,
             "supported_languages":self.brain.get("languages",{}).get("supported",["es","en"]),
             "opening":{
-                "primary_question":self.localize(opening.get("primary_question"),language),
-                "secondary_text":self.localize(opening.get("secondary_text"),language),
-                "amount":deepcopy(opening.get("amount",{})),
-                "priorities":priorities,
-                "free_text":deepcopy(opening.get("free_text",{}))
+                "title":opening_lang.get("title","REMESAS" if language=="es" else "REMITTANCES"),
+                "subtitle":opening_lang.get("subtitle",""),
+                "welcome":opening_lang.get("welcome",""),
+                "start":opening_lang.get("start","Comenzar" if language=="es" else "Start"),
+                "language":opening_lang.get("language","English" if language=="es" else "Español")
             },
+            "conversation_logic":deepcopy(self.brain.get("conversation_logic",{})),
+            "remittance_flow":deepcopy(self.brain.get("remittance_flow",{})),
             "countries":countries,
             "providers":providers,
-            "delivery_methods":[{"id":x.get("id"),"label":self.localize(x.get("label"),language)} for x in self.brain.get("delivery_methods",[]) if isinstance(x,dict)],
-            "payment_methods":[{"id":x.get("id"),"label":self.localize(x.get("label"),language)} for x in self.brain.get("payment_methods",[]) if isinstance(x,dict)],
-            "messages":{k:self.localize(v,language) for k,v in self.brain.get("messages",{}).items()},
+            "delivery_methods":delivery,
+            "payment_methods":payment,
+            "messages":messages,
             "help_topics":self.help_topics(language),
-            "provider_handoff":{
-                "button":self.localize(self.brain.get("provider_handoff",{}).get("button"),language),
-                "external_notice":self.localize(self.brain.get("provider_handoff",{}).get("external_notice"),language)
-            }
+            "provider_comparison":deepcopy(self.brain.get("provider_comparison",{})),
+            "provider_handoff":deepcopy(self.brain.get("provider_handoff",{})),
+            "money_planner":deepcopy(self.brain.get("money_planner",{})),
+            "security":deepcopy(self.brain.get("security",{})),
+            "privacy":deepcopy(self.brain.get("data_privacy",{}))
         }
 
 engine=RemittanceEngine()
