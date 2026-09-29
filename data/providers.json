@@ -1,1 +1,67 @@
-{"version":"4.1.0","schema_version":"4.1","data_policy":{"commercial_data_status":"live_verification_required","verification_mode":"server_side_official_source","verification_source":"official_provider_site","ai_verification_allowed":true,"ai_must_use_official_sources":true,"ai_cannot_invent_commercial_data":true,"do_not_invent_fees":true,"do_not_invent_exchange_rates":true,"do_not_invent_delivery_times":true,"do_not_invent_availability":true,"do_not_invent_limits":true,"do_not_invent_promotions":true,"do_not_invent_payment_methods":true,"do_not_invent_delivery_methods":true,"fallback_action":"open_official_provider_site","official_urls_only":true,"server_only_api_keys":true},"app_policy":{"origin_country":"US","target_region":"LATAM","show_all_required_providers":true,"required_provider_count":4,"provider_ids":["western_union","moneygram","remitly","xoom"],"provider_selection":"need_based_verified_comparison","never_claim_best_without_current_verification":true,"never_show_fake_price":true,"never_show_fake_rate":true,"never_show_fake_delivery_time":true,"never_show_fake_limit":true,"never_leave_user_without_next_step":true},"providers":[{"id":"western_union","name":"Western Union","brand":"Western Union","enabled":true,"origin_country":"US","official_urls":{"home":"https://www.westernunion.com/us/en/home.html","send_money":"https://www.westernunion.com/us/en/send-money.html","send_money_es":"https://www.westernunion.com/us/es/send-money.html","fees":"https://www.westernunion.com/us/en/web/send-money/start","locations":"https://www.westernunion.com/us/en/find-locations.html","help":"https://www.westernunion.com/us/en/help-center.html"},"verification":{"method":"official_site_server_verification","commercial_data":"must_be_obtained_currently","source_required":true,"verified_at_required":true},"capabilities":{"international_remittance":true,"bank_account":true,"cash_pickup":true,"mobile_wallet":true,"debit_card":true,"credit_card":true,"cash_payment":true,"availability":"verify_by_destination"},"user_fallback":{"es":"Revisar Western Union directamente","en":"Review Western Union directly","url":"https://www.westernunion.com/us/es/send-money.html"}},{"id":"moneygram","name":"MoneyGram","brand":"MoneyGram","enabled":true,"origin_country":"US","official_urls":{"home":"https://www.moneygram.com/us/en","home_es":"https://www.moneygram.com/us/es","send_money":"https://www.moneygram.com/us/en/send-money","corridors":"https://www.moneygram.com/us/en/corridor/united-states","help":"https://www.moneygram.com/us/en/help-center"},"verification":{"method":"official_site_server_verification","commercial_data":"must_be_obtained_currently","source_required":true,"verified_at_required":true},"capabilities":{"international_remittance":true,"bank_account":true,"cash_pickup":true,"mobile_wallet":true,"debit_card":true,"credit_card":true,"cash_payment":true,"availability":"verify_by_destination"},"user_fallback":{"es":"Revisar MoneyGram directamente","en":"Review MoneyGram directly","url":"https://www.moneygram.com/us/es"}},{"id":"remitly","name":"Remitly","brand":"Remitly","enabled":true,"origin_country":"US","official_urls":{"home":"https://www.remitly.com/us/en","home_es":"https://www.remitly.com/us/es","send_money":"https://www.remitly.com/us/en/money-transfer","send_money_es":"https://www.remitly.com/us/es/money-transfer","limits":"https://www.remitly.com/us/es/landing/send-limits","help":"https://www.remitly.com/us/en/home/help"},"verification":{"method":"official_site_server_verification","commercial_data":"must_be_obtained_currently","source_required":true,"verified_at_required":true},"capabilities":{"international_remittance":true,"bank_account":true,"cash_pickup":true,"mobile_wallet":true,"debit_card":true,"credit_card":true,"cash_payment":false,"availability":"verify_by_destination"},"user_fallback":{"es":"Revisar Remitly directamente","en":"Review Remitly directly","url":"https://www.remitly.com/us/es/money-transfer"}},{"id":"xoom","name":"Xoom","brand":"Xoom by PayPal","enabled":true,"origin_country":"US","official_urls":{"home":"https://www.xoom.com","send_money":"https://www.xoom.com/us/en","send_money_es":"https://www.xoom.com/united-states/send-money?locale=es-es","help":"https://www.xoom.com/help"},"verification":{"method":"official_site_server_verification","commercial_data":"must_be_obtained_currently","source_required":true,"verified_at_required":true},"capabilities":{"international_remittance":true,"bank_account":true,"cash_pickup":true,"mobile_wallet":true,"debit_card":true,"credit_card":true,"cash_payment":false,"paypal_payment":true,"availability":"verify_by_destination"},"user_fallback":{"es":"Revisar Xoom directamente","en":"Review Xoom directly","url":"https://www.xoom.com/united-states/send-money?locale=es-es"}}],"corridors":{"origin":"US","destinations":{"MX":{"name":{"es":"México","en":"Mexico"},"providers":["western_union","moneygram","remitly","xoom"]},"GT":{"name":{"es":"Guatemala","en":"Guatemala"},"providers":["western_union","moneygram","remitly","xoom"]},"SV":{"name":{"es":"El Salvador","en":"El Salvador"},"providers":["western_union","moneygram","remitly","xoom"]},"HN":{"name":{"es":"Honduras","en":"Honduras"},"providers":["western_union","moneygram","remitly","xoom"]},"NI":{"name":{"es":"Nicaragua","en":"Nicaragua"},"providers":["western_union","moneygram","remitly","xoom"]},"CR":{"name":{"es":"Costa Rica","en":"Costa Rica"},"providers":["western_union","moneygram","remitly","xoom"]},"PA":{"name":{"es":"Panamá","en":"Panama"},"providers":["western_union","moneygram","remitly","xoom"]},"DO":{"name":{"es":"República Dominicana","en":"Dominican Republic"},"providers":["western_union","moneygram","remitly","xoom"]},"CO":{"name":{"es":"Colombia","en":"Colombia"},"providers":["western_union","moneygram","remitly","xoom"]},"VE":{"name":{"es":"Venezuela","en":"Venezuela"},"providers":["western_union","moneygram","remitly","xoom"]},"EC":{"name":{"es":"Ecuador","en":"Ecuador"},"providers":["western_union","moneygram","remitly","xoom"]},"PE":{"name":{"es":"Perú","en":"Peru"},"providers":["western_union","moneygram","remitly","xoom"]},"BO":{"name":{"es":"Bolivia","en":"Bolivia"},"providers":["western_union","moneygram","remitly","xoom"]},"PY":{"name":{"es":"Paraguay","en":"Paraguay"},"providers":["western_union","moneygram","remitly","xoom"]},"BR":{"name":{"es":"Brasil","en":"Brazil"},"providers":["western_union","moneygram","remitly","xoom"]},"CL":{"name":{"es":"Chile","en":"Chile"},"providers":["western_union","moneygram","remitly","xoom"]},"AR":{"name":{"es":"Argentina","en":"Argentina"},"providers":["western_union","moneygram","remitly","xoom"]},"UY":{"name":{"es":"Uruguay","en":"Uruguay"},"providers":["western_union","moneygram","remitly","xoom"]},"CU":{"name":{"es":"Cuba","en":"Cuba"},"providers":["western_union","moneygram","remitly","xoom"]},"HT":{"name":{"es":"Haití","en":"Haiti"},"providers":["western_union","moneygram","remitly","xoom"]}}},"commercial_fields":{"fee":{"type":"money","required_for_winner":true},"exchange_rate":{"type":"rate","required_for_winner":true},"recipient_amount":{"type":"money","required_for_winner":true},"sender_total":{"type":"money","required_for_winner":true},"delivery_time":{"type":"text","required_for_winner":false},"delivery_method":{"type":"list","required_for_winner":false},"payment_method":{"type":"list","required_for_winner":false},"limit":{"type":"money","required_for_winner":false},"availability":{"type":"boolean","required_for_winner":true}},"winner_rules":{"enabled":true,"only_server_side":true,"requires_current_verified_data":true,"compare_sender_total":true,"compare_recipient_amount":true,"compare_fee":true,"compare_exchange_rate":true,"respect_user_priority":true,"priority_order":{"cheap":["sender_total","fee","recipient_amount"],"fast":["delivery_time","availability"],"simple":["availability","delivery_method","payment_method"],"recipient_more":["recipient_amount","exchange_rate"],"balanced":["recipient_amount","sender_total","delivery_time"]},"tie_breaker":"official_current_data","never_choose_on_missing_data":true},"fallback_rules":{"enabled":true,"never_return_null_as_final_action":true,"missing_fee":{"action":"open_official_site","reason_es":"La comisión exacta depende de los datos de tu envío.","reason_en":"The exact fee depends on your transfer details."},"missing_rate":{"action":"open_official_site","reason_es":"El tipo de cambio debe revisarse con los datos actuales de tu envío.","reason_en":"The exchange rate must be checked with your current transfer details."},"missing_delivery":{"action":"open_official_site","reason_es":"La forma y velocidad de entrega dependen del destino y del envío.","reason_en":"Delivery method and speed depend on the destination and transfer."},"missing_availability":{"action":"open_official_site","reason_es":"El proveedor debe confirmar si esta opción está disponible para tu envío.","reason_en":"The provider must confirm whether this option is available for your transfer."},"missing_limit":{"action":"open_official_site","reason_es":"El límite puede depender de tu cuenta, destino y forma de entrega.","reason_en":"The limit may depend on your account, destination and delivery method."}},"privacy":{"personal_financial_data_local_only":true,"provider_queries_server_side":true,"api_keys_server_only":true,"never_send_gemini_key_to_browser":true,"never_send_provider_credentials_to_browser":true},"ui_contract":{"always_show_four_providers":true,"show_winner_when_verified":true,"show_action_links_when_not_verified":true,"never_show_internal_ids":true,"never_show_backend_status":true,"never_show_raw_ai_response":true,"never_show_unverified_price_as_fact":true}}
+{
+"version":"3.0.0",
+"schema_version":"3.0",
+"data_policy":{"commercial_data_status":"unavailable_until_verified","do_not_invent_fees":true,"do_not_invent_exchange_rates":true,"do_not_invent_delivery_times":true,"do_not_invent_availability":true,"official_urls_only":true},
+"providers":[
+{
+"id":"western_union",
+"name":"Western Union",
+"enabled":true,
+"type":"remittance_provider",
+"origin_country":"US",
+"official_url":"https://www.westernunion.com",
+"official_urls":{"home":"[https://www.westernunion.com","us":"https://www.westernunion.com/us/en/home.html](https://www.westernunion.com%22,%22us%22:%22https://www.westernunion.com/us/en/home.html)"},
+"description":{"es":"Servicio internacional de transferencia de dinero. Las opciones disponibles dependen del país, método y operación.","en":"International money transfer service. Available options depend on the country, method and transaction."},
+"delivery_methods":["cash_pickup","bank_deposit","mobile_wallet"],
+"payment_methods":["bank_account","debit_card","credit_card","cash"],
+"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"last_verified":null},
+"corridors":{"destinations":{}}
+},
+{
+"id":"moneygram",
+"name":"MoneyGram",
+"enabled":true,
+"type":"remittance_provider",
+"origin_country":"US",
+"official_url":"https://www.moneygram.com",
+"official_urls":{"home":"[https://www.moneygram.com","us":"https://www.moneygram.com/mgo/us/en/](https://www.moneygram.com%22,%22us%22:%22https://www.moneygram.com/mgo/us/en/)"},
+"description":{"es":"Servicio de transferencia de dinero con opciones que pueden variar según país, método y operación.","en":"Money transfer service with options that may vary by country, method and transaction."},
+"delivery_methods":["cash_pickup","bank_deposit","mobile_wallet"],
+"payment_methods":["bank_account","debit_card","credit_card","cash"],
+"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"last_verified":null},
+"corridors":{"destinations":{}}
+},
+{
+"id":"remitly",
+"name":"Remitly",
+"enabled":true,
+"type":"remittance_provider",
+"origin_country":"US",
+"official_url":"https://www.remitly.com",
+"official_urls":{"home":"[https://www.remitly.com","us":"https://www.remitly.com/us/en/home](https://www.remitly.com%22,%22us%22:%22https://www.remitly.com/us/en/home)"},
+"description":{"es":"Servicio digital de remesas. Las opciones, costos y métodos disponibles dependen del destino y de la operación.","en":"Digital remittance service. Available options, costs and methods depend on the destination and transaction."},
+"delivery_methods":["cash_pickup","bank_deposit","mobile_wallet"],
+"payment_methods":["bank_account","debit_card","credit_card"],
+"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"last_verified":null},
+"corridors":{"destinations":{}}
+},
+{
+"id":"xoom",
+"name":"Xoom",
+"enabled":true,
+"type":"remittance_provider",
+"origin_country":"US",
+"official_url":"https://www.xoom.com",
+"official_urls":{"home":"[https://www.xoom.com","us":"https://www.xoom.com/](https://www.xoom.com%22,%22us%22:%22https://www.xoom.com/)"},
+"description":{"es":"Servicio de PayPal para enviar dinero internacionalmente. Las opciones dependen del país y de la operación.","en":"PayPal service for international money transfers. Available options depend on the country and transaction."},
+"delivery_methods":["cash_pickup","bank_deposit","mobile_wallet"],
+"payment_methods":["bank_account","debit_card","credit_card"],
+"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"last_verified":null},
+"corridors":{"destinations":{}}
+}
+],
+"corridors":{
+"origin":"US",
+"destinations":{}
+}
+}
