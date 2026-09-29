@@ -1,237 +1,348 @@
 {
-  "version": "3.0.0",
-  "schema_version": 3,
-  "updated_at": "2026-09-29",
-  "providers": [
+  "version":"3.0.0",
+  "source_policy":"Only verified provider or corridor data may be added. Unverified commercial values remain unavailable.",
+  "currency_default":"USD",
+  "country_default":"US",
+  "providers":[
     {
-      "id": "western_union",
-      "name": "Western Union",
-      "enabled": true,
-      "official_site": "https://www.westernunion.com/",
-      "payment_methods": [
+      "id":"western_union",
+      "name":"Western Union",
+      "enabled":true,
+      "official_site":"https://www.westernunion.com/",
+      "official_urls":{
+        "main":"https://www.westernunion.com/",
+        "us_send":"https://www.westernunion.com/us/en/web/send-money/start",
+        "us_send_es":"https://www.westernunion.com/us/es/web/send-money/start",
+        "us_en":"https://www.westernunion.com/us/en/",
+        "us_es":"https://www.westernunion.com/us/es/"
+      },
+      "commercial_data":{
+        "status":"unavailable",
+        "source":null,
+        "verified_at":null,
+        "fee":null,
+        "exchange_rate":null,
+        "delivery_time":null,
+        "recipient_amount":null
+      },
+      "delivery_methods":[
         "bank_account",
+        "cash_pickup",
+        "mobile_wallet"
+      ],
+      "payment_methods":[
         "debit_card",
         "credit_card",
-        "cash"
+        "bank_account"
       ],
-      "delivery_methods": [
-        "bank_account",
-        "cash_pickup",
-        "mobile_wallet"
+      "requirements":[
+        "recipient_information",
+        "sender_information",
+        "identity_document_when_required"
+      ],
+      "security_notes":[
+        "Never enter a provider password in this application.",
+        "Never enter a CVV or security code in this application.",
+        "Continue on the provider's official website."
       ]
     },
     {
-      "id": "moneygram",
-      "name": "MoneyGram",
-      "enabled": true,
-      "official_site": "https://www.moneygram.com/",
-      "payment_methods": [
+      "id":"moneygram",
+      "name":"MoneyGram",
+      "enabled":true,
+      "official_site":"https://www.moneygram.com/",
+      "official_urls":{
+        "main":"https://www.moneygram.com/",
+        "us_send":"https://www.moneygram.com/mgo/us/en/",
+        "us_send_es":"https://www.moneygram.com/mgo/us/es/"
+      },
+      "commercial_data":{
+        "status":"unavailable",
+        "source":null,
+        "verified_at":null,
+        "fee":null,
+        "exchange_rate":null,
+        "delivery_time":null,
+        "recipient_amount":null
+      },
+      "delivery_methods":[
         "bank_account",
+        "cash_pickup",
+        "mobile_wallet"
+      ],
+      "payment_methods":[
         "debit_card",
         "credit_card",
-        "cash"
+        "bank_account"
       ],
-      "delivery_methods": [
-        "bank_account",
-        "cash_pickup",
-        "mobile_wallet"
+      "requirements":[
+        "recipient_information",
+        "sender_information",
+        "identity_document_when_required"
+      ],
+      "security_notes":[
+        "Never enter a provider password in this application.",
+        "Never enter a CVV or security code in this application.",
+        "Continue on the provider's official website."
       ]
     },
     {
-      "id": "remitly",
-      "name": "Remitly",
-      "enabled": true,
-      "official_site": "https://www.remitly.com/",
-      "payment_methods": [
-        "bank_account",
-        "debit_card",
-        "credit_card"
-      ],
-      "delivery_methods": [
+      "id":"remitly",
+      "name":"Remitly",
+      "enabled":true,
+      "official_site":"https://www.remitly.com/",
+      "official_urls":{
+        "main":"https://www.remitly.com/",
+        "us_send":"https://www.remitly.com/us/en/",
+        "us_send_es":"https://www.remitly.com/us/es/"
+      },
+      "commercial_data":{
+        "status":"unavailable",
+        "source":null,
+        "verified_at":null,
+        "fee":null,
+        "exchange_rate":null,
+        "delivery_time":null,
+        "recipient_amount":null
+      },
+      "delivery_methods":[
         "bank_account",
         "cash_pickup",
         "mobile_wallet"
+      ],
+      "payment_methods":[
+        "debit_card",
+        "credit_card",
+        "bank_account"
+      ],
+      "requirements":[
+        "recipient_information",
+        "sender_information",
+        "identity_document_when_required"
+      ],
+      "security_notes":[
+        "Never enter a provider password in this application.",
+        "Never enter a CVV or security code in this application.",
+        "Continue on the provider's official website."
       ]
     },
     {
-      "id": "xoom",
-      "name": "Xoom",
-      "enabled": true,
-      "official_site": "https://www.xoom.com/",
-      "payment_methods": [
-        "bank_account",
-        "debit_card",
-        "credit_card"
-      ],
-      "delivery_methods": [
+      "id":"xoom",
+      "name":"Xoom",
+      "enabled":true,
+      "official_site":"https://www.xoom.com/",
+      "official_urls":{
+        "main":"https://www.xoom.com/",
+        "us_send":"https://www.xoom.com/",
+        "us_send_es":"https://www.xoom.com/"
+      },
+      "commercial_data":{
+        "status":"unavailable",
+        "source":null,
+        "verified_at":null,
+        "fee":null,
+        "exchange_rate":null,
+        "delivery_time":null,
+        "recipient_amount":null
+      },
+      "delivery_methods":[
         "bank_account",
         "cash_pickup",
         "mobile_wallet"
+      ],
+      "payment_methods":[
+        "debit_card",
+        "credit_card",
+        "bank_account"
+      ],
+      "requirements":[
+        "recipient_information",
+        "sender_information",
+        "identity_document_when_required"
+      ],
+      "security_notes":[
+        "Never enter a provider password in this application.",
+        "Never enter a CVV or security code in this application.",
+        "Continue on the provider's official website."
       ]
     }
   ],
-  "corridors": {
-    "default_providers": [
-      "western_union",
-      "moneygram",
-      "remitly",
-      "xoom"
-    ],
-    "destinations": {
-      "MX": {
-        "providers": [
+  "corridors":{
+    "destinations":{
+      "MX":{
+        "country":"Mexico",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "GT": {
-        "providers": [
+      "CU":{
+        "country":"Cuba",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "SV": {
-        "providers": [
+      "DO":{
+        "country":"Dominican Republic",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "HN": {
-        "providers": [
+      "GT":{
+        "country":"Guatemala",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "NI": {
-        "providers": [
+      "SV":{
+        "country":"El Salvador",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "CR": {
-        "providers": [
+      "HN":{
+        "country":"Honduras",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "PA": {
-        "providers": [
+      "NI":{
+        "country":"Nicaragua",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "DO": {
-        "providers": [
+      "CR":{
+        "country":"Costa Rica",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "CO": {
-        "providers": [
+      "PA":{
+        "country":"Panama",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "VE": {
-        "providers": [
+      "CO":{
+        "country":"Colombia",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "EC": {
-        "providers": [
+      "VE":{
+        "country":"Venezuela",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "PE": {
-        "providers": [
+      "EC":{
+        "country":"Ecuador",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "BO": {
-        "providers": [
+      "PE":{
+        "country":"Peru",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "PY": {
-        "providers": [
+      "BO":{
+        "country":"Bolivia",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "BR": {
-        "providers": [
+      "CL":{
+        "country":"Chile",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "CL": {
-        "providers": [
+      "AR":{
+        "country":"Argentina",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "AR": {
-        "providers": [
+      "BR":{
+        "country":"Brazil",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "UY": {
-        "providers": [
+      "PY":{
+        "country":"Paraguay",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "CU": {
-        "providers": [
+      "UY":{
+        "country":"Uruguay",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
           "xoom"
         ]
       },
-      "HT": {
-        "providers": [
+      "HT":{
+        "country":"Haiti",
+        "providers":[
           "western_union",
           "moneygram",
           "remitly",
@@ -239,5 +350,40 @@
         ]
       }
     }
+  },
+  "comparison":{
+    "verified_only":true,
+    "commercial_fields":[
+      "fee",
+      "exchange_rate",
+      "recipient_amount",
+      "delivery_time",
+      "delivery_method",
+      "payment_method",
+      "availability",
+      "important_condition"
+    ],
+    "unavailable_message":{
+      "es":"Todavía no tenemos datos comerciales verificados para esta opción. Puedes consultar las condiciones directamente en el sitio oficial.",
+      "en":"Verified commercial data is not currently available for this option. You can check the current conditions directly on the official website."
+    }
+  },
+  "security":{
+    "never_collect":[
+      "password",
+      "provider_password",
+      "cvv",
+      "security_code",
+      "bank_login",
+      "bank_password",
+      "authentication_code",
+      "one_time_code"
+    ],
+    "handoff_required":true
+  },
+  "privacy":{
+    "provider_data_is_reference_only":true,
+    "personal_finance_data_stays_local":true,
+    "server_persistence":false
   }
 }
