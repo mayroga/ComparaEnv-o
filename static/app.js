@@ -75,14 +75,20 @@ cleared:"Listo. Empezamos de cero.",
 noGuess:"No queremos darte una respuesta equivocada.",
 goOfficial:"IR A LA INFORMACIÓN OFICIAL",
 whatWeDo:"Aquí no tienes que investigar.",
-whatWeDoText:"Dinos qué quieres hacer. Nosotros te explicamos lo importante y te decimos cuál es el siguiente paso."
+whatWeDoText:"Dinos qué quieres hacer. Nosotros te explicamos lo importante y te decimos cuál es el siguiente paso.",
+verifiedDate:"Comprobado el",
+source:"Fuente oficial",
+notVerified:"No comprobado ahora",
+reviewHelp:"REMESAS no puede comprobar este dato ahora. Te llevamos directamente a la información oficial.",
+sendOfficial:"Puedes continuar el envío en la página oficial.",
+specificHelp:"Información oficial sobre"
 },
 en:{
 loading:"I am checking the options for you.",
 title:"REMITTANCES",
 subtitle:"We help you understand and prepare your money transfers without complicated words.",
 question:"WHAT DO YOU NEED TODAY?",
-purpose:"What is REMITTANCES for?",
+purpose:"What is REMESAS for?",
 purposeText:"REMESAS helps you understand, prepare and review a money transfer. If we know the answer, we explain it. If we cannot verify it, we do not guess: we take you to the correct official information.",
 amount:"How much do you want to send?",
 amountPlaceholder:"Example: 200",
@@ -110,6 +116,12 @@ rate:"Currency exchange",
 receive:"The other person receives",
 delivery:"How the money can be received",
 method:"How you can pay",
+official:"VIEW OFFICIAL INFORMATION",
+review:"BEFORE CONTINUING",
+country:"Country",
+sendAmount:"You send",
+receiveAmount:"The other person receives",
+payment:"Payment method",
 check:"REVIEW THIS OPTION",
 selected:"This option",
 finalText:"First we review what we understood. Then the provider will show you the final conditions before you send.",
@@ -143,7 +155,13 @@ cleared:"Done. We are starting from zero.",
 noGuess:"We do not want to give you a wrong answer.",
 goOfficial:"GO TO OFFICIAL INFORMATION",
 whatWeDo:"You do not have to investigate here.",
-whatWeDoText:"Tell us what you want to do. We explain what matters and tell you the next step."
+whatWeDoText:"Tell us what you want to do. We explain what matters and tell you the next step.",
+verifiedDate:"Checked on",
+source:"Official source",
+notVerified:"Not verified now",
+reviewHelp:"REMESAS cannot verify this information right now. We will take you directly to the official information.",
+sendOfficial:"You can continue the transfer on the official website.",
+specificHelp:"Official information about"
 }};
 
 function t(k){return(TEXT[APP.language]||TEXT.es)[k]||k}
@@ -313,11 +331,13 @@ if(id&&!seen.has(id)){seen.add(id);merged.push({...p,provider_id:id,provider_nam
 return merged
 }
 function resultValue(r,key){
-return r?.[key]!==undefined?r[key]:r?.commercial_data?.[key]!==undefined?r.commercial_data[key]:null
+if(r?.[key]!==undefined)return r[key];
+if(r?.commercial_data?.[key]!==undefined)return r.commercial_data[key];
+return null
 }
 function renderResults(){
 const data=APP.comparison||{},results=getResults(),verified=(data.results||[]).length>0;
-document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell"><section class="results-head"><button class="back-btn" id="backBtn">← ${esc(t("back"))}</button><div><div class="hero-badge">● ${esc(verified?t("verified"):t("available"))}</div><h1>${esc(t("options"))}</h1><p>${esc(money(APP.amount)+" → "+countryName(APP.destination))}</p></div></section><div class="success-box"><strong>${esc(data.message||t("whatWeDo"))}</strong><p>${esc(data.explanation||t("whatWeDoText"))}</p></div><section class="results-list">${results.length?results.map(renderResultCard).join(""):`<div class="empty-card"><div class="empty-icon">?</div><h2>${esc(t("noResults"))}</h2><p>${esc(t("tryAgain"))}</p></div>`}</section>${renderSimpleDifferences(data.differences||[]) }<footer class="footer"><button id="clearBtn">${esc(t("clear"))}</button></footer></main>`;
+document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell"><section class="results-head"><button class="back-btn" id="backBtn">← ${esc(t("back"))}</button><div><div class="hero-badge">● ${esc(verified?t("verified"):t("available"))}</div><h1>${esc(t("options"))}</h1><p>${esc(money(APP.amount)+" → "+countryName(APP.destination))}</p></div></section><div class="success-box"><strong>${esc(data.message||t("whatWeDo"))}</strong><p>${esc(data.explanation||t("whatWeDoText"))}</p></div><section class="results-list">${results.length?results.map(renderResultCard).join(""):`<div class="empty-card"><div class="empty-icon">?</div><h2>${esc(t("noResults"))}</h2><p>${esc(t("tryAgain"))}</p></div>`}</section>${renderSimpleDifferences(data.differences||[])}<footer class="footer"><button id="clearBtn">${esc(t("clear"))}</button></footer></main>`;
 document.getElementById("backBtn")?.addEventListener("click",renderHome);
 document.getElementById("clearBtn")?.addEventListener("click",confirmClear);
 document.querySelectorAll("[data-provider]").forEach(b=>b.addEventListener("click",()=>{
@@ -338,17 +358,32 @@ const recipient=verified?resultValue(r,"recipient_amount"):null;
 const delivery=verified?(resultValue(r,"delivery_time")??resultValue(r,"estimated_delivery")):null;
 const method=verified?resultValue(r,"delivery_method"):null;
 const currency=resultValue(r,"currency")||resultValue(r,"recipient_currency")||"USD";
-const url=r.continue_url||r.official_site||"";
-const payment=r.payment_method||"";
+const payment=verified?resultValue(r,"payment_method"):null;
 const receiveOptions=Array.isArray(r.delivery_options)?r.delivery_options:[];
 const paymentOptions=Array.isArray(r.payment_options)?r.payment_options:[];
-return`<article class="provider-card"><div class="provider-top"><div><span class="provider-number">${i+1}</span><h2>${esc(name)}</h2></div><span class="verified-pill">${verified?"✓ "+esc(t("verified")):esc(t("commercialUnavailable"))}</span></div><div class="provider-main"><div class="receive-box"><span>${esc(t("receive"))}</span><strong>${recipient!==null?money(recipient,currency):t("nothing")}</strong></div><div class="details-grid"><div><span>${esc(t("fee"))}</span><strong>${fee!==null?money(fee,"USD"):t("commercialUnavailable")}</strong></div><div><span>${esc(t("rate"))}</span><strong>${rate!==null?esc(rate):t("commercialUnavailable")}</strong></div><div><span>${esc(t("delivery"))}</span><strong>${delivery!==null?esc(delivery):t("commercialUnavailable")}</strong></div><div><span>${esc(t("method"))}</span><strong>${method?esc(method):t("commercialUnavailable")}</strong></div></div>${payment?`<div class="success-box"><strong>${esc(t("method"))}</strong><p>${esc(payment)}</p></div>`:""}${receiveOptions.length?`<div class="success-box"><strong>${esc(t("receiveWays"))}</strong><p>${receiveOptions.map(esc).join(" · ")}</p></div>`:""}${paymentOptions.length?`<div class="success-box"><strong>${esc(t("paymentWays"))}</strong><p>${paymentOptions.map(esc).join(" · ")}</p></div>`:""}</div><div class="provider-foot"><small>${verified?esc(t("verified")):esc(t("noGuess"))}</small>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("officialHelp"))}</a>`:""}</div><button class="primary-btn provider-btn" data-provider="${esc(id)}">${esc(t("check"))}</button></article>`
+const urls=r.help_urls||{};
+return`<article class="provider-card"><div class="provider-top"><div><span class="provider-number">${i+1}</span><h2>${esc(name)}</h2></div><span class="verified-pill">${verified?"✓ "+esc(t("verified")):esc(t("notVerified"))}</span></div><div class="provider-main"><div class="receive-box"><span>${esc(t("receive"))}</span><strong>${recipient!==null?money(recipient,currency):t("nothing")}</strong></div><div class="details-grid"><div><span>${esc(t("fee"))}</span><strong>${fee!==null?money(fee,"USD"):t("commercialUnavailable")}</strong></div><div><span>${esc(t("rate"))}</span><strong>${rate!==null?esc(rate):t("commercialUnavailable")}</strong></div><div><span>${esc(t("delivery"))}</span><strong>${delivery!==null?esc(delivery):t("commercialUnavailable")}</strong></div><div><span>${esc(t("method"))}</span><strong>${method?esc(method):t("commercialUnavailable")}</strong></div></div>${payment?`<div class="success-box"><strong>${esc(t("method"))}</strong><p>${esc(payment)}</p></div>`:""}${receiveOptions.length?`<div class="success-box"><strong>${esc(t("receiveWays"))}</strong><p>${receiveOptions.map(esc).join(" · ")}</p></div>`:""}${paymentOptions.length?`<div class="success-box"><strong>${esc(t("paymentWays"))}</strong><p>${paymentOptions.map(esc).join(" · ")}</p></div>`:""}</div><div class="provider-foot"><small>${verified?esc(t("verified")):esc(t("reviewHelp"))}</small>${urls.general?`<a href="${esc(urls.general)}" target="_blank" rel="noopener noreferrer">${esc(t("officialHelp"))}</a>`:""}</div><button class="primary-btn provider-btn" data-provider="${esc(id)}">${esc(t("check"))}</button></article>`
+}
+function reviewTopic(provider){
+const data=APP.comparison||{};
+if(!provider)return"general";
+if(provider.commercial_verified===true||provider.commercial_status==="verified")return"send";
+const need=String(data.need_type||"").toLowerCase();
+if(need==="fees"||need==="fee")return"fee";
+if(need==="exchange_rate"||need==="rate")return"rate";
+if(need==="delivery")return"delivery";
+if(need==="requirements")return"requirements";
+if(need==="recipient_information")return"recipient";
+if(need==="mistake_prevention")return"mistake";
+if(need==="cancellation")return"cancel";
+if(need==="security")return"security";
+return"general"
 }
 function renderFinalCheck(provider){
 const id=resultId(provider);
 const verified=provider.commercial_verified===true||provider.commercial_status==="verified";
 if(!verified){
-renderProviderHelp(provider,"general");
+renderProviderHelp(provider,reviewTopic(provider));
 return
 }
 const delivery=provider.delivery_method||provider.delivery_options?.[0]||"";
@@ -378,20 +413,33 @@ fee:provider.fee??null,
 exchange_rate:provider.exchange_rate??null
 })});
 const ready=result?.ready_to_continue!==false;
-const url=provider.continue_url||provider.official_site;
+const url=provider.continue_url||provider.send_url||provider.official_site;
 status.innerHTML=`<div class="${ready?"success-box":"error-box"}"><strong>${ready?"✓ ":""}${esc(ready?t("verified"):t("tryAgain"))}</strong><p>${esc(result?.message||t("finalText"))}</p>${ready&&url?`<a class="primary-btn link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("goOfficial"))}</a>`:""}</div>`
 }catch(e){status.innerHTML=`<div class="error-box">${esc(e.message||t("error"))}</div>`}
 }
-function renderProviderHelp(provider,topic){
-const url=provider?.help_url||provider?.official_site||provider?.continue_url;
-const name=provider?.provider_name||"";
-const topicText={
-general:APP.language==="es"?"Aquí no tenemos que adivinar. Puedes consultar directamente la información oficial de la remesadora.":"We do not need to guess here. You can go directly to the provider's official information.",
-fee:APP.language==="es"?"No tenemos el costo actual comprobado. Consulta el costo directamente con la remesadora.":"We do not have the current verified cost. Check the cost directly with the provider.",
-rate:APP.language==="es"?"No tenemos la tasa actual comprobada. Consulta la tasa directamente con la remesadora.":"We do not have the current verified rate. Check the rate directly with the provider.",
-delivery:APP.language==="es"?"No tenemos el tiempo actual comprobado. Consulta la entrega directamente con la remesadora.":"We do not have the current verified delivery time. Check delivery directly with the provider."
+function topicTitle(topic){
+const map={
+fee:APP.language==="es"?"el costo del envío":"the transfer cost",
+rate:APP.language==="es"?"la tasa de cambio":"the exchange rate",
+delivery:APP.language==="es"?"la entrega":"delivery",
+requirements:APP.language==="es"?"los requisitos":"requirements",
+recipient:APP.language==="es"?"cómo recibe el dinero":"how the money is received",
+mistake:APP.language==="es"?"qué hacer ante un error":"what to do after a mistake",
+cancel:APP.language==="es"?"la cancelación":"cancellation",
+security:APP.language==="es"?"la seguridad":"security",
+send:APP.language==="es"?"cómo enviar el dinero":"how to send money",
+general:APP.language==="es"?"la información oficial":"official information"
 };
-document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell centered"><section class="review-card"><div class="hero-badge">● ${esc(t("helpTitle"))}</div><h1>${esc(name)}</h1><p>${esc(topicText[topic]||topicText.general)}</p><div class="missing-box">${esc(t("noGuess"))}</div>${url?`<a class="primary-btn link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("goOfficial"))}</a>`:""}<button class="secondary-btn" id="backResults">${esc(t("back"))}</button><footer class="footer"><button id="clearBtn">${esc(t("clear"))}</button></footer></section></main>`;
+return map[topic]||map.general
+}
+function renderProviderHelp(provider,topic="general"){
+const urls=provider?.help_urls||{};
+const url=urls[topic]||urls.general||provider?.help_url||provider?.official_site||provider?.continue_url;
+const name=provider?.provider_name||"";
+const text=APP.language==="es"
+?`No tenemos ${topicTitle(topic)} comprobado en este momento. No vamos a adivinar. Te llevamos directamente a la información oficial de ${name}.`
+:`We cannot verify ${topicTitle(topic)} right now. We will not guess. We will take you directly to ${name}'s official information.`;
+document.getElementById("app").innerHTML=`${renderHeader()}<main class="shell centered"><section class="review-card"><div class="hero-badge">● ${esc(t("helpTitle"))}</div><h1>${esc(name)}</h1><p>${esc(text)}</p><div class="missing-box">${esc(t("noGuess"))}</div>${url?`<a class="primary-btn link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("goOfficial"))}</a>`:""}<button class="secondary-btn" id="backResults">${esc(t("back"))}</button><footer class="footer"><button id="clearBtn">${esc(t("clear"))}</button></footer></section></main>`;
 document.getElementById("backResults")?.addEventListener("click",renderResults);
 document.getElementById("clearBtn")?.addEventListener("click",confirmClear);
 bindLanguage(()=>renderProviderHelp(provider,topic))
@@ -457,9 +505,7 @@ div.textContent=message;
 document.body.appendChild(div);
 setTimeout(()=>div.remove(),2200)
 }
-async function restart(){
-await clearEverything()
-}
+async function restart(){await clearEverything()}
 async function boot(){
 try{
 await loadConfig();
