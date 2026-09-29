@@ -10,11 +10,11 @@ from remittance_engine import engine
 from schemas import ComparisonRequest,ComparisonResponse,DeleteLocalDataResponse,FinalCheckRequest,FinalCheckResponse,ParseNeedRequest,SessionResponse,UserNeedRequest
 
 APP_NAME="REMESAS"
-APP_VERSION="2.0.0"
+APP_VERSION="3.0.0"
 BASE_DIR=Path(__file__).resolve().parent
 STATIC_DIR=BASE_DIR/"static"
 
-app=FastAPI(title=APP_NAME,version=APP_VERSION,description="Plataforma sencilla de asistencia y comparación para remesas.",docs_url="/docs",redoc_url="/redoc")
+app=FastAPI(title=APP_NAME,version=APP_VERSION,description="Asistencia sencilla para remesas y organización personal del dinero.",docs_url="/docs",redoc_url="/redoc")
 
 if STATIC_DIR.exists():app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
 
@@ -34,7 +34,7 @@ MAX_BODY_SIZE=1024*1024
 @app.on_event("startup")
 async def startup_event():
     engine.load_brain()
-    engine.load_providers()
+    engine.providers_data=engine.load_providers()
 
 @app.get("/",include_in_schema=False)
 async def root():
@@ -44,15 +44,7 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {
-        "status":"ok",
-        "app":APP_NAME,
-        "version":APP_VERSION,
-        "brain_loaded":bool(engine.brain),
-        "brain_version":engine.brain.get("app",{}).get("version"),
-        "providers":len(engine.get_provider_registry()),
-        "stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)
-    }
+    return {"status":"ok","app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"brain_version":engine.brain.get("app",{}).get("version"),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)}
 
 @app.get("/ping",include_in_schema=False)
 async def ping():return {"status":"ok"}
@@ -61,22 +53,17 @@ async def ping():return {"status":"ok"}
 async def public_configuration(language:str="es"):
     language=normalize_language(language)
     config=engine.public_config(language)
-    config["stripe"]={
-        "enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),
-        "publishable_key":STRIPE_PUBLISHABLE_KEY,
-        "price":15.99,
-        "currency":"USD",
-        "period":"1_month"
+    config["stripe"]={"enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),"publishable_key":STRIPE_PUBLISHABLE_KEY,"price":15.99,"currency":"USD","period":"1_month"}
+    config["privacy"]={
+        "local_data_only":True,
+        "server_persistence":False,
+        "never_collect":["passwords","CVV","security_codes","bank_login","provider_credentials"]
     }
     return config
 
 @app.get("/api/brain/version")
 async def brain_version():
-    return {
-        "app":APP_NAME,
-        "version":engine.brain.get("app",{}).get("version"),
-        "engine_version":APP_VERSION
-    }
+    return {"app":APP_NAME,"version":engine.brain.get("app",{}).get("version"),"engine_version":APP_VERSION}
 
 @app.post("/api/session",response_model=SessionResponse)
 async def create_session(language:str="es")->SessionResponse:
@@ -101,48 +88,69 @@ async def apply_need(request:Request):
     try:body=await request.json()
     except Exception:raise HTTPException(400,"Invalid request body.")
     if not isinstance(body,dict):raise HTTPException(400,"Invalid request body.")
-
     session_id=str(body.get("session_id") or "")
     language=normalize_language(body.get("language","es"))
-
     if session_id:
         validate_session_id(session_id)
         if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
     else:
         session_id=engine.create_session(language)["session_id"]
-
     body.pop("session_id",None)
     body["language"]=language
-
     try:
         user_request=UserNeedRequest(**body)
         session=engine.apply_need(session_id,user_request)
-    except KeyError as exc:
-        raise HTTPException(404,"Session not found.") from exc
-    except ValueError as exc:
-        raise HTTPException(400,str(exc)) from exc
-
+    except KeyError:raise HTTPException(404,"Session not found.")
+    except ValueError as exc:raise HTTPException(400,str(exc))
     return SessionResponse(success=True,session=session)
 
 @app.post("/api/need/parse")
 async def parse_need(request:ParseNeedRequest):
-    return {"success":True,"parsed":engine.parse_need(request)}
+    parsed=engine.parse_need(request)
+    return {"success":True,"parsed":parsed,"assistant":engine.assistant_response(parsed.get("need_type","other"),request.language,request.text)}
 
 @app.post("/api/session/{session_id}/need/parse")
 async def parse_need_into_session(session_id:str,request:ParseNeedRequest):
     validate_session_id(session_id)
     if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
-
     parsed=engine.parse_need(request)
-    fields=("amount","destination_country","priority","urgency","delivery_method","payment_method")
-    values={k:parsed[k] for k in fields if parsed.get(k) is not None}
+    values={k:parsed[k] for k in ("amount","destination_country","priority","urgency","delivery_method","payment_method") if parsed.get(k) is not None}
     values["parsed_user_need"]=parsed
+    values["free_text"]=request.text
+    values["need_type"]=parsed.get("need_type","other")
+    return {"success":True,"parsed":parsed,"assistant":engine.assistant_response(parsed.get("need_type","other"),request.language,request.text),"session":engine.update_session(session_id,**values)}
 
-    return {
-        "success":True,
-        "parsed":parsed,
-        "session":engine.update_session(session_id,**values)
-    }
+@app.post("/api/assistant")
+async def assistant(request:ParseNeedRequest):
+    parsed=engine.parse_need(request)
+    return {"success":True,"parsed":parsed,"assistant":engine.assistant_response(parsed.get("need_type","other"),request.language,request.text),"help_topics":engine.help_topics(request.language)}
+
+@app.get("/api/help")
+async def help_topics(language:str="es"):
+    language=normalize_language(language)
+    return {"success":True,"language":language,"topics":engine.help_topics(language)}
+
+@app.get("/api/help/{topic}")
+async def help_topic(topic:str,language:str="es"):
+    language=normalize_language(language)
+    topics=engine.help_topics(language)
+    for item in topics:
+        if item.get("id")==topic:return {"success":True,"topic":item}
+    raise HTTPException(404,"Help topic not found.")
+
+@app.get("/api/providers")
+async def providers(language:str="es"):
+    language=normalize_language(language)
+    config=engine.public_config(language)
+    return {"success":True,"providers":config.get("providers",[])}
+
+@app.get("/api/provider/{provider_id}")
+async def provider(provider_id:str,language:str="es",country:str=""):
+    language=normalize_language(language)
+    item=engine.provider_public_option(provider_id,country,language)
+    if not item:raise HTTPException(404,"Provider not found.")
+    item["requirements"]=engine.provider_requirements(provider_id,language)
+    return {"success":True,"provider":item}
 
 @app.post("/api/compare",response_model=ComparisonResponse)
 async def compare(request:ComparisonRequest):
@@ -160,22 +168,13 @@ async def compare_session(session_id:str):
 @app.post("/api/session/{session_id}/select/{provider_id}")
 async def select_provider_option(session_id:str,provider_id:str):
     validate_session_id(session_id)
-    try:
-        option=engine.select_provider(session_id,provider_id)
+    try:option=engine.select_provider(session_id,provider_id)
     except KeyError as exc:
         code=str(exc).strip("'")
-        messages={
-            "session_expired":(404,"Session not found."),
-            "provider_not_found":(404,"Provider not found."),
-            "provider_not_available":(404,"Provider not available.")
-        }
+        messages={"session_expired":(404,"Session not found."),"provider_not_found":(404,"Provider not found."),"provider_not_available":(404,"Provider not available.")}
         status,msg=messages.get(code,(404,"Provider option not found."))
-        raise HTTPException(status,msg) from exc
-    return {
-        "success":True,
-        "selected_option":option,
-        "session":engine.get_session(session_id)
-    }
+        raise HTTPException(status,msg)
+    return {"success":True,"selected_option":option,"session":engine.get_session(session_id)}
 
 @app.post("/api/final-check",response_model=FinalCheckResponse)
 async def final_check(request:FinalCheckRequest):
@@ -186,13 +185,11 @@ async def session_final_check(session_id:str):
     validate_session_id(session_id)
     session=engine.get_session(session_id)
     if session is None:raise HTTPException(404,"Session not found.")
-
     option=session.get("selected_option")
     if not option:raise HTTPException(422,"No option selected.")
-
     request=FinalCheckRequest(
         language=session.get("language","es"),
-        provider_id=option.get("provider_id"),
+        provider_id=option.get("provider_id",""),
         amount=session.get("amount") or 0,
         send_currency=session.get("send_currency","USD"),
         destination_country=session.get("destination_country") or "",
@@ -202,189 +199,81 @@ async def session_final_check(session_id:str):
         fee=option.get("fee"),
         exchange_rate=option.get("exchange_rate")
     )
-
     return engine.final_check(request,session_id)
 
 @app.get("/api/session/{session_id}/help")
 async def session_help(session_id:str,language:str="es"):
     validate_session_id(session_id)
-    session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
-
+    if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
     language=normalize_language(language)
-
-    messages={
-        "opening":{
-            "es":"Indica cuánto quieres enviar, a qué país y qué es más importante para ti.",
-            "en":"Enter how much you want to send, the destination country, and what matters most to you."
-        },
-        "comparison":{
-            "es":"Estamos comparando las opciones disponibles para tu envío.",
-            "en":"We are comparing the available options for your transfer."
-        },
-        "results":{
-            "es":"Aquí puedes revisar las opciones disponibles.",
-            "en":"Here you can review the available options."
-        },
-        "final_check":{
-            "es":"Revisa los datos antes de continuar con el proveedor.",
-            "en":"Review the information before continuing with the provider."
-        }
-    }
-
-    step=session.get("current_step","opening")
-    return {
-        "success":True,
-        "message":messages.get(step,messages["opening"]).get(language)
-    }
+    return {"success":True,"language":language,"topics":engine.help_topics(language)}
 
 @app.post("/api/session/{session_id}/reset")
 async def reset_session(session_id:str):
     validate_session_id(session_id)
-    return {
-        "success":True,
-        "cleared":engine.clear_session(session_id),
-        "message":"Sesión borrada."
-    }
+    return {"success":True,"cleared":engine.clear_session(session_id),"message":"Sesión borrada."}
 
 @app.delete("/api/local-data",response_model=DeleteLocalDataResponse)
 async def local_data_info():
-    return DeleteLocalDataResponse(
-        success=True,
-        message="El borrado de datos locales se realiza en este dispositivo."
-    )
+    return DeleteLocalDataResponse(success=True,message="Los datos personales de dinero se almacenan y borran en este dispositivo. El servidor no los guarda.")
 
 @app.get("/api/subscription/status")
 async def subscription_status():
-    return {
-        "configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),
-        "price":15.99,
-        "currency":"USD",
-        "period":"1_month"
-    }
+    return {"configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),"price":15.99,"currency":"USD","period":"1_month"}
 
 @app.get("/api/stripe/public")
 async def stripe_public():
-    return {
-        "enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),
-        "publishable_key":STRIPE_PUBLISHABLE_KEY
-    }
+    return {"enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),"publishable_key":STRIPE_PUBLISHABLE_KEY}
 
 @app.post("/api/create-checkout-session")
 async def create_checkout_session(request:Request):
-    if not STRIPE_SECRET_KEY or not STRIPE_PRICE_ID1:
-        raise HTTPException(503,"Stripe is not configured.")
-
+    if not STRIPE_SECRET_KEY or not STRIPE_PRICE_ID1:raise HTTPException(503,"Stripe is not configured.")
     base_url=str(request.base_url).rstrip("/")
-
     try:
-        checkout=stripe.checkout.Session.create(
-            mode="subscription",
-            line_items=[{"price":STRIPE_PRICE_ID1,"quantity":1}],
-            success_url=f"{base_url}/?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{base_url}/?payment=cancelled",
-            allow_promotion_codes=True,
-            billing_address_collection="auto"
-        )
-    except stripe.error.StripeError as exc:
-        raise HTTPException(502,"Unable to create the payment session.") from exc
-
+        checkout=stripe.checkout.Session.create(mode="subscription",line_items=[{"price":STRIPE_PRICE_ID1,"quantity":1}],success_url=f"{base_url}/?payment=success&session_id={{CHECKOUT_SESSION_ID}}",cancel_url=f"{base_url}/?payment=cancelled",allow_promotion_codes=True,billing_address_collection="auto")
+    except stripe.error.StripeError as exc:raise HTTPException(502,"Unable to create the payment session.") from exc
     return {"success":True,"checkout_url":checkout.url}
 
 @app.get("/api/payment/check")
 async def payment_check(session_id:Optional[str]=None):
-    if not STRIPE_SECRET_KEY:
-        return {"success":False,"active":False,"message":"Stripe not configured."}
-    if not session_id:
-        return {"success":False,"active":False,"message":"Payment session not provided."}
-
+    if not STRIPE_SECRET_KEY:return {"success":False,"active":False,"message":"Stripe not configured."}
+    if not session_id:return {"success":False,"active":False,"message":"Payment session not provided."}
     try:
         checkout=stripe.checkout.Session.retrieve(session_id,expand=["subscription"])
         paid=checkout.payment_status=="paid"
         sub=getattr(checkout,"subscription",None)
         status=getattr(sub,"status",None) if sub else None
-
-        return {
-            "success":True,
-            "active":bool(paid and status in {"active","trialing"}),
-            "payment_status":checkout.payment_status,
-            "checkout_status":checkout.status,
-            "mode":checkout.mode,
-            "subscription_status":status
-        }
-    except stripe.error.StripeError as exc:
-        raise HTTPException(502,"Unable to verify payment.") from exc
+        return {"success":True,"active":bool(paid and status in {"active","trialing"}),"payment_status":checkout.payment_status,"checkout_status":checkout.status,"mode":checkout.mode,"subscription_status":status}
+    except stripe.error.StripeError as exc:raise HTTPException(502,"Unable to verify payment.") from exc
 
 @app.post("/api/stripe/webhook")
 async def stripe_webhook(request:Request):
-    if not STRIPE_WEBHOOK_SECRET:
-        raise HTTPException(503,"Stripe webhook is not configured.")
-
+    if not STRIPE_WEBHOOK_SECRET:raise HTTPException(503,"Stripe webhook is not configured.")
     payload=await request.body()
     if len(payload)>MAX_BODY_SIZE:raise HTTPException(413,"Webhook payload too large.")
-
     signature=request.headers.get("stripe-signature")
     if not signature:raise HTTPException(400,"Missing Stripe signature.")
-
-    try:
-        event=stripe.Webhook.construct_event(payload,signature,STRIPE_WEBHOOK_SECRET)
-    except ValueError as exc:
-        raise HTTPException(400,"Invalid webhook payload.") from exc
-    except stripe.error.SignatureVerificationError as exc:
-        raise HTTPException(400,"Invalid webhook signature.") from exc
-
-    handled={
-        "checkout.session.completed",
-        "customer.subscription.created",
-        "customer.subscription.updated",
-        "customer.subscription.deleted",
-        "invoice.paid",
-        "invoice.payment_failed"
-    }
-
-    return {
-        "success":True,
-        "received":True,
-        "event_type":event.get("type",""),
-        "handled":event.get("type","") in handled
-    }
+    try:event=stripe.Webhook.construct_event(payload,signature,STRIPE_WEBHOOK_SECRET)
+    except ValueError as exc:raise HTTPException(400,"Invalid webhook payload.") from exc
+    except stripe.error.SignatureVerificationError as exc:raise HTTPException(400,"Invalid webhook signature.") from exc
+    handled={"checkout.session.completed","customer.subscription.created","customer.subscription.updated","customer.subscription.deleted","invoice.paid","invoice.payment_failed"}
+    return {"success":True,"received":True,"event_type":event.get("type",""),"handled":event.get("type","") in handled}
 
 @app.get("/api/admin/config-status")
 async def admin_config_status(request:Request):
     username=request.headers.get("X-Admin-Username","")
     password=request.headers.get("X-Admin-Password","")
-
-    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-        raise HTTPException(503,"Admin access is not configured.")
-
-    if not secrets.compare_digest(username,ADMIN_USERNAME) or not secrets.compare_digest(password,ADMIN_PASSWORD):
-        raise HTTPException(401,"Unauthorized.")
-
-    return {
-        "success":True,
-        "app":APP_NAME,
-        "version":APP_VERSION,
-        "brain_loaded":bool(engine.brain),
-        "brain_version":engine.brain.get("app",{}).get("version"),
-        "providers":len(engine.get_provider_registry()),
-        "gemini_configured":bool(GEMINI_API_KEY),
-        "stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),
-        "stripe_webhook_configured":bool(STRIPE_WEBHOOK_SECRET)
-    }
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD:raise HTTPException(503,"Admin access is not configured.")
+    if not secrets.compare_digest(username,ADMIN_USERNAME) or not secrets.compare_digest(password,ADMIN_PASSWORD):raise HTTPException(401,"Unauthorized.")
+    return {"success":True,"app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"gemini_configured":bool(GEMINI_API_KEY),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),"stripe_webhook_configured":bool(STRIPE_WEBHOOK_SECRET)}
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request:Request,exc:ValueError):
-    return JSONResponse(
-        status_code=400,
-        content={"success":False,"error":str(exc)}
-    )
+    return JSONResponse(status_code=400,content={"success":False,"error":str(exc)})
 
 @app.exception_handler(Exception)
 async def generic_error_handler(request:Request,exc:Exception):
-    return JSONResponse(
-        status_code=500,
-        content={"success":False,"error":"Ocurrió un problema. Intenta nuevamente."}
-    )
+    return JSONResponse(status_code=500,content={"success":False,"error":"Ocurrió un problema. Intenta nuevamente."})
 
 def normalize_language(language:Optional[str])->str:
     value=(language or "es").lower().strip()
@@ -395,5 +284,4 @@ def validate_session_id(session_id:str)->None:
     allowed=set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
     if any(c not in allowed for c in session_id):raise HTTPException(400,"Invalid session.")
 
-def localized(es:str,en:str,language:str)->str:
-    return en if language=="en" else es
+def localized(es:str,en:str,language:str)->str:return en if language=="en" else es
