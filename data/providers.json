@@ -1,184 +1,184 @@
 {
-  "version":"3.0.0",
-  "schema_version":3,
-  "description":"Registro verificable de proveedores de remesas para REMESAS | May Roga LLC.",
-  "data_policy":{
-    "commercial_data_must_be_verified":true,
-    "no_invented_fees":true,
-    "no_invented_exchange_rates":true,
-    "no_invented_delivery_times":true,
-    "no_invented_recipient_amounts":true,
-    "official_sites_only":true
-  },
-  "providers":[
-    {
-      "id":"western_union",
-      "name":"Western Union",
-      "enabled":true,
-      "official_site":"https://www.westernunion.com/",
-      "official_urls":{
-        "main":"https://www.westernunion.com/",
-        "us_en":"https://www.westernunion.com/us/en/home.html",
-        "us_es":"https://www.westernunion.com/us/es/home.html"
-      },
-      "supports_online":true,
-      "supports_agent":true,
-      "payment_methods":[
-        "bank_account",
-        "debit_card",
-        "credit_card",
-        "cash"
-      ],
-      "delivery_methods":[
-        "bank_account",
-        "cash_pickup",
-        "mobile_wallet"
-      ],
-      "commercial_data":{
-        "status":"unavailable",
-        "source":null,
-        "verified_at":null,
-        "fee":null,
-        "exchange_rate":null,
-        "recipient_amount":null,
-        "delivery_time":null,
-        "currency":null,
-        "delivery_method":null,
-        "payment_method":null,
-        "important_condition":null
-      },
-      "requirements":[
-        "La información requerida puede variar según el país y la operación.",
-        "Consulta los requisitos que muestre Western Union antes de confirmar.",
-        "No compartas contraseñas, CVV ni códigos de seguridad con esta aplicación."
-      ]
-    },
-    {
-      "id":"moneygram",
-      "name":"MoneyGram",
-      "enabled":true,
-      "official_site":"https://www.moneygram.com/",
-      "official_urls":{
-        "main":"https://www.moneygram.com/",
-        "us_en":"https://www.moneygram.com/",
-        "us_es":"https://www.moneygram.com/"
-      },
-      "supports_online":true,
-      "supports_agent":true,
-      "payment_methods":[
-        "bank_account",
-        "debit_card",
-        "credit_card",
-        "cash"
-      ],
-      "delivery_methods":[
-        "bank_account",
-        "cash_pickup",
-        "mobile_wallet"
-      ],
-      "commercial_data":{
-        "status":"unavailable",
-        "source":null,
-        "verified_at":null,
-        "fee":null,
-        "exchange_rate":null,
-        "recipient_amount":null,
-        "delivery_time":null,
-        "currency":null,
-        "delivery_method":null,
-        "payment_method":null,
-        "important_condition":null
-      },
-      "requirements":[
-        "La información requerida puede variar según el país y la operación.",
-        "Consulta los requisitos que muestre MoneyGram antes de confirmar.",
-        "No compartas contraseñas, CVV ni códigos de seguridad con esta aplicación."
-      ]
-    },
-    {
-      "id":"remitly",
-      "name":"Remitly",
-      "enabled":true,
-      "official_site":"https://www.remitly.com/",
-      "official_urls":{
-        "main":"https://www.remitly.com/",
-        "us_en":"https://www.remitly.com/us/en/home",
-        "us_es":"https://www.remitly.com/us/en/home"
-      },
-      "supports_online":true,
-      "supports_agent":false,
-      "payment_methods":[
-        "bank_account",
-        "debit_card",
-        "credit_card"
-      ],
-      "delivery_methods":[
-        "bank_account",
-        "cash_pickup",
-        "mobile_wallet"
-      ],
-      "commercial_data":{
-        "status":"unavailable",
-        "source":null,
-        "verified_at":null,
-        "fee":null,
-        "exchange_rate":null,
-        "recipient_amount":null,
-        "delivery_time":null,
-        "currency":null,
-        "delivery_method":null,
-        "payment_method":null,
-        "important_condition":null
-      },
-      "requirements":[
-        "La información requerida puede variar según el país y la operación.",
-        "Consulta los requisitos que muestre Remitly antes de confirmar.",
-        "No compartas contraseñas, CVV ni códigos de seguridad con esta aplicación."
-      ]
-    },
-    {
-      "id":"xoom",
-      "name":"Xoom",
-      "enabled":true,
-      "official_site":"https://www.xoom.com/",
-      "official_urls":{
-        "main":"https://www.xoom.com/",
-        "us_en":"https://www.xoom.com/",
-        "us_es":"https://www.xoom.com/"
-      },
-      "supports_online":true,
-      "supports_agent":false,
-      "payment_methods":[
-        "bank_account",
-        "debit_card",
-        "credit_card"
-      ],
-      "delivery_methods":[
-        "bank_account",
-        "cash_pickup",
-        "mobile_wallet"
-      ],
-      "commercial_data":{
-        "status":"unavailable",
-        "source":null,
-        "verified_at":null,
-        "fee":null,
-        "exchange_rate":null,
-        "recipient_amount":null,
-        "delivery_time":null,
-        "currency":null,
-        "delivery_method":null,
-        "payment_method":null,
-        "important_condition":null
-      },
-      "requirements":[
-        "La información requerida puede variar según el país y la operación.",
-        "Consulta los requisitos que muestre Xoom antes de confirmar.",
-        "No compartas contraseñas, CVV ni códigos de seguridad con esta aplicación."
-      ]
-    }
-  ],
-  "corridors":{
-    "destinations":{}
-  }
+"version":"3.0.0",
+"schema_version":3,
+"description":"Registro verificable de proveedores de remesas para REMESAS | May Roga LLC.",
+"data_policy":{
+"commercial_data_must_be_verified":true,
+"no_invented_fees":true,
+"no_invented_exchange_rates":true,
+"no_invented_delivery_times":true,
+"no_invented_recipient_amounts":true,
+"official_sites_only":true
+},
+"providers":[
+{
+"id":"western_union",
+"name":"Western Union",
+"enabled":true,
+"official_site":"https://www.westernunion.com/",
+"official_urls":{
+"main":"https://www.westernunion.com/",
+"us_en":"https://www.westernunion.com/us/en/home.html",
+"us_es":"https://www.westernunion.com/us/es/home.html"
+},
+"supports_online":true,
+"supports_agent":true,
+"payment_methods":[
+"bank_account",
+"debit_card",
+"credit_card",
+"cash"
+],
+"delivery_methods":[
+"bank_account",
+"cash_pickup",
+"mobile_wallet"
+],
+"commercial_data":{
+"status":"unavailable",
+"source":null,
+"verified_at":null,
+"fee":null,
+"exchange_rate":null,
+"recipient_amount":null,
+"delivery_time":null,
+"currency":null,
+"delivery_method":null,
+"payment_method":null,
+"important_condition":null
+},
+"requirements":[
+"La información requerida puede variar según el país y la operación.",
+"Consulta los requisitos que muestre Western Union antes de confirmar.",
+"No compartas contraseñas, CVV ni códigos de seguridad con esta aplicación."
+]
+},
+{
+"id":"moneygram",
+"name":"MoneyGram",
+"enabled":true,
+"official_site":"https://www.moneygram.com/",
+"official_urls":{
+"main":"https://www.moneygram.com/",
+"us_en":"https://www.moneygram.com/",
+"us_es":"https://www.moneygram.com/"
+},
+"supports_online":true,
+"supports_agent":true,
+"payment_methods":[
+"bank_account",
+"debit_card",
+"credit_card",
+"cash"
+],
+"delivery_methods":[
+"bank_account",
+"cash_pickup",
+"mobile_wallet"
+],
+"commercial_data":{
+"status":"unavailable",
+"source":null,
+"verified_at":null,
+"fee":null,
+"exchange_rate":null,
+"recipient_amount":null,
+"delivery_time":null,
+"currency":null,
+"delivery_method":null,
+"payment_method":null,
+"important_condition":null
+},
+"requirements":[
+"La información requerida puede variar según el país y la operación.",
+"Consulta los requisitos que muestre MoneyGram antes de confirmar.",
+"No compartas contraseñas, CVV ni códigos de seguridad con esta aplicación."
+]
+},
+{
+"id":"remitly",
+"name":"Remitly",
+"enabled":true,
+"official_site":"https://www.remitly.com/",
+"official_urls":{
+"main":"https://www.remitly.com/",
+"us_en":"https://www.remitly.com/us/en/home",
+"us_es":"https://www.remitly.com/us/en/home"
+},
+"supports_online":true,
+"supports_agent":false,
+"payment_methods":[
+"bank_account",
+"debit_card",
+"credit_card"
+],
+"delivery_methods":[
+"bank_account",
+"cash_pickup",
+"mobile_wallet"
+],
+"commercial_data":{
+"status":"unavailable",
+"source":null,
+"verified_at":null,
+"fee":null,
+"exchange_rate":null,
+"recipient_amount":null,
+"delivery_time":null,
+"currency":null,
+"delivery_method":null,
+"payment_method":null,
+"important_condition":null
+},
+"requirements":[
+"La información requerida puede variar según el país y la operación.",
+"Consulta los requisitos que muestre Remitly antes de confirmar.",
+"No compartas contraseñas, CVV ni códigos de seguridad con esta aplicación."
+]
+},
+{
+"id":"xoom",
+"name":"Xoom",
+"enabled":true,
+"official_site":"https://www.xoom.com/",
+"official_urls":{
+"main":"https://www.xoom.com/",
+"us_en":"https://www.xoom.com/",
+"us_es":"https://www.xoom.com/"
+},
+"supports_online":true,
+"supports_agent":false,
+"payment_methods":[
+"bank_account",
+"debit_card",
+"credit_card"
+],
+"delivery_methods":[
+"bank_account",
+"cash_pickup",
+"mobile_wallet"
+],
+"commercial_data":{
+"status":"unavailable",
+"source":null,
+"verified_at":null,
+"fee":null,
+"exchange_rate":null,
+"recipient_amount":null,
+"delivery_time":null,
+"currency":null,
+"delivery_method":null,
+"payment_method":null,
+"important_condition":null
+},
+"requirements":[
+"La información requerida puede variar según el país y la operación.",
+"Consulta los requisitos que muestre Xoom antes de confirmar.",
+"No compartas contraseñas, CVV ni códigos de seguridad con esta aplicación."
+]
+}
+],
+"corridors":{
+"destinations":{}
+}
 }
