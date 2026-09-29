@@ -1,4 +1,4 @@
-import json,re,uuid,unicodedata
+import json,re,uuid,unicodedata,os
 from copy import deepcopy
 from datetime import datetime,timezone
 from pathlib import Path
@@ -54,13 +54,16 @@ class RemittanceEngine:
             if language in value:return self.localize(value[language],language)
             fallback="en" if language=="es" else "es"
             if fallback in value:return self.localize(value[fallback],fallback)
-            for key in ("label","name","title","text","id"):
+            for key in ("label","name","title","text","description","id"):
                 if key in value:return self.localize(value[key],language)
         if isinstance(value,list):return ", ".join(x for x in (self.localize(v,language) for v in value) if x)
         return str(value)
 
-    def language_text(self,key:str,language:str="es")->str:return self.localize(self.brain.get("messages",{}).get(key,{}),language)
-    def _message(self,key:str,language:str="es")->str:return self.language_text(key,language)
+    def language_text(self,key:str,language:str="es")->str:
+        return self.localize(self.brain.get("messages",{}).get(key,{}),language)
+
+    def _message(self,key:str,language:str="es")->str:
+        return self.language_text(key,language)
 
     def get_supported_countries(self)->List[Dict[str,Any]]:
         countries=self.brain.get("countries",{})
@@ -71,7 +74,7 @@ class RemittanceEngine:
         for item in supported or []:
             if isinstance(item,dict):
                 code=str(item.get("code") or item.get("id") or "").upper().strip()
-                if code:result.append({"code":code,"name":deepcopy(item.get("name") or names.get(code,{ "es":code,"en":code }))})
+                if code:result.append({"code":code,"name":deepcopy(item.get("name") or names.get(code,{"es":code,"en":code}))})
             else:
                 code=str(item).upper().strip()
                 if code:result.append({"code":code,"name":deepcopy(names.get(code,{"es":code,"en":code}))})
@@ -116,9 +119,24 @@ class RemittanceEngine:
             if str(p.get("id","")).lower()==pid:return p
         return None
 
-    def provider_url(self,provider:Dict[str,Any],language:str="es")->Optional[str]:
+    def provider_url(self,provider:Dict[str,Any],language:str="es",topic:Optional[str]=None)->Optional[str]:
         urls=provider.get("official_urls",{})
         if isinstance(urls,dict):
+            topic_keys={
+                "fee":["fees","fee","pricing","cost"],
+                "rate":["exchange_rate","exchange","rates","rate"],
+                "delivery":["delivery","delivery_time","receiving","receive"],
+                "requirements":["requirements","help","support"],
+                "recipient":["recipient","receive","cash_pickup","delivery"],
+                "mistake":["mistake","help","support"],
+                "cancel":["cancel","cancellation","help","support"],
+                "security":["security","help","support"],
+                "general":["help","support","home","main"]
+            }
+            if topic:
+                for key in topic_keys.get(topic,topic_keys["general"]):
+                    value=urls.get(key)
+                    if isinstance(value,str) and value.startswith(("http://","https://")):return value
             keys=["us_send_es","us_es","es","home","main"] if language=="es" else ["us_send","us_en","en","home","main"]
             for key in keys:
                 value=urls.get(key)
@@ -127,6 +145,11 @@ class RemittanceEngine:
             value=provider.get(key)
             if isinstance(value,str) and value.startswith(("http://","https://")):return value
         return None
+
+    def provider_help_url(self,provider_id:str,language:str="es",topic:Optional[str]=None)->Optional[str]:
+        provider=self.get_provider(provider_id)
+        if not provider:return None
+        return self.provider_url(provider,language,topic)
 
     def corridor_provider_ids(self,country:str)->List[str]:
         code=str(country or "").strip().upper()
@@ -159,17 +182,54 @@ class RemittanceEngine:
         result["destination_country"]=str(country or "").upper()
         return result
 
+    def human_payment(self,value:Any,language:str="es")->str:
+        mapping={
+            "bank_account":{"es":"Cuenta bancaria","en":"Bank account"},
+            "debit_card":{"es":"Tarjeta de débito","en":"Debit card"},
+            "credit_card":{"es":"Tarjeta de crédito","en":"Credit card"},
+            "cash":{"es":"Efectivo","en":"Cash"}
+        }
+        if isinstance(value,list):
+            return ", ".join(self.human_payment(x,language) for x in value)
+        key=str(value or "").strip().lower()
+        return mapping.get(key,{"es":str(value or ""),"en":str(value or "")}).get(language,str(value or ""))
+
+    def human_delivery(self,value:Any,language:str="es")->str:
+        mapping={
+            "bank_account":{"es":"Cuenta bancaria","en":"Bank account"},
+            "cash_pickup":{"es":"Recibir en efectivo","en":"Receive in cash"},
+            "mobile_wallet":{"es":"Billetera digital","en":"Digital wallet"},
+            "home_delivery":{"es":"Entrega a domicilio","en":"Home delivery"}
+        }
+        if isinstance(value,list):
+            return ", ".join(self.human_delivery(x,language) for x in value)
+        key=str(value or "").strip().lower()
+        return mapping.get(key,{"es":str(value or ""),"en":str(value or "")}).get(language,str(value or ""))
+
+    def human_provider_option(self,provider:Dict[str,Any],country:str,language:str="es")->Dict[str,Any]:
+        pid=provider.get("id","")
+        return {
+            "provider_id":pid,
+            "provider_name":provider.get("name",pid),
+            "country":str(country or "").upper(),
+            "country_name":self.country_name(country,language),
+            "online":bool(provider.get("supports_online",True)),
+            "agent":bool(provider.get("supports_agent",False)),
+            "payment_options":[self.human_payment(x,language) for x in provider.get("payment_methods",[]) if x],
+            "delivery_options":[self.human_delivery(x,language) for x in provider.get("delivery_methods",[]) if x],
+            "requirements":[self.localize(x,language) for x in provider.get("requirements",[]) if self.localize(x,language)],
+            "official_url":self.provider_url(provider,language),
+            "help_url":self.provider_help_url(pid,language,"general")
+        }
+
     def provider_public_option(self,provider_id:str,country:str,language:str="es")->Optional[Dict[str,Any]]:
         provider=self.get_provider(provider_id)
         if not provider:return None
         commercial=provider.get("commercial_data",{})
         verified=self.commercial_verified(commercial)
-        return {
-            "provider_id":provider.get("id"),
-            "provider_name":provider.get("name",provider.get("id","")),
+        result=self.human_provider_option(provider,country,language)
+        result.update({
             "enabled":bool(provider.get("enabled",True)),
-            "country":str(country or "").upper(),
-            "country_name":self.country_name(country,language),
             "commercial_status":"verified" if verified else "unavailable",
             "commercial_verified":verified,
             "fee":commercial.get("fee") if verified else None,
@@ -177,19 +237,15 @@ class RemittanceEngine:
             "recipient_amount":commercial.get("recipient_amount") if verified else None,
             "delivery_time":commercial.get("delivery_time") if verified else None,
             "currency":commercial.get("currency") if verified else None,
-            "delivery_method":commercial.get("delivery_method") if verified else None,
-            "payment_method":commercial.get("payment_method") if verified else None,
+            "delivery_method":self.human_delivery(commercial.get("delivery_method"),language) if verified else None,
+            "payment_method":self.human_payment(commercial.get("payment_method"),language) if verified else None,
             "important_condition":commercial.get("important_condition") if verified else None,
             "source":commercial.get("source") if verified else None,
             "verified_at":commercial.get("verified_at") if verified else None,
             "continue_url":self.provider_url(provider,language),
-            "official_site":provider.get("official_site") or self.provider_url(provider,language),
-            "supports_online":provider.get("supports_online",True),
-            "supports_agent":provider.get("supports_agent",False),
-            "payment_methods":deepcopy(provider.get("payment_methods",[])),
-            "delivery_methods":deepcopy(provider.get("delivery_methods",[])),
-            "requirements":deepcopy(provider.get("requirements",[]))
-        }
+            "official_site":provider.get("official_site") or self.provider_url(provider,language)
+        })
+        return result
 
     def create_session(self,language:str="es")->Dict[str,Any]:
         language=language if language in ("es","en") else "es"
@@ -216,7 +272,8 @@ class RemittanceEngine:
         state["updated_at"]=self.now()
         return deepcopy(state)
 
-    def clear_session(self,session_id:str)->bool:return self.sessions.pop(session_id,None) is not None
+    def clear_session(self,session_id:str)->bool:
+        return self.sessions.pop(session_id,None) is not None
 
     def _amount_from_text(self,text:str)->Optional[float]:
         value=str(text or "")
@@ -226,24 +283,15 @@ class RemittanceEngine:
                 n=float(raw.replace(",",""))
                 if n>0:return n
             except ValueError:pass
-        words={
-            "cien":100,"doscientos":200,"trescientos":300,"cuatrocientos":400,"quinientos":500,
-            "seiscientos":600,"setecientos":700,"ochocientos":800,"novecientos":900,
-            "mil":1000
-        }
+        words={"cien":100,"cien dolares":100,"doscientos":200,"trescientos":300,"cuatrocientos":400,"quinientos":500,"seiscientos":600,"setecientos":700,"ochocientos":800,"novecientos":900,"mil":1000}
         normalized=self.normalize_text(value)
         for word,n in words.items():
-            if re.search(r"\b"+word+r"\b",normalized):return float(n)
+            if re.search(r"\b"+re.escape(word)+r"\b",normalized):return float(n)
         return None
 
     def _country_from_text(self,text:str)->Optional[str]:
         normalized=self.normalize_text(text)
-        aliases={
-            "mexico":"MX","mexican":"MX","mexicana":"MX","guatemala":"GT","el salvador":"SV","salvador":"SV",
-            "honduras":"HN","nicaragua":"NI","costa rica":"CR","panama":"PA","republica dominicana":"DO","dominicana":"DO",
-            "colombia":"CO","venezuela":"VE","ecuador":"EC","peru":"PE","bolivia":"BO","paraguay":"PY","brasil":"BR",
-            "brazil":"BR","chile":"CL","argentina":"AR","uruguay":"UY","cuba":"CU","haiti":"HT"
-        }
+        aliases={"mexico":"MX","mexican":"MX","mexicana":"MX","guatemala":"GT","el salvador":"SV","salvador":"SV","honduras":"HN","nicaragua":"NI","costa rica":"CR","panama":"PA","republica dominicana":"DO","dominicana":"DO","colombia":"CO","venezuela":"VE","ecuador":"EC","peru":"PE","bolivia":"BO","paraguay":"PY","brasil":"BR","brazil":"BR","chile":"CL","argentina":"AR","uruguay":"UY","cuba":"CU","haiti":"HT"}
         for name,code in sorted(aliases.items(),key=lambda x:-len(x[0])):
             if re.search(r"\b"+re.escape(name)+r"\b",normalized):return code
         for item in self.get_supported_countries():
@@ -255,14 +303,7 @@ class RemittanceEngine:
 
     def _priority_from_text(self,text:str)->Optional[str]:
         value=self.normalize_text(text)
-        patterns=[
-            ("recipient_gets_more",["reciba mas","recibir mas","receive more","mas dinero","more money"]),
-            ("fastest",["rapido","fast","quick","speed","lo antes posible"]),
-            ("urgent",["urgente","urgent","hoy","today","ahora","now","asap"]),
-            ("save",["ahorrar","ahorro","save","cheap","barato","menos costo","menor costo"]),
-            ("balanced",["equilibrio","balance","balanced"]),
-            ("compare_all",["comparar","compare","comparacion","opciones","options"])
-        ]
+        patterns=[("recipient_gets_more",["reciba mas","recibir mas","receive more","mas dinero","more money"]),("fastest",["rapido","rapida","fast","quick","speed","lo antes posible"]),("urgent",["urgente","urgent","hoy","today","ahora","now","asap"]),("save",["ahorrar","ahorro","save","cheap","barato","menos costo","menor costo"]),("balanced",["equilibrio","balance","balanced"]),("compare_all",["comparar","compare","comparacion","opciones","options"])]
         for p,terms in patterns:
             if any(x in value for x in terms):return p
         return None
@@ -305,18 +346,7 @@ class RemittanceEngine:
         text=request.text or ""
         classification=self.classify_need(text,language)
         priority=self._priority_from_text(text)
-        return {
-            "need_type":classification["need_type"],
-            "amount":self._amount_from_text(text),
-            "destination_country":self._country_from_text(text),
-            "priority":priority,
-            "urgency":True if priority=="urgent" else None,
-            "frequency":self._frequency_from_text(text),
-            "delivery_method":None,
-            "payment_method":None,
-            "language":language,
-            "raw_text":text
-        }
+        return {"need_type":classification["need_type"],"amount":self._amount_from_text(text),"destination_country":self._country_from_text(text),"priority":priority,"urgency":True if priority=="urgent" else None,"frequency":self._frequency_from_text(text),"delivery_method":None,"payment_method":None,"language":language,"raw_text":text}
 
     def _next_step(self,state:Dict[str,Any])->str:
         if not state.get("need_type"):return "need"
@@ -343,33 +373,52 @@ class RemittanceEngine:
 
     def _build_verified_result(self,provider:Dict[str,Any],commercial:Dict[str,Any],request:ComparisonRequest,language:str)->ComparisonResult:
         return ComparisonResult(
-            provider_id=provider.get("id",""),provider_name=provider.get("name",provider.get("id","")),
-            amount_sent=request.amount,send_currency=request.send_currency,fee=commercial.get("fee"),
-            exchange_rate=commercial.get("exchange_rate"),recipient_amount=commercial.get("recipient_amount"),
-            delivery_method=commercial.get("delivery_method"),payment_method=commercial.get("payment_method"),
-            estimated_delivery=commercial.get("delivery_time"),recipient_currency=commercial.get("currency"),
-            availability=True,important_condition=commercial.get("important_condition"),
+            provider_id=provider.get("id",""),
+            provider_name=provider.get("name",provider.get("id","")),
+            amount_sent=request.amount,
+            send_currency=request.send_currency,
+            fee=commercial.get("fee"),
+            exchange_rate=commercial.get("exchange_rate"),
+            recipient_amount=commercial.get("recipient_amount"),
+            delivery_method=self.human_delivery(commercial.get("delivery_method"),language),
+            payment_method=self.human_payment(commercial.get("payment_method"),language),
+            estimated_delivery=commercial.get("delivery_time"),
+            recipient_currency=commercial.get("currency"),
+            availability=True,
+            important_condition=commercial.get("important_condition"),
             requirements=deepcopy(commercial.get("requirements",[])) if isinstance(commercial.get("requirements",[]),list) else [],
-            source=commercial.get("source"),verified_at=commercial.get("verified_at"),status="verified",
+            source=commercial.get("source"),
+            verified_at=commercial.get("verified_at"),
+            status="verified",
             continue_url=self.provider_url(provider,language)
         )
 
-    def _differences(self,available:List[Dict[str,Any]],language:str)->List[Dict[str,Any]]:
-        dimensions=[
-            ("payment_methods","Métodos de pago","Payment methods"),
-            ("delivery_methods","Formas de entrega","Delivery methods"),
-            ("supports_online","Disponible en línea","Available online"),
-            ("supports_agent","Atención en agente","Agent service")
-        ]
-        differences=[]
-        for key,es,en in dimensions:
-            values=[]
-            for p in available:
-                value=p.get(key)
-                if value is not None and value!=[]:
-                    values.append({"provider_id":p.get("provider_id"),"provider_name":p.get("provider_name"),"value":value})
-            if values:differences.append({"id":key,"label":en if language=="en" else es,"values":values})
-        return differences
+    def _simple_difference_text(self,available:List[Dict[str,Any]],language:str)->List[Dict[str,Any]]:
+        result=[]
+        if not available:return result
+        online=[x["provider_name"] for x in available if x.get("online")]
+        agent=[x["provider_name"] for x in available if x.get("agent")]
+        if online:
+            result.append({"title":"Puedes hacerlo por internet" if language=="es" else "You can do it online","text":"Todas estas opciones permiten comenzar el envío por internet." if language=="es" else "These options let you start the transfer online.","providers":online})
+        if agent:
+            result.append({"title":"También puedes buscar ayuda en persona" if language=="es" else "You can also get help in person","text":"Estas opciones indican que tienen atención mediante agentes u oficinas." if language=="es" else "These options indicate that they offer service through agents or offices.","providers":agent})
+        payment_groups={}
+        for p in available:
+            values=tuple(p.get("payment_options",[]))
+            payment_groups.setdefault(values,[]).append(p["provider_name"])
+        if len(payment_groups)>1:
+            for values,names in payment_groups.items():
+                if values:
+                    result.append({"title":"Cómo puedes pagar" if language=="es" else "How you can pay","text":("Puedes pagar de estas formas: "+", ".join(values)+".") if language=="es" else ("You can pay in these ways: "+", ".join(values)+"."),"providers":names})
+        delivery_groups={}
+        for p in available:
+            values=tuple(p.get("delivery_options",[]))
+            delivery_groups.setdefault(values,[]).append(p["provider_name"])
+        if len(delivery_groups)>1:
+            for values,names in delivery_groups.items():
+                if values:
+                    result.append({"title":"Cómo puede recibirlo la persona" if language=="es" else "How the person can receive it","text":("Puede recibirlo de estas formas: "+", ".join(values)+".") if language=="es" else ("The person can receive it in these ways: "+", ".join(values)+"."),"providers":names})
+        return result
 
     def compare_session(self,session_id:str)->Dict[str,Any]:
         state=self.sessions.get(session_id)
@@ -377,10 +426,16 @@ class RemittanceEngine:
         if not state.get("amount"):raise ValueError("Amount is required.")
         if not state.get("destination_country"):raise ValueError("Destination country is required.")
         request=ComparisonRequest(
-            amount=state["amount"],destination_country=state["destination_country"],priority=state.get("priority"),
-            urgency=state.get("urgency"),delivery_method=state.get("delivery_method"),
-            payment_method=state.get("payment_method"),language=state.get("language","es"),
-            send_currency=state.get("send_currency","USD"),recipient_amount_target=None,special_need=state.get("special_need")
+            amount=state["amount"],
+            destination_country=state["destination_country"],
+            priority=state.get("priority"),
+            urgency=state.get("urgency"),
+            delivery_method=state.get("delivery_method"),
+            payment_method=state.get("payment_method"),
+            language=state.get("language","es"),
+            send_currency=state.get("send_currency","USD"),
+            recipient_amount_target=None,
+            special_need=state.get("special_need")
         )
         return self.compare(request,session_id)
 
@@ -402,7 +457,7 @@ class RemittanceEngine:
         for item in available:
             item["commercial_status"]="verified" if item.get("provider_id") in verified_ids else "unavailable"
             item["commercial_verified"]=item.get("provider_id") in verified_ids
-        differences=self._differences(available,language)
+        simple_differences=self._simple_difference_text(available,language)
         if session_id in self.sessions:
             state=self.sessions[session_id]
             state["candidate_providers"]=[x["provider_id"] for x in available]
@@ -410,28 +465,39 @@ class RemittanceEngine:
             state["verified_results"]=[x.model_dump() if hasattr(x,"model_dump") else x.dict() for x in verified_results]
             state["current_step"]="results";state["updated_at"]=self.now()
         verified=bool(verified_results)
-        message=self._message("results_ready",language) if verified else self._message("no_results",language)
-        if not message:
-            message="Opciones verificadas disponibles." if verified else "Estas plataformas están disponibles, pero los datos comerciales actuales no están verificados."
+        if verified:
+            message="Encontramos información comprobada para revisar." if language=="es" else "We found verified information to review."
+        else:
+            message="Las opciones están disponibles, pero no tenemos sus precios o condiciones actuales comprobados. No vamos a inventarlos." if language=="es" else "The options are available, but we do not have verified current prices or terms. We will not guess them."
         return {
-            "success":True,"message":message,
+            "success":True,
+            "message":message,
             "results":[x.model_dump() if hasattr(x,"model_dump") else x.dict() for x in verified_results],
-            "available_providers":available,"provider_count":len(available),"verified_count":len(verified_results),
-            "results_available":verified,"destination_country":country,"destination_name":self.country_name(country,language),
-            "amount":request.amount,"send_currency":request.send_currency,"priority":request.priority,
-            "urgency":request.urgency,"language":language,
-            "explanation":self.comparison_explanation(language,verified),"differences":differences,
+            "available_providers":available,
+            "provider_count":len(available),
+            "verified_count":len(verified_results),
+            "results_available":verified,
+            "destination_country":country,
+            "destination_name":self.country_name(country,language),
+            "amount":request.amount,
+            "send_currency":request.send_currency,
+            "priority":request.priority,
+            "urgency":request.urgency,
+            "language":language,
+            "explanation":self.comparison_explanation(language,verified),
+            "differences":simple_differences,
             "precautions":self._precautions(language)
         }
 
     def comparison_explanation(self,language:str="es",verified:bool=False)->str:
-        if verified:return "Los datos marcados como verificados tienen fuente y fecha de verificación. Revísalos antes de continuar." if language=="es" else "Data marked as verified has a source and verification date. Review it before continuing."
-        return "No se muestran tarifas, tasas, tiempos ni cantidades como datos actuales cuando no están verificadas." if language=="es" else "Fees, rates, delivery times and recipient amounts are not shown as current facts when they are not verified."
+        if verified:
+            return "Te mostramos solamente lo que podemos respaldar con una fuente y una fecha de comprobación." if language=="es" else "We show only information we can support with a source and verification date."
+        return "No mostramos precios, tasas, tiempos ni cantidades como si fueran actuales cuando no podemos comprobarlos." if language=="es" else "We do not present prices, rates, delivery times or amounts as current when we cannot verify them."
 
     def _precautions(self,language:str="es")->List[str]:
         if language=="en":
-            return ["Fees and exchange rates can change before you complete a transfer.","Review recipient information before confirming.","Never share passwords, CVV, login credentials or security codes with this app.","The transfer is completed on the provider's official website."]
-        return ["Las comisiones y tasas de cambio pueden cambiar antes de completar el envío.","Revisa los datos del destinatario antes de confirmar.","Nunca compartas con esta aplicación contraseñas, CVV, claves de acceso ni códigos de seguridad.","El envío se completa en el sitio oficial del proveedor."]
+            return ["Check the recipient's information before confirming.","Never share passwords, CVV, login information or security codes with this app.","The transfer is completed on the provider's official website."]
+        return ["Revisa los datos de la persona que recibirá el dinero antes de confirmar.","Nunca compartas aquí contraseñas, CVV, claves de acceso ni códigos de seguridad.","El envío se completa en la página oficial de la remesadora."]
 
     def select_provider(self,session_id:str,provider_id:str)->Dict[str,Any]:
         state=self.sessions.get(session_id)
@@ -441,7 +507,11 @@ class RemittanceEngine:
         if provider_id not in self.candidate_provider_ids(country):raise KeyError("provider_not_available")
         option=self.provider_public_option(provider_id,country,state.get("language","es"))
         if not option:raise KeyError("provider_not_found")
-        state["selected_option"]=deepcopy(option);state["current_step"]="final_check";state["updated_at"]=self.now()
+        state["selected_option"]=deepcopy(option)
+        state["delivery_method"]=option.get("delivery_method") or state.get("delivery_method")
+        state["payment_method"]=option.get("payment_method") or state.get("payment_method")
+        state["current_step"]="final_check"
+        state["updated_at"]=self.now()
         return deepcopy(option)
 
     def final_check(self,request:FinalCheckRequest,session_id:Optional[str]=None)->Dict[str,Any]:
@@ -450,32 +520,41 @@ class RemittanceEngine:
         labels={
             "destination":{"es":"País de destino","en":"Destination country"},
             "amount":{"es":"Cantidad a enviar","en":"Amount to send"},
-            "currency":{"es":"Moneda del envío","en":"Sending currency"},
-            "delivery_method":{"es":"Forma de entrega","en":"Delivery method"},
-            "recipient_information":{"es":"Datos del destinatario","en":"Recipient information"},
+            "currency":{"es":"Moneda","en":"Currency"},
+            "delivery_method":{"es":"Cómo recibirá el dinero","en":"How the money will be received"},
             "fee":{"es":"Comisión","en":"Fee"},
             "exchange_rate":{"es":"Tasa de cambio","en":"Exchange rate"},
-            "recipient_amount":{"es":"Cantidad que recibiría","en":"Recipient amount"}
+            "recipient_amount":{"es":"Cantidad que recibiría","en":"Recipient gets"}
         }
         checks=[
             {"id":"destination","label":labels["destination"][language],"value":country,"complete":bool(request.destination_country) and self.country_supported(request.destination_country),"status":"ok" if request.destination_country and self.country_supported(request.destination_country) else "review"},
             {"id":"amount","label":labels["amount"][language],"value":f"{request.amount:.2f} {request.send_currency}","complete":request.amount>0,"status":"ok" if request.amount>0 else "review"},
             {"id":"currency","label":labels["currency"][language],"value":request.send_currency,"complete":bool(request.send_currency),"status":"ok" if request.send_currency else "review"},
-            {"id":"delivery_method","label":labels["delivery_method"][language],"value":request.delivery_method or ("Not selected" if language=="en" else "No seleccionada"),"complete":bool(request.delivery_method),"status":"ok" if request.delivery_method else "review"},
-            {"id":"recipient_information","label":labels["recipient_information"][language],"value":"Review on provider site" if language=="en" else "Revisar en el proveedor","complete":True,"status":"review"},
-            {"id":"fee","label":labels["fee"][language],"value":request.fee if request.fee is not None else ("Not verified" if language=="en" else "No verificada"),"complete":request.fee is not None,"status":"ok" if request.fee is not None else "review"},
-            {"id":"exchange_rate","label":labels["exchange_rate"][language],"value":request.exchange_rate if request.exchange_rate is not None else ("Not verified" if language=="en" else "No verificada"),"complete":request.exchange_rate is not None,"status":"ok" if request.exchange_rate is not None else "review"},
-            {"id":"recipient_amount","label":labels["recipient_amount"][language],"value":request.recipient_amount if request.recipient_amount is not None else ("Not verified" if language=="en" else "No verificada"),"complete":request.recipient_amount is not None,"status":"ok" if request.recipient_amount is not None else "review"}
+            {"id":"delivery_method","label":labels["delivery_method"][language],"value":request.delivery_method or ("La remesadora lo mostrará" if language=="es" else "The provider will show it"),"complete":True,"status":"ok"},
+            {"id":"fee","label":labels["fee"][language],"value":request.fee if request.fee is not None else ("La remesadora lo mostrará" if language=="es" else "The provider will show it"),"complete":True,"status":"ok" if request.fee is not None else "review"},
+            {"id":"exchange_rate","label":labels["exchange_rate"][language],"value":request.exchange_rate if request.exchange_rate is not None else ("La remesadora lo mostrará" if language=="es" else "The provider will show it"),"complete":True,"status":"ok" if request.exchange_rate is not None else "review"},
+            {"id":"recipient_amount","label":labels["recipient_amount"][language],"value":request.recipient_amount if request.recipient_amount is not None else ("La remesadora lo mostrará" if language=="es" else "The provider will show it"),"complete":True,"status":"ok" if request.recipient_amount is not None else "review"}
         ]
-        valid=all(x["complete"] for x in checks if x["id"] in {"destination","amount","currency","delivery_method"})
+        valid=all(x["complete"] for x in checks if x["id"] in {"destination","amount","currency"})
         if session_id in self.sessions:
             self.sessions[session_id]["final_check"]={"checks":deepcopy(checks),"valid":valid}
-            self.sessions[session_id]["current_step"]="final_check";self.sessions[session_id]["updated_at"]=self.now()
-        return {"success":True,"ready_to_continue":valid,"language":language,"provider_id":request.provider_id,"checks":checks,"message":self._final_message(language,valid),"precautions":self._precautions(language),"requirements":self.provider_requirements(request.provider_id,language)}
+            self.sessions[session_id]["current_step"]="final_check"
+            self.sessions[session_id]["updated_at"]=self.now()
+        return {
+            "success":True,
+            "ready_to_continue":valid,
+            "language":language,
+            "provider_id":request.provider_id,
+            "checks":checks,
+            "message":self._final_message(language,valid),
+            "precautions":self._precautions(language),
+            "requirements":self.provider_requirements(request.provider_id,language)
+        }
 
     def _final_message(self,language:str,valid:bool)->str:
-        if language=="en":return "The basic information is ready. Review the provider's final terms before continuing." if valid else "Review the missing information before continuing."
-        return "La información básica está lista. Revisa las condiciones finales del proveedor antes de continuar." if valid else "Revisa la información que falta antes de continuar."
+        if language=="en":
+            return "Everything we need is ready. The provider will show the final amount and conditions before you send." if valid else "Please review the information before continuing."
+        return "Todo lo necesario está listo. La remesadora te mostrará la cantidad y las condiciones finales antes de enviar." if valid else "Revisa la información antes de continuar."
 
     def provider_requirements(self,provider_id:str,language:str="es")->List[str]:
         provider=self.get_provider(provider_id)
@@ -484,7 +563,7 @@ class RemittanceEngine:
         result=[]
         if isinstance(requirements,list):
             for item in requirements:
-                text=item if isinstance(item,str) else self.localize(item,language)
+                text=self.localize(item,language)
                 if text:result.append(text)
         return result
 
@@ -493,35 +572,35 @@ class RemittanceEngine:
         topics=guidance.get("topics",[]) if isinstance(guidance,dict) else []
         if not topics:
             topics=[
-                {"id":"exchange_rate","label":{"es":"¿Qué es la tasa de cambio?","en":"What is an exchange rate?"},"answer":{"es":"Es la relación entre la moneda que envías y la moneda que recibe la otra persona.","en":"It is the relationship between the currency you send and the currency the other person receives."}},
-                {"id":"fee","label":{"es":"¿Qué es una comisión?","en":"What is a fee?"},"answer":{"es":"Es un cargo que puede aplicar el proveedor por el servicio.","en":"It is a charge the provider may apply for the service."}},
-                {"id":"recipient_amount","label":{"es":"¿Por qué recibe menos?","en":"Why does the recipient receive less?"},"answer":{"es":"La comisión y la tasa de cambio pueden afectar la cantidad final.","en":"The fee and exchange rate can affect the final amount."}},
-                {"id":"mistake","label":{"es":"¿Qué hago si me equivoqué?","en":"What if I made a mistake?"},"answer":{"es":"No confirmes todavía. Revisa los datos y consulta al proveedor antes de completar el envío.","en":"Do not confirm yet. Review the information and contact the provider before completing the transfer."}},
-                {"id":"security","label":{"es":"¿Qué información no debo compartir aquí?","en":"What information should I not share here?"},"answer":{"es":"No escribas contraseñas, CVV, códigos de seguridad ni claves de acceso.","en":"Do not enter passwords, CVV numbers, security codes or login credentials."}}
+                {"id":"exchange_rate","label":{"es":"¿Qué es la tasa de cambio?","en":"What is an exchange rate?"},"answer":{"es":"Es la relación entre el dinero que envías y el dinero que recibe la otra persona.","en":"It is the relationship between the money you send and the money the other person receives."}},
+                {"id":"fee","label":{"es":"¿Qué es una comisión?","en":"What is a fee?"},"answer":{"es":"Es un cargo que puede cobrar la remesadora por hacer el envío.","en":"It is a charge the provider may apply for the transfer."}},
+                {"id":"recipient_amount","label":{"es":"¿Por qué puede recibir menos?","en":"Why might the person receive less?"},"answer":{"es":"La comisión y la tasa de cambio pueden cambiar la cantidad final.","en":"The fee and exchange rate can affect the final amount."}},
+                {"id":"mistake","label":{"es":"¿Qué hago si me equivoqué?","en":"What if I made a mistake?"},"answer":{"es":"No confirmes. Revisa los datos antes de enviar. Si necesitas ayuda específica, podemos llevarte a la información oficial de la remesadora.","en":"Do not confirm. Review the information before sending. If you need specific help, we can take you to the provider's official information."}},
+                {"id":"security","label":{"es":"¿Qué información no debo poner aquí?","en":"What should I not enter here?"},"answer":{"es":"No escribas contraseñas, CVV, códigos de seguridad ni claves de acceso.","en":"Do not enter passwords, CVV numbers, security codes or login credentials."}}
             ]
         return [{"id":x.get("id"),"label":self.localize(x.get("label"),language),"answer":self.localize(x.get("answer"),language)} for x in topics if isinstance(x,dict)]
 
     def assistant_response(self,need_type:str,language:str="es",text:str="")->Dict[str,Any]:
         lang=language if language in ("es","en") else "es"
         responses={
-            "remittance":{"es":"Para comparar un envío necesito la cantidad y el país de destino. Después revisamos las opciones disponibles.","en":"To compare a transfer, I need the amount and destination country. Then we review the available options."},
-            "money_available":{"es":"Podemos calcular cuánto dinero tienes disponible después de tus gastos, ahorro y envíos.","en":"We can calculate how much money you have left after expenses, savings and transfers."},
-            "budget":{"es":"Podemos organizar tus ingresos, gastos, ahorro, compras y remesas para saber qué te queda.","en":"We can organize your income, expenses, savings, purchases and transfers to see what remains."},
-            "expenses":{"es":"Podemos registrar tus gastos y detectar los pequeños gastos que se acumulan.","en":"We can record your expenses and identify small spending that adds up."},
+            "remittance":{"es":"Te ayudo a preparar un envío de dinero. Dime cuánto quieres enviar y a qué país.","en":"I can help you prepare a money transfer. Tell me how much you want to send and which country."},
+            "money_available":{"es":"Podemos calcular cuánto dinero tienes disponible después de tus gastos, ahorro y envíos.","en":"We can calculate how much money you have available after expenses, savings and transfers."},
+            "budget":{"es":"Podemos ordenar tu dinero para que sepas cuánto tienes, cuánto gastas y cuánto puedes guardar.","en":"We can organize your money so you know what you have, what you spend and what you can save."},
+            "expenses":{"es":"Podemos revisar tus gastos y encontrar los pequeños gastos que se van acumulando.","en":"We can review your spending and find small expenses that add up."},
             "savings":{"es":"Podemos calcular cuánto puedes guardar y para qué quieres guardarlo.","en":"We can calculate how much you can save and what you want to save for."},
-            "purchase":{"es":"Podemos revisar una compra antes de hacerla y ver cómo afecta tu dinero disponible.","en":"We can review a purchase before you make it and see how it affects your available money."},
-            "family":{"es":"Puedes organizar dinero para tu familia sin que esta aplicación haga el envío ni guarde tus credenciales.","en":"You can organize money for family without this app making the transfer or storing your credentials."},
-            "requirements":{"es":"Los requisitos pueden cambiar según proveedor, país, cantidad y método. Revisa siempre al proveedor.","en":"Requirements can change by provider, country, amount and method. Always review the provider's requirements."},
+            "purchase":{"es":"Podemos revisar una compra antes de hacerla para saber cómo afecta tu dinero.","en":"We can review a purchase before you make it to see how it affects your money."},
+            "family":{"es":"Podemos ayudarte a organizar el dinero que quieres dedicar a tu familia.","en":"We can help you organize the money you want to set aside for family."},
+            "requirements":{"es":"Si no tengo el requisito comprobado, no lo invento. Te llevo a la información oficial de la remesadora.","en":"If I cannot verify a requirement, I will not guess. I will take you to the provider's official information."},
             "personal_information":{"es":"No necesitamos contraseñas, CVV, códigos de seguridad ni claves de acceso.","en":"We do not need passwords, CVV numbers, security codes or login credentials."},
-            "fees":{"es":"La comisión es un cargo que puede aplicar el proveedor. Revisa el cargo final.","en":"A fee is a charge the provider may apply. Review the final charge."},
-            "exchange_rate":{"es":"La tasa de cambio relaciona la moneda que envías con la moneda que recibe la otra persona.","en":"The exchange rate relates the currency you send to the currency the recipient receives."},
-            "delivery":{"es":"El tiempo depende del proveedor, país, método y condiciones del envío.","en":"Timing depends on the provider, country, method and transfer conditions."},
-            "provider_difference":{"es":"Podemos comparar comisión, tasa, cantidad recibida, velocidad, entrega, pago y requisitos cuando los datos estén verificados.","en":"We can compare fees, rates, recipient amount, speed, delivery, payment and requirements when data is verified."},
-            "mistake_prevention":{"es":"Si detectas un error, no confirmes. Corrige los datos antes de continuar.","en":"If you find an error, do not confirm. Correct the information before continuing."},
-            "cancellation":{"es":"La cancelación depende del proveedor y del estado del envío.","en":"Cancellation depends on the provider and transfer status."},
-            "recipient_information":{"es":"Revisa los datos del destinatario antes de confirmar.","en":"Review recipient information before confirming."},
+            "fees":{"es":"Podemos explicarte qué es una comisión. Si necesitas el cargo actual y no está comprobado, te llevamos a la información oficial.","en":"We can explain what a fee means. If you need the current charge and it is not verified, we take you to the official information."},
+            "exchange_rate":{"es":"La tasa de cambio indica cuánto dinero recibe la otra persona en su moneda. Si no tenemos la tasa actual comprobada, no la inventamos.","en":"The exchange rate shows how much the other person receives in their currency. If we cannot verify the current rate, we will not guess."},
+            "delivery":{"es":"Podemos explicar las formas de recibir el dinero. Si necesitas el tiempo exacto y no está comprobado, te llevamos a la información oficial.","en":"We can explain the ways money can be received. If you need the exact delivery time and it is not verified, we take you to the official information."},
+            "provider_difference":{"es":"Te explicamos las diferencias que realmente pueden ayudarte a elegir. No necesitas conocer palabras técnicas.","en":"We explain the differences that can actually help you choose. You do not need to know technical words."},
+            "mistake_prevention":{"es":"Si detectas un error, no confirmes el envío. Corrige los datos primero.","en":"If you find a mistake, do not confirm the transfer. Correct the information first."},
+            "cancellation":{"es":"La cancelación depende de la remesadora y del estado del envío. Si necesitas hacerlo, te llevamos a la información oficial correspondiente.","en":"Cancellation depends on the provider and transfer status. If you need to do it, we can take you to the appropriate official information."},
+            "recipient_information":{"es":"Revisa el nombre y los datos de la persona que recibirá el dinero antes de confirmar.","en":"Review the recipient's name and information before confirming."},
             "security":{"es":"Nunca escribas aquí contraseñas, CVV, códigos de seguridad ni credenciales.","en":"Never enter passwords, CVV numbers, security codes or credentials here."},
-            "other":{"es":"Dime qué necesitas. Podemos trabajar con envíos, gastos, ahorro, compras, familia o dinero disponible.","en":"Tell me what you need. We can work with transfers, expenses, savings, purchases, family or available money."}
+            "other":{"es":"No tienes que saber cómo hacerlo. Cuéntame con tus propias palabras qué necesitas y te ayudo.","en":"You do not need to know how to do it. Tell me in your own words what you need and I will help."}
         }
         msg=responses.get(need_type,responses["other"])[lang]
         return {"success":True,"need_type":need_type,"message":msg,"language":lang,"remittance_required":need_type=="remittance","next_step":"amount" if need_type=="remittance" else "assistant"}
@@ -543,32 +622,26 @@ class RemittanceEngine:
                 elif isinstance(item,str):priorities.append({"id":item,"icon":"","label":item,"why":""})
         countries=[]
         for item in self.get_supported_countries():
-            countries.append({"id":item["code"],"code":item["code"],"name":self.localize(item["name"],language) or item["code"],"currency":"USD"})
+            countries.append({"id":item["code"],"code":item["code"],"name":self.localize(item["name"],language) or item["code"]})
         providers=[]
         for p in self.get_provider_registry():
-            providers.append({
-                "id":p.get("id"),"name":p.get("name"),"enabled":bool(p.get("enabled",True)),
-                "continue_url":self.provider_url(p,language),"official_site":p.get("official_site") or self.provider_url(p,language),
-                "payment_methods":deepcopy(p.get("payment_methods",[])),"delivery_methods":deepcopy(p.get("delivery_methods",[]))
-            })
-        delivery=[]
-        payment=[]
-        for key,target in (("delivery_methods",delivery),("payment_methods",payment)):
-            raw=self.brain.get(key,[])
-            if isinstance(raw,list):
-                for x in raw:
-                    if isinstance(x,dict):target.append({"id":x.get("id"),"label":self.localize(x.get("label") or x.get("name") or x.get("id"),language)})
+            providers.append(self.human_provider_option(p,"",language))
         messages={}
         for k,v in self.brain.get("messages",{}).items():messages[k]=self.localize(v,language)
         return {
-            "app":deepcopy(self.brain.get("app",{})),"language":language,
+            "app":deepcopy(self.brain.get("app",{})),
+            "language":language,
             "supported_languages":self.brain.get("languages",{}).get("supported",["es","en"]),
+            "purpose":{
+                "es":"Te ayudamos a entender, preparar y organizar tus envíos de dinero sin palabras complicadas.",
+                "en":"We help you understand, prepare and organize your money transfers without complicated words."
+            },
             "opening":{
                 "title":self.localize(opening.get("title") or {"es":"REMESAS","en":"REMITTANCES"},language),
-                "subtitle":self.localize(opening.get("subtitle"),language),
+                "subtitle":self.localize(opening.get("subtitle"),language) or ("Te ayudamos a entender y preparar tus envíos de dinero." if language=="es" else "We help you understand and prepare your money transfers."),
                 "welcome":self.localize(opening.get("welcome"),language),
                 "primary_question":self.localize(opening.get("primary_question"),language) or ("¿QUÉ NECESITAS HOY?" if language=="es" else "WHAT DO YOU NEED TODAY?"),
-                "secondary_text":self.localize(opening.get("secondary_text"),language) or self.localize(opening.get("subtitle"),language),
+                "secondary_text":self.localize(opening.get("secondary_text"),language) or ("No necesitas saber de bancos ni de tecnología. Nosotros te ayudamos paso a paso." if language=="es" else "You do not need to know banking or technology. We help you step by step."),
                 "amount":deepcopy(opening.get("amount",{})),
                 "priorities":priorities,
                 "free_text":deepcopy(opening.get("free_text",{})),
@@ -577,8 +650,10 @@ class RemittanceEngine:
             },
             "conversation_logic":deepcopy(self.brain.get("conversation_logic",{})),
             "remittance_flow":deepcopy(self.brain.get("remittance_flow",{})),
-            "countries":countries,"providers":providers,"delivery_methods":delivery,"payment_methods":payment,
-            "messages":messages,"help_topics":self.help_topics(language),
+            "countries":countries,
+            "providers":providers,
+            "messages":messages,
+            "help_topics":self.help_topics(language),
             "provider_comparison":deepcopy(self.brain.get("provider_comparison",self.brain.get("comparison",{}))),
             "provider_handoff":deepcopy(self.brain.get("provider_handoff",{})),
             "money_planner":deepcopy(self.brain.get("money_planner",{})),
