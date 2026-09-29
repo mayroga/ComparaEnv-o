@@ -82,7 +82,6 @@
   "ai_fallback_allowed":true,
   "ai_fallback_only_when_ambiguous":true,
   "ai_cannot_set_unverified_commercial_values":true
- }
   },
   "action_center":{"enabled":true,"actions":["send_money","review_money","plan_week","add_expense","add_family_need","repeat_family_action","plan_purchase","save_money","ask_question","reset_all"],"do_not_force_action":true,"one_primary_action_at_a_time":true},
   "messages":{"home":{"es":"¿Qué necesitas resolver hoy?","en":"What do you need to solve today?"},"send_money":{"es":"Enviar dinero","en":"Send money"},"my_money":{"es":"Mi dinero","en":"My money"},"my_week":{"es":"Mi semana","en":"My week"},"expenses":{"es":"Mis gastos","en":"My expenses"},"family":{"es":"Familia","en":"Family"},"help":{"es":"No entiendo","en":"I don't understand"},"purchase":{"es":"Planear una compra","en":"Plan a purchase"},"save":{"es":"Ahorrar","en":"Save money"},"review":{"es":"Revisar y continuar","en":"Review and continue"},"official_site":{"es":"Sitio oficial","en":"Official site"},"delete_all":{"es":"Borrar todo y empezar de nuevo","en":"Delete everything and start over"},"verified":{"es":"Información verificada","en":"Verified information"},"check_official":{"es":"Comprobar en el sitio oficial","en":"Check on the official site"},"you_decide":{"es":"Tú decides.","en":"You decide."},"change":{"es":"Cambiar","en":"Change"},"confirm":{"es":"Sí, continuar","en":"Yes, continue"},"repeat":{"es":"Enviar lo de siempre","en":"Repeat usual transfer"},"audio":{"es":"Escuchar","en":"Listen"},"saved":{"es":"¡Hecho!","en":"Done!"}},
