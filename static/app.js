@@ -1,755 +1,1547 @@
-# main.py — REMESAS | May Roga LLC | v4.2.1
-import os,secrets,time
-from pathlib import Path
-from typing import Any,Dict,Optional
-import stripe
-from fastapi import FastAPI,HTTPException,Request
-from fastapi.responses import FileResponse,JSONResponse
-from fastapi.staticfiles import StaticFiles
-from remittance_engine import engine
-from schemas import ComparisonRequest,ComparisonResponse,DeleteLocalDataResponse,FinalCheckRequest,FinalCheckResponse,ParseNeedRequest,SessionResponse,UserNeedRequest
+"use strict";
 
-APP_NAME="REMESAS"
-APP_VERSION="4.2.1"
-SERVICE_PRICE=10.99
-SERVICE_CURRENCY="USD"
-SERVICE_MINUTES=20
-ACCESS_SECONDS=SERVICE_MINUTES*60
-BASE_DIR=Path(__file__).resolve().parent
-STATIC_DIR=BASE_DIR/"static"
+const APP={
+  name:"REMESAS",
+  version:"4.0.0",
+  lang:localStorage.getItem("remesas_lang_v4")||"es",
+  session:null,
+  config:null,
+  moneyKey:"remesas_money_v4",
+  expensesKey:"remesas_expenses_v4",
+  familyKey:"remesas_family_v4",
+  prefsKey:"remesas_prefs_v4"
+};
 
-app=FastAPI(title=APP_NAME,version=APP_VERSION,description="Servicio independiente para organizar dinero, preparar remesas, aprender el proceso y revisar información de proveedores oficiales.",docs_url="/docs",redoc_url="/redoc")
-if STATIC_DIR.exists():app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
+const app=document.getElementById("app");
 
-ADMIN_USERNAME=os.getenv("ADMIN_USERNAME","")
-ADMIN_PASSWORD=os.getenv("ADMIN_PASSWORD","")
-GEMINI_API_KEY=os.getenv("GEMINI_API_KEY","")
-STRIPE_PRICE_ID1=os.getenv("STRIPE_PRICE_ID1","")
-STRIPE_PUBLISHABLE_KEY=os.getenv("STRIPE_PUBLISHABLE_KEY","")
-STRIPE_SECRET_KEY=os.getenv("STRIPE_SECRET_KEY","")
-STRIPE_WEBHOOK_SECRET=os.getenv("STRIPE_WEBHOOK_SECRET","")
-if STRIPE_SECRET_KEY:stripe.api_key=STRIPE_SECRET_KEY
+function esc(v){
+  return String(v??"")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+}
 
-ALLOWED_LANGUAGES={"es","en"}
-MAX_BODY_SIZE=1024*1024
-ACCESS_TOKENS:Dict[str,Dict[str,Any]]={}
-PAYMENT_ACCESS:Dict[str,float]={}
-REDEEMED_PAYMENTS=set()
+function t(es,en){return APP.lang==="en"?en:es;}
 
-def normalize_language(language:Optional[str])->str:
-    value=(language or "es").lower().strip()
-    return value if value in ALLOWED_LANGUAGES else "es"
+function loc(v){
+  if(v&&typeof v==="object")return v[APP.lang]??v.es??v.en??"";
+  return v??"";
+}
 
-def localized(es:str,en:str,language:str)->str:
-    return en if normalize_language(language)=="en" else es
+function money(v){
+  const n=Number(v||0);
+  return new Intl.NumberFormat(
+    APP.lang==="en"?"en-US":"es-US",
+    {style:"currency",currency:"USD",maximumFractionDigits:2}
+  ).format(n);
+}
 
-def validate_session_id(session_id:str)->None:
-    if not session_id or len(session_id)>128:raise HTTPException(400,"Invalid session.")
-    allowed=set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
-    if any(c not in allowed for c in session_id):raise HTTPException(400,"Invalid session.")
+function getJSON(key,fallback){
+  try{
+    const v=JSON.parse(localStorage.getItem(key)||"");
+    return v??fallback;
+  }catch{
+    return fallback;
+  }
+}
 
-def cleanup_access()->None:
-    now=time.time()
-    expired=[token for token,data in ACCESS_TOKENS.items() if float(data.get("expires_at",0))<=now]
-    for token in expired:ACCESS_TOKENS.pop(token,None)
-    expired_payments=[sid for sid,expires in PAYMENT_ACCESS.items() if float(expires)<=now]
-    for sid in expired_payments:PAYMENT_ACCESS.pop(sid,None)
+function setJSON(key,value){
+  try{
+    localStorage.setItem(key,JSON.stringify(value));
+  }catch(e){
+    showError(t("No se pudo guardar la información en este dispositivo.","The information could not be saved on this device."));
+  }
+}
 
-def create_access(subject:str,seconds:int=ACCESS_SECONDS)->Dict[str,Any]:
-    cleanup_access()
-    token=secrets.token_urlsafe(32)
-    expires_at=time.time()+seconds
-    ACCESS_TOKENS[token]={"subject":subject,"expires_at":expires_at,"created_at":time.time()}
-    return {"token":token,"expires_at":expires_at,"seconds":seconds}
+async function api(url,options={}){
+  const opts={
+    ...options,
+    headers:{
+      "Content-Type":"application/json",
+      ...(options.headers||{})
+    }
+  };
+  const response=await fetch(url,opts);
+  let data={};
+  try{data=await response.json();}catch{}
+  if(!response.ok){
+    throw new Error(
+      data.error||
+      data.detail||
+      t("No se pudo completar la operación.","The operation could not be completed.")
+    );
+  }
+  return data;
+}
 
-def access_from_request(request:Request)->Dict[str,Any]:
-    cleanup_access()
-    token=request.headers.get("X-Remesas-Access-Token","").strip()
-    if not token:
-        auth=request.headers.get("Authorization","")
-        if auth.startswith("Bearer "):token=auth[7:].strip()
-    data=ACCESS_TOKENS.get(token)
-    if not data or float(data.get("expires_at",0))<=time.time():
-        ACCESS_TOKENS.pop(token,None)
-        raise HTTPException(401,"Access required or expired.")
-    return {"token":token,**data}
+async function loadConfig(){
+  const data=await api(`/api/config?language=${encodeURIComponent(APP.lang)}`);
+  APP.config=data||{};
+  return APP.config;
+}
 
-def require_access(request:Request)->Dict[str,Any]:
-    return access_from_request(request)
+async function startSession(preserve=true){
+  if(preserve&&APP.session?.session_id){
+    try{
+      const data=await api(`/api/session/${encodeURIComponent(APP.session.session_id)}`);
+      if(data.session){
+        APP.session=data.session;
+        return APP.session;
+      }
+    }catch{}
+  }
 
-def public_access(request:Request)->Dict[str,Any]:
-    cleanup_access()
-    token=request.headers.get("X-Remesas-Access-Token","").strip()
-    if not token:
-        auth=request.headers.get("Authorization","")
-        if auth.startswith("Bearer "):token=auth[7:].strip()
-    data=ACCESS_TOKENS.get(token)
-    if not data or float(data.get("expires_at",0))<=time.time():
-        return {"active":False,"seconds_remaining":0}
-    remaining=max(0,int(float(data["expires_at"])-time.time()))
-    return {"active":True,"seconds_remaining":remaining,"expires_at":data["expires_at"],"subject":data.get("subject")}
+  const data=await api(
+    `/api/session?language=${encodeURIComponent(APP.lang)}`,
+    {method:"POST"}
+  );
 
-async def json_body(request:Request)->Dict[str,Any]:
-    try:body=await request.json()
-    except Exception:raise HTTPException(400,"Invalid request body.")
-    if not isinstance(body,dict):raise HTTPException(400,"Invalid request body.")
-    return body
+  APP.session=data.session||data;
+  return APP.session;
+}
 
-@app.on_event("startup")
-async def startup_event():
-    engine.reload()
+async function changeLanguage(){
+  APP.lang=APP.lang==="es"?"en":"es";
+  localStorage.setItem("remesas_lang_v4",APP.lang);
 
-@app.get("/",include_in_schema=False)
-async def root():
-    index=STATIC_DIR/"index.html"
-    if not index.exists():raise HTTPException(404,"Application interface not found.")
-    return FileResponse(str(index))
-
-@app.get("/health")
-async def health():
-    return {
-        "status":"ok",
-        "app":APP_NAME,
-        "version":APP_VERSION,
-        "engine_version":getattr(__import__("remittance_engine"),"ENGINE_VERSION",APP_VERSION),
-        "brain_loaded":bool(engine.brain),
-        "brain_version":engine.brain.get("app",{}).get("version"),
-        "stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),
-        "service_price":SERVICE_PRICE,
-        "service_currency":SERVICE_CURRENCY,
-        "service_minutes":SERVICE_MINUTES
+  try{
+    if(APP.session?.session_id){
+      const data=await api("/api/need",{
+        method:"POST",
+        body:JSON.stringify({
+          session_id:APP.session.session_id,
+          language:APP.lang
+        })
+      });
+      if(data.session)APP.session=data.session;
+    }else{
+      await startSession(false);
     }
 
-@app.get("/ping",include_in_schema=False)
-async def ping():return {"status":"ok"}
+    await loadConfig();
+    renderHome();
+  }catch(error){
+    showError(error.message);
+  }
+}
 
-@app.get("/api/config")
-async def public_configuration(language:str="es"):
-    language=normalize_language(language)
-    config=engine.public_config(language)
-    config["stripe"]={
-        "enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1 and STRIPE_SECRET_KEY),
-        "publishable_key":STRIPE_PUBLISHABLE_KEY,
-        "price":SERVICE_PRICE,
-        "currency":SERVICE_CURRENCY,
-        "payment_mode":"payment",
-        "period":"one_time",
-        "service_minutes":SERVICE_MINUTES
+function topbar(title="REMESAS"){
+  return `
+    <header class="topbar">
+      <button class="icon-button" type="button"
+        onclick="renderHome()"
+        aria-label="${esc(t("Volver","Back"))}">←</button>
+      <strong>${esc(title)}</strong>
+      <button class="lang-button" type="button"
+        onclick="changeLanguage()">${APP.lang==="es"?"EN":"ES"}</button>
+    </header>`;
+}
+
+function renderShell(content,title="REMESAS"){
+  app.innerHTML=`
+    ${topbar(title)}
+    <main class="page">${content}</main>`;
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function renderHome(){
+  const opening=APP.config?.opening||{};
+  const title=loc(opening.title)||t("TU DINERO, MÁS CLARO","YOUR MONEY, CLEARER");
+  const subtitle=loc(opening.subtitle)||t(
+    "Entiende tu necesidad, compara lo que puede verificarse y continúa en la fuente oficial.",
+    "Understand your need, compare what can be verified, and continue to the official source."
+  );
+  const notice=loc(opening.notice)||t(
+    "REMESAS no inventa tarifas, tasas, tiempos ni disponibilidad.",
+    "REMESAS does not invent fees, rates, delivery times, or availability."
+  );
+
+  app.innerHTML=`
+    <header class="hero">
+      <div class="hero-top">
+        <span class="brand">REMESAS</span>
+        <button class="lang-button" type="button"
+          onclick="changeLanguage()">${APP.lang==="es"?"EN":"ES"}</button>
+      </div>
+      <h1>${esc(title)}</h1>
+      <p>${esc(subtitle)}</p>
+    </header>
+
+    <main class="home">
+      <div class="notice">
+        <strong>${esc(t("Importante","Important"))}</strong>
+        <p>${esc(notice)}</p>
+      </div>
+
+      <section class="quick-grid">
+        ${homeCard(
+          "💸",
+          t("Enviar dinero","Send money"),
+          t("Organiza una remesa y revisa proveedores.","Organize a transfer and review providers."),
+          "renderRemittance()"
+        )}
+        ${homeCard(
+          "💰",
+          t("Mi dinero","My money"),
+          t("Calcula cuánto puedes usar.","Calculate how much you can use."),
+          "renderMoney()"
+        )}
+        ${homeCard(
+          "📅",
+          t("Mi semana","My week"),
+          t("Mira tu dinero disponible por semana.","See your money available per week."),
+          "renderWeek()"
+        )}
+        ${homeCard(
+          "🧾",
+          t("Mis gastos","My expenses"),
+          t("Registra y revisa tus gastos.","Record and review your expenses."),
+          "renderExpenses()"
+        )}
+        ${homeCard(
+          "👨‍👩‍👧",
+          t("Familia","Family"),
+          t("Guarda una referencia para una remesa.","Save a reference for a transfer."),
+          "renderFamily()"
+        )}
+        ${homeCard(
+          "❓",
+          t("No entiendo","I need help"),
+          t("Escribe qué necesitas y te orientamos.","Write what you need and we will guide you."),
+          "renderHelp()"
+        )}
+        ${homeCard(
+          "🛒",
+          t("Planear una compra","Plan a purchase"),
+          t("Comprueba si una compra cabe en tu dinero.","Check whether a purchase fits your money."),
+          "renderPurchase()"
+        )}
+        ${homeCard(
+          "🏦",
+          t("Ahorrar","Save"),
+          t("Reserva dinero para un objetivo.","Reserve money for a goal."),
+          "renderSavings()"
+        )}
+      </section>
+
+      <section class="card need-card">
+        <h2>${esc(t("¿Qué necesitas hacer?","What do you need to do?"))}</h2>
+        <textarea
+          id="freeNeed"
+          maxlength="2000"
+          placeholder="${esc(t(
+            "Ejemplo: quiero enviar $200 a México...",
+            "Example: I want to send $200 to Mexico..."
+          ))}"></textarea>
+        <button class="primary" type="button"
+          onclick="understandNeed()">
+          ${esc(t("Ayúdame","Help me"))}
+        </button>
+      </section>
+
+      <section class="privacy">
+        <strong>${esc(t("Privacidad","Privacy"))}</strong>
+        <span>${esc(t(
+          "Tus datos personales de dinero permanecen en este dispositivo. La sesión de remesa es temporal.",
+          "Your personal money data stays on this device. The remittance session is temporary."
+        ))}</span>
+      </section>
+
+      <footer>${esc(t("REMESAS · May Roga LLC","REMESAS · May Roga LLC"))}</footer>
+    </main>`;
+}
+
+function homeCard(icon,title,text,action){
+  return `
+    <button class="home-card" type="button" onclick="${action}">
+      <span class="card-icon">${icon}</span>
+      <strong>${esc(title)}</strong>
+      <small>${esc(text)}</small>
+    </button>`;
+}
+
+async function understandNeed(){
+  const input=document.getElementById("freeNeed");
+  const text=(input?.value||"").trim();
+
+  if(!text){
+    showError(t("Escribe primero qué necesitas.","Write what you need first."));
+    return;
+  }
+
+  try{
+    const data=await api("/api/assistant",{
+      method:"POST",
+      body:JSON.stringify({
+        text,
+        language:APP.lang
+      })
+    });
+    renderAssistant(data||{});
+  }catch(error){
+    showError(error.message);
+  }
+}
+
+function renderAssistant(data){
+  const parsed=data.parsed||{};
+  const isRemittance=parsed.need_type==="remittance";
+
+  const summary=[
+    parsed.amount!=null?
+      `<div><small>${esc(t("Monto","Amount"))}</small><strong>${money(parsed.amount)}</strong></div>`:"",
+    parsed.destination_country?
+      `<div><small>${esc(t("Destino","Destination"))}</small><strong>${esc(countryName(parsed.destination_country))}</strong></div>`:"",
+    parsed.priority?
+      `<div><small>${esc(t("Prioridad","Priority"))}</small><strong>${esc(priorityLabel(parsed.priority))}</strong></div>`:"",
+    parsed.frequency?
+      `<div><small>${esc(t("Frecuencia","Frequency"))}</small><strong>${esc(frequencyLabel(parsed.frequency))}</strong></div>`:""
+  ].join("");
+
+  let action="renderHome()";
+
+  if(isRemittance){
+    window.__parsedRemittance=parsed;
+    action="beginParsedRemittance()";
+  }else{
+    action=actionForNeed(parsed.need_type);
+  }
+
+  renderShell(`
+    <section class="card">
+      <div class="status success">${esc(t("Entendido","Understood"))}</div>
+      <h1>${esc(data.assistant||t("Entendí tu necesidad.","I understood your need."))}</h1>
+      ${summary?`<div class="review-grid">${summary}</div>`:""}
+
+      <button class="primary" type="button" onclick="${action}">
+        ${esc(isRemittance?
+          t("Continuar con la remesa","Continue with transfer"):
+          t("Continuar","Continue"))}
+      </button>
+
+      <button class="secondary" type="button" onclick="renderHome()">
+        ${esc(t("Volver","Back"))}
+      </button>
+    </section>`,
+    t("Tu necesidad","Your need")
+  );
+}
+
+function actionForNeed(type){
+  const map={
+    money_available:"renderMoney()",
+    expenses:"renderExpenses()",
+    savings:"renderSavings()",
+    purchase:"renderPurchase()",
+    family:"renderFamily()",
+    fees:"renderHelp()",
+    exchange_rate:"renderHelp()",
+    delivery:"renderHelp()",
+    provider_difference:"renderRemittance()",
+    security:"renderHelp()"
+  };
+  return map[type]||"renderHome()";
+}
+
+async function beginParsedRemittance(){
+  const parsed=window.__parsedRemittance||{};
+
+  try{
+    await startSession(true);
+
+    const body={
+      session_id:APP.session.session_id,
+      language:APP.lang,
+      need_type:"remittance"
+    };
+
+    [
+      "amount",
+      "destination_country",
+      "priority",
+      "urgency",
+      "frequency",
+      "delivery_method",
+      "payment_method",
+      "recipient_amount_target"
+    ].forEach(key=>{
+      if(parsed[key]!==undefined&&parsed[key]!==null){
+        body[key]=parsed[key];
+      }
+    });
+
+    const data=await api("/api/need",{
+      method:"POST",
+      body:JSON.stringify(body)
+    });
+
+    if(data.session)APP.session=data.session;
+
+    renderRemittance(parsed);
+  }catch(error){
+    showError(error.message);
+  }
+}
+
+function countryName(code){
+  const list=APP.config?.countries||[];
+  const item=list.find(
+    x=>String(x.code||"").toUpperCase()===String(code||"").toUpperCase()
+  );
+  return loc(item?.name)||item?.code||code||"";
+}
+
+function priorityLabel(value){
+  const map={
+    recipient_gets_more:t("Más para el destinatario","More for recipient"),
+    fastest:t("Rapidez","Speed"),
+    urgent:t("Urgente","Urgent"),
+    save:t("Ahorrar","Save"),
+    balanced:t("Equilibrio","Balanced"),
+    compare_all:t("Comparar","Compare")
+  };
+  return map[value]||value||"";
+}
+
+function frequencyLabel(value){
+  const map={
+    weekly:t("Semanal","Weekly"),
+    biweekly:t("Quincenal","Biweekly"),
+    monthly:t("Mensual","Monthly"),
+    one_time:t("Una vez","One time")
+  };
+  return map[value]||value||"";
+}
+
+function renderRemittance(parsed={}){
+  const session=APP.session||{};
+  const amount=session.amount??parsed.amount??"";
+  const country=session.destination_country||parsed.destination_country||"";
+  const priority=session.priority||parsed.priority||"";
+  const frequency=session.frequency||parsed.frequency||"";
+  const urgency=session.urgency??parsed.urgency??null;
+  const delivery=session.delivery_method||parsed.delivery_method||"";
+  const payment=session.payment_method||parsed.payment_method||"";
+
+  const countries=APP.config?.countries||[];
+  const deliveryMethods=APP.config?.delivery_methods||[];
+  const paymentMethods=APP.config?.payment_methods||[];
+
+  renderShell(`
+    <section class="card">
+      <h1>${esc(t("Enviar dinero","Send money"))}</h1>
+      <p class="small">${esc(t(
+        "Solo preguntamos lo que puede cambiar el siguiente paso.",
+        "We only ask what can change the next step."
+      ))}</p>
+
+      <label>${esc(t("¿Cuánto quieres enviar?","How much do you want to send?"))}</label>
+      <input id="sendAmount"
+        type="number"
+        min="0.01"
+        max="1000000"
+        step="0.01"
+        value="${esc(amount)}"
+        oninput="updateMoneyWarning()">
+
+      <label>${esc(t("¿A qué país?","Which country?"))}</label>
+      <select id="sendCountry">
+        <option value="">${esc(t("Selecciona","Select"))}</option>
+        ${countries.map(c=>`
+          <option value="${esc(c.code)}"
+            ${String(c.code)===String(country)?"selected":""}>
+            ${esc(loc(c.name)||c.code)}
+          </option>`).join("")}
+      </select>
+
+      <label>${esc(t("¿Qué importa más?","What matters most?"))}</label>
+      <select id="sendPriority">
+        <option value="">${esc(t("No estoy seguro","Not sure"))}</option>
+        <option value="recipient_gets_more" ${priority==="recipient_gets_more"?"selected":""}>
+          ${esc(t("Que reciba más","Recipient gets more"))}
+        </option>
+        <option value="fastest" ${priority==="fastest"?"selected":""}>
+          ${esc(t("Rapidez","Speed"))}
+        </option>
+        <option value="save" ${priority==="save"?"selected":""}>
+          ${esc(t("Ahorrar","Save"))}
+        </option>
+        <option value="balanced" ${priority==="balanced"?"selected":""}>
+          ${esc(t("Equilibrio","Balanced"))}
+        </option>
+      </select>
+
+      <label>${esc(t("¿Es urgente?","Is it urgent?"))}</label>
+      <select id="sendUrgency">
+        <option value="">${esc(t("No estoy seguro","Not sure"))}</option>
+        <option value="true" ${urgency===true?"selected":""}>
+          ${esc(t("Sí","Yes"))}
+        </option>
+        <option value="false" ${urgency===false?"selected":""}>
+          ${esc(t("No","No"))}
+        </option>
+      </select>
+
+      <label>${esc(t("¿Cada cuánto envías?","How often do you send?"))}</label>
+      <select id="sendFrequency">
+        <option value="">${esc(t("Una sola vez / no sé","One time / not sure"))}</option>
+        <option value="one_time" ${frequency==="one_time"?"selected":""}>
+          ${esc(t("Una vez","One time"))}
+        </option>
+        <option value="weekly" ${frequency==="weekly"?"selected":""}>
+          ${esc(t("Cada semana","Weekly"))}
+        </option>
+        <option value="biweekly" ${frequency==="biweekly"?"selected":""}>
+          ${esc(t("Cada dos semanas","Every two weeks"))}
+        </option>
+        <option value="monthly" ${frequency==="monthly"?"selected":""}>
+          ${esc(t("Cada mes","Monthly"))}
+        </option>
+      </select>
+
+      <label>${esc(t("¿Cómo recibe?","How does the recipient receive?"))}</label>
+      <select id="sendDelivery">
+        <option value="">${esc(t("No sé todavía","Not yet sure"))}</option>
+        ${deliveryMethods.map(x=>`
+          <option value="${esc(x.id)}"
+            ${delivery===x.id?"selected":""}>
+            ${esc(loc(x.label)||x.id)}
+          </option>`).join("")}
+      </select>
+
+      <label>${esc(t("¿Cómo pagarías?","How will you pay?"))}</label>
+      <select id="sendPayment">
+        <option value="">${esc(t("No sé todavía","Not yet sure"))}</option>
+        ${paymentMethods.map(x=>`
+          <option value="${esc(x.id)}"
+            ${payment===x.id?"selected":""}>
+            ${esc(loc(x.label)||x.id)}
+          </option>`).join("")}
+      </select>
+
+      <div id="moneyWarning"></div>
+
+      <button class="primary" type="button" onclick="compare()">
+        ${esc(t("Revisar opciones","Review options"))}
+      </button>
+    </section>`,
+    t("Enviar dinero","Send money")
+  );
+
+  updateMoneyWarning();
+}
+
+function getMoneyState(){
+  return getJSON(APP.moneyKey,{
+    income:0,
+    incomeFreq:"monthly",
+    monthlyIncome:0,
+    essential:0,
+    flexible:0,
+    savings:0,
+    remittance:0,
+    available:0,
+    reserved:0
+  });
+}
+
+function updateMoneyWarning(){
+  const box=document.getElementById("moneyWarning");
+  const input=document.getElementById("sendAmount");
+
+  if(!box||!input)return;
+
+  const amount=Number(input.value||0);
+  const m=getMoneyState();
+  const available=Number(m.available||0);
+  const warnings=[];
+
+  if(available>0&&amount>available){
+    warnings.push(t(
+      `El monto supera tu disponible calculado (${money(available)}).`,
+      `The amount is above your calculated available balance (${money(available)}).`
+    ));
+  }
+
+  if(amount>10000){
+    warnings.push(t(
+      "Por este monto conviene revisar cuidadosamente los datos finales del proveedor.",
+      "For this amount, carefully review the provider's final details."
+    ));
+  }
+
+  box.innerHTML=warnings.length
+    ?`<div class="status warning">${warnings.map(esc).join("<br>")}</div>`
+    :"";
+}
+
+async function compare(){
+  const amount=Number(document.getElementById("sendAmount")?.value||0);
+  const destination=document.getElementById("sendCountry")?.value||"";
+
+  if(!amount||amount<=0){
+    showError(t("Indica un monto válido.","Enter a valid amount."));
+    return;
+  }
+
+  if(!destination){
+    showError(t("Selecciona el país de destino.","Select the destination country."));
+    return;
+  }
+
+  const priority=document.getElementById("sendPriority")?.value||null;
+  const urgencyValue=document.getElementById("sendUrgency")?.value||"";
+  const urgency=urgencyValue===""?null:urgencyValue==="true";
+  const frequency=document.getElementById("sendFrequency")?.value||null;
+  const delivery=document.getElementById("sendDelivery")?.value||null;
+  const payment=document.getElementById("sendPayment")?.value||null;
+
+  try{
+    await startSession(true);
+
+    const data=await api("/api/need",{
+      method:"POST",
+      body:JSON.stringify({
+        session_id:APP.session.session_id,
+        language:APP.lang,
+        need_type:"remittance",
+        amount,
+        destination_country:destination,
+        priority,
+        urgency,
+        frequency,
+        delivery_method:delivery,
+        payment_method:payment
+      })
+    });
+
+    if(data.session)APP.session=data.session;
+
+    const result=await api(
+      `/api/session/${encodeURIComponent(APP.session.session_id)}/compare`,
+      {method:"POST"}
+    );
+
+    renderComparison(result||{});
+  }catch(error){
+    showError(error.message);
+  }
+}
+
+function providerStatus(provider){
+  return provider.commercial_data_status==="verified"
+    ?t("Datos verificados","Verified data")
+    :t("Revisar en sitio oficial","Review official site");
+}
+
+function renderComparison(data){
+  const providers=data.available_providers||[];
+  const results=data.results||data.verified_results||[];
+
+  renderShell(`
+    <section class="card">
+      <div class="status ${data.results_available?"success":"warning"}">
+        ${esc(
+          data.results_available
+            ?t(
+              `${data.verified_count??results.length} opción(es) con datos verificados`,
+              `${data.verified_count??results.length} option(s) with verified data`
+            )
+            :t(
+              "No hay datos comerciales actuales verificados",
+              "No current verified commercial data"
+            )
+        )}
+      </div>
+
+      <h1>${esc(t("Opciones para tu remesa","Options for your transfer"))}</h1>
+
+      <div class="summary">
+        <strong>${esc(countryName(data.destination_country||APP.session?.destination_country))}</strong>
+        <span>${money(data.amount??APP.session?.amount)}</span>
+      </div>
+
+      <p>${esc(data.explanation||"")}</p>
+
+      <div class="provider-list">
+        ${providers.map(p=>providerCard(p,results)).join("")}
+      </div>
+
+      ${
+        data.precautions?.length
+        ?`
+          <div class="notice">
+            <strong>${esc(t("Antes de continuar","Before continuing"))}</strong>
+            <ul>
+              ${data.precautions.map(x=>`<li>${esc(loc(x))}</li>`).join("")}
+            </ul>
+          </div>`
+        :""
+      }
+
+      <button class="secondary" type="button" onclick="renderRemittance()">
+        ${esc(t("Cambiar datos","Change details"))}
+      </button>
+    </section>`,
+    t("Opciones","Options")
+  );
+}
+
+function providerCard(provider,results=[]){
+  const verified=provider.commercial_data_status==="verified";
+
+  const result=results.find(
+    x=>x.provider_id===provider.provider_id
+  );
+
+  const urls=provider.official_urls||{};
+  const providerId=provider.provider_id||provider.id||"";
+  const delivery=(provider.delivery_methods||[]).join(", ");
+
+  return `
+    <article class="provider-card">
+      <div class="provider-head">
+        <div>
+          <h3>${esc(provider.provider_name||provider.name||"")}</h3>
+          <span class="status ${verified?"success":"warning"}">
+            ${esc(providerStatus(provider))}
+          </span>
+        </div>
+      </div>
+
+      ${
+        verified&&result
+        ?`
+          <div class="metric-grid">
+            <div>
+              <small>${esc(t("Tarifa","Fee"))}</small>
+              <strong>${result.fee!=null?money(result.fee):"—"}</strong>
+            </div>
+            <div>
+              <small>${esc(t("Tasa","Rate"))}</small>
+              <strong>${esc(result.exchange_rate??"—")}</strong>
+            </div>
+            <div>
+              <small>${esc(t("Recibe","Gets"))}</small>
+              <strong>${result.recipient_amount!=null?money(result.recipient_amount):"—"}</strong>
+            </div>
+            <div>
+              <small>${esc(t("Entrega","Delivery"))}</small>
+              <strong>${esc(result.estimated_delivery??"—")}</strong>
+            </div>
+          </div>`
+        :`
+          <p class="small">
+            ${esc(t(
+              "No mostramos tarifas, tasas, tiempos ni disponibilidad como datos actuales porque no están verificados.",
+              "We do not show fees, rates, timing, or availability as current data because they are not verified."
+            ))}
+          </p>`
+      }
+
+      ${
+        delivery
+        ?`
+          <div class="small">
+            ${esc(t("Métodos declarados:","Declared methods:"))}
+            ${esc(delivery)}
+          </div>`
+        :""
+      }
+
+      ${
+        urls.site||urls.send_money
+        ?`
+          <button class="primary" type="button"
+            onclick="selectProvider('${esc(providerId)}')">
+            ${esc(t("Revisar proveedor","Review provider"))}
+          </button>`
+        :""
+      }
+    </article>`;
+}
+
+async function selectProvider(providerId){
+  if(!providerId){
+    showError(t("Proveedor no disponible.","Provider unavailable."));
+    return;
+  }
+
+  try{
+    if(!APP.session?.session_id){
+      await startSession(false);
     }
-    config["service"]={
-        "name":APP_NAME,
-        "price":SERVICE_PRICE,
-        "currency":SERVICE_CURRENCY,
-        "minutes":SERVICE_MINUTES,
-        "payment_type":"one_time",
-        "subscription":False
-    }
-    return config
 
-@app.get("/api/brain/version")
-async def brain_version():
-    return {
-        "app":APP_NAME,
-        "version":engine.brain.get("app",{}).get("version",APP_VERSION),
-        "engine_version":APP_VERSION
-    }
+    const data=await api(
+      `/api/session/${encodeURIComponent(APP.session.session_id)}/select/${encodeURIComponent(providerId)}`,
+      {method:"POST"}
+    );
 
-# ============================================================
-# ACCESO DEL SERVICIO
-# ============================================================
+    if(data.session)APP.session=data.session;
 
-@app.get("/api/service/info")
-async def service_info(language:str="es"):
-    language=normalize_language(language)
-    return {
-        "success":True,
-        "app":APP_NAME,
-        "price":SERVICE_PRICE,
-        "currency":SERVICE_CURRENCY,
-        "minutes":SERVICE_MINUTES,
-        "payment_type":"one_time",
-        "subscription":False,
-        "title":localized("Servicio REMESAS","REMESAS Service",language),
-        "message":localized("Un solo pago. Acceso al servicio durante 20 minutos.","One payment. Access to the service for 20 minutes.",language),
-        "includes":{
-            "es":[
-                "Organización del dinero",
-                "Preparación de remesas",
-                "Comparación de información verificada",
-                "APRENDER",
-                "GUÍA RÁPIDA",
-                "Revisión antes de continuar"
-            ],
-            "en":[
-                "Money organization",
-                "Remittance preparation",
-                "Comparison of verified information",
-                "LEARN",
-                "QUICK GUIDE",
-                "Review before continuing"
-            ]
-        }[language]
-    }
+    renderFinalCheck();
+  }catch(error){
+    showError(error.message);
+  }
+}
 
-@app.get("/api/access/status")
-async def access_status(request:Request):
-    return {"success":True,**public_access(request)}
+async function renderFinalCheck(){
+  if(!APP.session?.selected_option){
+    showError(t(
+      "Selecciona primero un proveedor.",
+      "Select a provider first."
+    ));
+    return;
+  }
 
-@app.get("/api/access/verify")
-async def access_verify(request:Request):
-    data=require_access(request)
-    remaining=max(0,int(float(data["expires_at"])-time.time()))
-    return {
-        "success":True,
-        "authorized":True,
-        "active":remaining>0,
-        "seconds_remaining":remaining,
-        "expires_at":data["expires_at"],
-        "subject":data.get("subject")
-    }
+  try{
+    const data=await api(
+      `/api/session/${encodeURIComponent(APP.session.session_id)}/final-check`,
+      {method:"POST"}
+    );
 
-@app.post("/api/access/verify")
-async def access_verify_post(request:Request):
-    return await access_verify(request)
+    renderFinalResult(data||{});
+  }catch(error){
+    showError(error.message);
+  }
+}
 
-@app.post("/api/access/admin")
-async def admin_access(request:Request):
-    body=await json_body(request)
-    username=str(body.get("username") or "")
-    password=str(body.get("password") or "")
-    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-        raise HTTPException(503,"Admin access is not configured.")
-    if not secrets.compare_digest(username,ADMIN_USERNAME) or not secrets.compare_digest(password,ADMIN_PASSWORD):
-        raise HTTPException(401,"Invalid credentials.")
-    access=create_access("admin",ACCESS_SECONDS)
-    return {
-        "success":True,
-        "authorized":True,
-        "role":"admin",
-        "access":True,
-        **access
-    }
+function renderFinalResult(data){
+  const option=APP.session?.selected_option||{};
+  const urls=option.official_urls||{};
+  const url=option.continue_url||urls.send_money||urls.site||"";
 
-@app.post("/api/login-admin")
-async def login_admin_compat(request:Request):
-    return await admin_access(request)
+  renderShell(`
+    <section class="card">
+      <div class="status ${data.ready_to_continue?"success":"warning"}">
+        ${esc(
+          data.ready_to_continue
+            ?t("Revisión completada","Review completed")
+            :t("Revisa los datos","Review the details")
+        )}
+      </div>
 
-@app.post("/api/admin/login")
-async def admin_login_compat(request:Request):
-    return await admin_access(request)
+      <h1>${esc(option.provider_name||option.name||"")}</h1>
 
-@app.post("/api/admin/logout")
-async def admin_logout(request:Request):
-    token=request.headers.get("X-Remesas-Access-Token","").strip()
-    if token:ACCESS_TOKENS.pop(token,None)
-    return {"success":True,"logged_out":True}
+      <p>${esc(data.message||"")}</p>
 
-@app.post("/api/service/start")
-async def service_start(request:Request):
-    access=require_access(request)
-    language=normalize_language(request.headers.get("X-Remesas-Language","es"))
-    session=engine.create_session(language)
-    remaining=max(0,int(float(access["expires_at"])-time.time()))
-    return {
-        "success":True,
-        "authorized":True,
-        "active":remaining>0,
-        "session_id":session["session_id"],
-        "session":session,
-        "seconds_remaining":remaining,
-        "message":localized("Servicio iniciado.","Service started.",language)
-    }
+      <div class="checks">
+        ${(data.checks||[]).map(check=>`
+          <div class="check ${check.ok?"ok":"bad"}">
+            <strong>${check.ok?"✓":"!"}</strong>
+            <span>
+              <b>${esc(loc(check.label))}</b>
+              ${esc(loc(check.message))}
+            </span>
+          </div>
+        `).join("")}
+      </div>
 
-# ============================================================
-# SESIONES Y NECESIDADES
-# ============================================================
+      ${
+        data.requirements?.length
+        ?`
+          <div class="notice">
+            <strong>${esc(t("Requisitos","Requirements"))}</strong>
+            <ul>
+              ${data.requirements.map(x=>`<li>${esc(loc(x))}</li>`).join("")}
+            </ul>
+          </div>`
+        :""
+      }
 
-@app.post("/api/session",response_model=SessionResponse)
-async def create_session(request:Request,language:str="es"):
-    language=normalize_language(language)
-    return SessionResponse(
-        success=True,
-        session=engine.create_session(language),
-        message=localized("Sesión iniciada.","Session started.",language)
+      <div class="notice">
+        ${esc(t(
+          "Confirma la tarifa, tasa, tiempo, disponibilidad y datos del destinatario directamente en el sitio oficial.",
+          "Confirm the fee, rate, timing, availability, and recipient details directly on the official site."
+        ))}
+      </div>
+
+      ${
+        url
+        ?`
+          <button class="primary" type="button"
+            onclick="openOfficial(${JSON.stringify(url)})">
+            ${esc(t("Abrir sitio oficial","Open official site"))}
+          </button>`
+        :""
+      }
+
+      <button class="secondary" type="button"
+        onclick="renderComparisonFromSession()">
+        ${esc(t("Ver otros proveedores","See other providers"))}
+      </button>
+    </section>`,
+    t("Revisión final","Final review")
+  );
+}
+
+function openOfficial(url){
+  if(!/^https:\/\//i.test(String(url||""))){
+    showError(t(
+      "El enlace oficial no es válido.",
+      "The official link is not valid."
+    ));
+    return;
+  }
+
+  window.open(url,"_blank","noopener,noreferrer");
+}
+
+function renderComparisonFromSession(){
+  const providers=APP.session?.available_providers||[];
+  const results=APP.session?.verified_results||[];
+
+  renderComparison({
+    results,
+    available_providers:providers,
+    provider_count:providers.length,
+    verified_count:results.length,
+    results_available:results.length>0,
+    amount:APP.session?.amount,
+    destination_country:APP.session?.destination_country,
+    explanation:t(
+      "Estas son las opciones de la sesión actual.",
+      "These are the options from the current session."
+    ),
+    precautions:[]
+  });
+}
+
+function renderMoney(){
+  const m=getMoneyState();
+
+  renderShell(`
+    <section class="card">
+      <h1>${esc(t("Mi dinero","My money"))}</h1>
+
+      <p class="small">${esc(t(
+        "Todo se guarda en este dispositivo.",
+        "Everything is stored on this device."
+      ))}</p>
+
+      <label>${esc(t("Ingreso","Income"))}</label>
+      <input id="income" type="number" min="0" step="0.01"
+        value="${esc(m.income||"")}">
+
+      <label>${esc(t("Frecuencia del ingreso","Income frequency"))}</label>
+      <select id="incomeFreq">
+        <option value="weekly" ${m.incomeFreq==="weekly"?"selected":""}>${esc(t("Semanal","Weekly"))}</option>
+        <option value="biweekly" ${m.incomeFreq==="biweekly"?"selected":""}>${esc(t("Quincenal","Biweekly"))}</option>
+        <option value="monthly" ${m.incomeFreq==="monthly"?"selected":""}>${esc(t("Mensual","Monthly"))}</option>
+      </select>
+
+      <label>${esc(t("Gastos esenciales","Essential expenses"))}</label>
+      <input id="essential" type="number" min="0" step="0.01"
+        value="${esc(m.essential||"")}">
+
+      <label>${esc(t("Gastos flexibles","Flexible expenses"))}</label>
+      <input id="flexible" type="number" min="0" step="0.01"
+        value="${esc(m.flexible||"")}">
+
+      <label>${esc(t("Ahorro reservado","Reserved savings"))}</label>
+      <input id="savings" type="number" min="0" step="0.01"
+        value="${esc(m.savings||"")}">
+
+      <label>${esc(t("Remesas reservadas","Reserved remittance"))}</label>
+      <input id="remittance" type="number" min="0" step="0.01"
+        value="${esc(m.remittance||"")}">
+
+      <button class="primary" type="button" onclick="calculateMoney()">
+        ${esc(t("Calcular","Calculate"))}
+      </button>
+
+      <div id="moneyResult"></div>
+    </section>`,
+    t("Mi dinero","My money")
+  );
+
+  if(Number(m.income||0)>0)showMoneyResult(m);
+}
+
+function frequencyFactor(freq){
+  if(freq==="weekly")return 52/12;
+  if(freq==="biweekly")return 26/12;
+  return 1;
+}
+
+function calculateMoney(){
+  const income=Number(document.getElementById("income")?.value||0);
+  const incomeFreq=document.getElementById("incomeFreq")?.value||"monthly";
+  const essential=Number(document.getElementById("essential")?.value||0);
+  const flexible=Number(document.getElementById("flexible")?.value||0);
+  const savings=Number(document.getElementById("savings")?.value||0);
+  const remittance=Number(document.getElementById("remittance")?.value||0);
+
+  const monthlyIncome=income*frequencyFactor(incomeFreq);
+  const available=
+    monthlyIncome-
+    essential-
+    flexible-
+    savings-
+    remittance;
+
+  const data={
+    income,
+    incomeFreq,
+    monthlyIncome,
+    essential,
+    flexible,
+    savings,
+    remittance,
+    available,
+    reserved:0,
+    updatedAt:new Date().toISOString()
+  };
+
+  setJSON(APP.moneyKey,data);
+  showMoneyResult(data);
+}
+
+function showMoneyResult(data){
+  const box=document.getElementById("moneyResult");
+  if(!box)return;
+
+  const available=Number(data.available||0);
+
+  box.innerHTML=`
+    <div class="money-summary">
+      <span>${esc(t("Ingreso mensual equivalente","Equivalent monthly income"))}</span>
+      <strong>${money(data.monthlyIncome)}</strong>
+
+      <span>${esc(t("Disponible calculado","Calculated available"))}</span>
+      <strong>${money(available)}</strong>
+    </div>
+
+    <div class="status ${available>=0?"success":"warning"}">
+      ${esc(
+        available>=0
+          ?t("Tu cálculo queda por encima de cero.","Your calculation remains above zero.")
+          :t("Tus compromisos superan el ingreso calculado.","Your commitments exceed the calculated income.")
+      )}
+    </div>`;
+}
+
+function renderWeek(){
+  const m=getMoneyState();
+
+  if(!Number(m.income||0)){
+    renderMoney();
+    return;
+  }
+
+  const factor=4.333333;
+  const weeklyIncome=Number(m.monthlyIncome||0)/factor;
+  const weeklyEssential=Number(m.essential||0)/factor;
+  const weeklyFlexible=Number(m.flexible||0)/factor;
+  const weeklySavings=Number(m.savings||0)/factor;
+  const weeklyRemittance=Number(m.remittance||0)/factor;
+
+  const weeklyAvailable=
+    weeklyIncome-
+    weeklyEssential-
+    weeklyFlexible-
+    weeklySavings-
+    weeklyRemittance;
+
+  renderShell(`
+    <section class="card">
+      <h1>${esc(t("Mi semana","My week"))}</h1>
+
+      <div class="money-summary">
+        <span>${esc(t("Ingreso semanal equivalente","Equivalent weekly income"))}</span>
+        <strong>${money(weeklyIncome)}</strong>
+
+        <span>${esc(t("Compromisos semanales","Weekly commitments"))}</span>
+        <strong>${money(
+          weeklyEssential+
+          weeklyFlexible+
+          weeklySavings+
+          weeklyRemittance
+        )}</strong>
+
+        <span>${esc(t("Disponible semanal","Weekly available"))}</span>
+        <strong>${money(weeklyAvailable)}</strong>
+      </div>
+
+      <div class="status ${weeklyAvailable>=0?"success":"warning"}">
+        ${esc(
+          weeklyAvailable>=0
+            ?t("Este cálculo usa períodos comparables.","This calculation uses comparable periods.")
+            :t("Revisa tus compromisos antes de aumentar el gasto o la remesa.","Review your commitments before increasing spending or the transfer.")
+        )}
+      </div>
+
+      <button class="primary" type="button" onclick="renderMoney()">
+        ${esc(t("Modificar mi cálculo","Modify my calculation"))}
+      </button>
+    </section>`,
+    t("Mi semana","My week")
+  );
+}
+
+function getExpenses(){
+  return getJSON(APP.expensesKey,[]);
+}
+
+function saveExpenses(list){
+  setJSON(APP.expensesKey,list);
+}
+
+function renderExpenses(){
+  const expenses=getExpenses();
+
+  renderShell(`
+    <section class="card">
+      <h1>${esc(t("Mis gastos","My expenses"))}</h1>
+
+      <label>${esc(t("Descripción","Description"))}</label>
+      <input id="expenseName" maxlength="120">
+
+      <label>${esc(t("Monto","Amount"))}</label>
+      <input id="expenseAmount" type="number" min="0.01" step="0.01">
+
+      <label>${esc(t("Frecuencia","Frequency"))}</label>
+      <select id="expenseFrequency">
+        <option value="monthly">${esc(t("Mensual","Monthly"))}</option>
+        <option value="weekly">${esc(t("Semanal","Weekly"))}</option>
+        <option value="biweekly">${esc(t("Quincenal","Biweekly"))}</option>
+        <option value="one_time">${esc(t("Una vez","One time"))}</option>
+      </select>
+
+      <button class="primary" type="button" onclick="addExpense()">
+        ${esc(t("Guardar gasto","Save expense"))}
+      </button>
+
+      <div id="expenseList">
+        ${expenses.map(expenseRow).join("")}
+      </div>
+
+      <button class="secondary" type="button" onclick="renderMoney()">
+        ${esc(t("Actualizar Mi dinero","Update My money"))}
+      </button>
+    </section>`,
+    t("Mis gastos","My expenses")
+  );
+}
+
+function expenseRow(item,index){
+  return `
+    <div class="expense-row">
+      <div>
+        <strong>${esc(item.description)}</strong>
+        <small>${esc(frequencyLabel(item.frequency||"monthly"))}</small>
+      </div>
+      <strong>${money(item.amount)}</strong>
+      <button type="button"
+        class="danger-button"
+        onclick="removeExpense(${index})">×</button>
+    </div>`;
+}
+
+function addExpense(){
+  const description=(document.getElementById("expenseName")?.value||"").trim();
+  const amount=Number(document.getElementById("expenseAmount")?.value||0);
+  const frequency=document.getElementById("expenseFrequency")?.value||"monthly";
+
+  if(!description){
+    showError(t("Escribe una descripción.","Enter a description."));
+    return;
+  }
+
+  if(!amount||amount<=0){
+    showError(t("Indica un monto válido.","Enter a valid amount."));
+    return;
+  }
+
+  const expenses=getExpenses();
+
+  expenses.push({
+    description,
+    amount,
+    frequency,
+    createdAt:new Date().toISOString()
+  });
+
+  saveExpenses(expenses);
+  renderExpenses();
+}
+
+function removeExpense(index){
+  const expenses=getExpenses();
+
+  if(index<0||index>=expenses.length)return;
+
+  expenses.splice(index,1);
+  saveExpenses(expenses);
+  renderExpenses();
+}
+
+function renderFamily(){
+  const data=getJSON(APP.familyKey,{
+    name:"",
+    country:"",
+    amount:""
+  });
+
+  renderShell(`
+    <section class="card">
+      <h1>${esc(t("Familia","Family"))}</h1>
+
+      <p class="small">${esc(t(
+        "Esta información es solo una referencia local para preparar una remesa.",
+        "This information is only a local reference for preparing a transfer."
+      ))}</p>
+
+      <label>${esc(t("Nombre o apodo","Name or nickname"))}</label>
+      <input id="familyName"
+        maxlength="80"
+        value="${esc(data.name)}">
+
+      <label>${esc(t("País","Country"))}</label>
+      <select id="familyCountry">
+        <option value="">${esc(t("Selecciona","Select"))}</option>
+        ${(APP.config?.countries||[]).map(c=>`
+          <option value="${esc(c.code)}"
+            ${c.code===data.country?"selected":""}>
+            ${esc(loc(c.name)||c.code)}
+          </option>`).join("")}
+      </select>
+
+      <label>${esc(t("Monto de referencia","Reference amount"))}</label>
+      <input id="familyAmount"
+        type="number"
+        min="0"
+        step="0.01"
+        value="${esc(data.amount)}">
+
+      <button class="primary" type="button" onclick="saveFamily()">
+        ${esc(t("Guardar en este dispositivo","Save on this device"))}
+      </button>
+    </section>`,
+    t("Familia","Family")
+  );
+}
+
+function saveFamily(){
+  const data={
+    name:(document.getElementById("familyName")?.value||"").trim(),
+    country:document.getElementById("familyCountry")?.value||"",
+    amount:Number(document.getElementById("familyAmount")?.value||0)
+  };
+
+  setJSON(APP.familyKey,data);
+
+  renderShell(`
+    <section class="card">
+      <div class="status success">${esc(t("Guardado","Saved"))}</div>
+
+      <h1>${esc(data.name||t("Referencia familiar","Family reference"))}</h1>
+
+      <p>${esc(
+        data.country
+          ?countryName(data.country)
+          :t("Sin país seleccionado","No country selected")
+      )}</p>
+
+      <strong>${data.amount?money(data.amount):"—"}</strong>
+
+      <button class="primary" type="button" onclick="renderFamily()">
+        ${esc(t("Editar","Edit"))}
+      </button>
+    </section>`,
+    t("Familia","Family")
+  );
+}
+
+function renderSavings(){
+  const m=getMoneyState();
+  const current=Number(m.savings||0);
+  const purpose=m.savingsPurpose||"";
+
+  renderShell(`
+    <section class="card">
+      <h1>${esc(t("Ahorrar","Save"))}</h1>
+
+      <label>${esc(t("¿Cuánto quieres reservar?","How much do you want to reserve?"))}</label>
+      <input id="saveAmount"
+        type="number"
+        min="0"
+        step="0.01"
+        value="${esc(current||"")}">
+
+      <label>${esc(t("¿Para qué?","What for?"))}</label>
+      <input id="savePurpose"
+        maxlength="100"
+        value="${esc(purpose)}"
+        placeholder="${esc(t("Ejemplo: emergencia","Example: emergency"))}">
+
+      <button class="primary" type="button" onclick="saveSavings()">
+        ${esc(t("Guardar objetivo","Save goal"))}
+      </button>
+    </section>`,
+    t("Ahorrar","Save")
+  );
+}
+
+function saveSavings(){
+  const amount=Number(document.getElementById("saveAmount")?.value||0);
+  const purpose=(document.getElementById("savePurpose")?.value||"").trim();
+
+  if(amount<0){
+    showError(t("Indica un monto válido.","Enter a valid amount."));
+    return;
+  }
+
+  const m=getMoneyState();
+
+  m.savings=amount;
+  m.savingsPurpose=purpose;
+
+  setJSON(APP.moneyKey,m);
+
+  renderShell(`
+    <section class="card">
+      <div class="status success">${esc(t("Objetivo guardado","Goal saved"))}</div>
+      <h1>${money(amount)}</h1>
+      <p>${esc(purpose||t("Ahorro general","General savings"))}</p>
+
+      <button class="primary" type="button" onclick="renderMoney()">
+        ${esc(t("Ver Mi dinero","View My money"))}
+      </button>
+    </section>`,
+    t("Ahorrar","Save")
+  );
+}
+
+function renderPurchase(){
+  renderShell(`
+    <section class="card">
+      <h1>${esc(t("Planear una compra","Plan a purchase"))}</h1>
+
+      <label>${esc(t("¿Qué quieres comprar?","What do you want to buy?"))}</label>
+      <input id="purchaseName"
+        maxlength="120"
+        placeholder="${esc(t("Ejemplo: teléfono","Example: phone"))}">
+
+      <label>${esc(t("¿Cuánto cuesta?","How much does it cost?"))}</label>
+      <input id="purchaseAmount"
+        type="number"
+        min="0.01"
+        step="0.01">
+
+      <button class="primary" type="button" onclick="checkPurchase()">
+        ${esc(t("Comprobar","Check"))}
+      </button>
+    </section>`,
+    t("Planear una compra","Plan a purchase")
+  );
+}
+
+function checkPurchase(){
+  const name=(document.getElementById("purchaseName")?.value||"").trim();
+  const amount=Number(document.getElementById("purchaseAmount")?.value||0);
+
+  if(!name){
+    showError(t("Indica qué quieres comprar.","Tell us what you want to buy."));
+    return;
+  }
+
+  if(!amount||amount<=0){
+    showError(t("Indica un precio válido.","Enter a valid price."));
+    return;
+  }
+
+  const m=getMoneyState();
+  const available=Number(m.available||0);
+  const difference=available-amount;
+
+  renderShell(`
+    <section class="card">
+      <div class="status ${difference>=0?"success":"warning"}">
+        ${esc(
+          difference>=0
+            ?t("Cabe en tu cálculo actual","Fits your current calculation")
+            :t("Supera tu disponible actual","Exceeds your current available amount")
+        )}
+      </div>
+
+      <h1>${esc(name)}</h1>
+
+      <div class="money-summary">
+        <span>${esc(t("Precio","Price"))}</span>
+        <strong>${money(amount)}</strong>
+
+        <span>${esc(t("Disponible","Available"))}</span>
+        <strong>${money(available)}</strong>
+
+        <span>${esc(t("Después de comprar","After purchase"))}</span>
+        <strong>${money(difference)}</strong>
+      </div>
+
+      <button class="primary" type="button" onclick="renderMoney()">
+        ${esc(t("Revisar mi dinero","Review my money"))}
+      </button>
+    </section>`,
+    t("Resultado","Result")
+  );
+}
+
+function getHelpTopics(){
+  return APP.config?.help_topics||
+    APP.config?.help_center?.topics||
+    [];
+}
+
+function renderHelp(){
+  const topics=getHelpTopics();
+
+  renderShell(`
+    <section class="card">
+      <h1>${esc(t("¿Qué no entiendes?","What don't you understand?"))}</h1>
+
+      <div class="help-list">
+        ${topics.map(topic=>`
+          <button class="help-item"
+            type="button"
+            onclick="showHelpTopic(${JSON.stringify(topic.id)})">
+            <strong>${esc(loc(topic.title)||topic.id)}</strong>
+          </button>
+        `).join("")}
+      </div>
+
+      <button class="secondary" type="button" onclick="renderHome()">
+        ${esc(t("Volver","Back"))}
+      </button>
+    </section>`,
+    t("Ayuda","Help")
+  );
+}
+
+function showHelpTopic(id){
+  const topic=getHelpTopics().find(x=>x.id===id);
+
+  if(!topic){
+    showError(t("Tema no encontrado.","Topic not found."));
+    return;
+  }
+
+  renderShell(`
+    <section class="card">
+      <h1>${esc(loc(topic.title)||topic.id)}</h1>
+      <p>${esc(loc(topic.answer)||"")}</p>
+
+      <button class="primary" type="button" onclick="renderHelp()">
+        ${esc(t("Ver más ayuda","More help"))}
+      </button>
+    </section>`,
+    loc(topic.title)||topic.id
+  );
+}
+
+function showError(message){
+  document.querySelector(".error-box")?.remove();
+
+  const box=document.createElement("div");
+
+  box.className="error-box";
+  box.setAttribute("role","alert");
+
+  box.innerHTML=`
+    <strong>${esc(t("Atención","Attention"))}</strong>
+    <span>${esc(message)}</span>
+    <button type="button"
+      onclick="this.parentElement.remove()">×</button>`;
+
+  document.body.appendChild(box);
+
+  setTimeout(()=>{
+    if(box.isConnected)box.remove();
+  },7000);
+}
+
+async function deleteLocalData(){
+  const confirmed=window.confirm(
+    t(
+      "¿Borrar los datos guardados en este dispositivo?",
+      "Delete the data saved on this device?"
     )
+  );
 
-@app.get("/api/session/{session_id}",response_model=SessionResponse)
-async def get_session(session_id:str,request:Request):
-    require_access(request)
-    validate_session_id(session_id)
-    session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
-    return SessionResponse(success=True,session=session)
+  if(!confirmed)return;
 
-@app.delete("/api/session/{session_id}")
-async def delete_session(session_id:str,request:Request):
-    require_access(request)
-    validate_session_id(session_id)
-    deleted=engine.clear_session(session_id)
-    return {"success":deleted,"message":"Session cleared." if deleted else "Session already cleared."}
+  [
+    APP.moneyKey,
+    APP.expensesKey,
+    APP.familyKey,
+    APP.prefsKey,
+    "remesas_lang_v4"
+  ].forEach(key=>localStorage.removeItem(key));
 
-@app.post("/api/need",response_model=SessionResponse)
-async def apply_need(request:Request):
-    require_access(request)
-    body=await json_body(request)
-    session_id=str(body.get("session_id") or "")
-    language=normalize_language(body.get("language","es"))
-    if session_id:
-        validate_session_id(session_id)
-        if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
-    else:
-        session_id=engine.create_session(language)["session_id"]
-    body.pop("session_id",None)
-    body["language"]=language
-    try:
-        user_request=UserNeedRequest(**body)
-        session=engine.apply_need(session_id,user_request)
-    except KeyError:raise HTTPException(404,"Session not found.")
-    except ValueError as exc:raise HTTPException(400,str(exc))
-    return SessionResponse(success=True,session=session)
+  if(APP.session?.session_id){
+    api(
+      `/api/session/${encodeURIComponent(APP.session.session_id)}?language=${encodeURIComponent(APP.lang)}`,
+      {method:"DELETE"}
+    ).catch(()=>{});
+  }
 
-@app.post("/api/need/parse")
-async def parse_need(request:Request):
-    require_access(request)
-    body=await json_body(request)
-    parsed_request=ParseNeedRequest(**body)
-    return {"success":True,"parsed":engine.parse_need(parsed_request)}
+  APP.session=null;
+  APP.config=null;
+  window.location.reload();
+}
 
-@app.post("/api/session/{session_id}/need/parse")
-async def parse_need_into_session(session_id:str,request:Request):
-    require_access(request)
-    validate_session_id(session_id)
-    if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
-    body=await json_body(request)
-    parsed_request=ParseNeedRequest(**body)
-    parsed=engine.parse_need(parsed_request)
-    values={k:parsed[k] for k in ("amount","destination_country","priority","urgency","delivery_method","payment_method") if parsed.get(k) is not None}
-    values["parsed_user_need"]=parsed
-    session=engine.update_session(session_id,**values)
-    return {"success":True,"parsed":parsed,"session":session}
+window.renderHome=renderHome;
+window.renderRemittance=renderRemittance;
+window.renderMoney=renderMoney;
+window.renderWeek=renderWeek;
+window.renderExpenses=renderExpenses;
+window.renderFamily=renderFamily;
+window.renderHelp=renderHelp;
+window.renderPurchase=renderPurchase;
+window.renderSavings=renderSavings;
+window.changeLanguage=changeLanguage;
+window.understandNeed=understandNeed;
+window.beginParsedRemittance=beginParsedRemittance;
+window.compare=compare;
+window.selectProvider=selectProvider;
+window.renderFinalCheck=renderFinalCheck;
+window.renderComparisonFromSession=renderComparisonFromSession;
+window.openOfficial=openOfficial;
+window.calculateMoney=calculateMoney;
+window.addExpense=addExpense;
+window.removeExpense=removeExpense;
+window.saveFamily=saveFamily;
+window.saveSavings=saveSavings;
+window.checkPurchase=checkPurchase;
+window.showHelpTopic=showHelpTopic;
+window.deleteLocalData=deleteLocalData;
+window.updateMoneyWarning=updateMoneyWarning;
 
-# ============================================================
-# COMPARAR
-# ============================================================
+document.addEventListener("DOMContentLoaded",async()=>{
+  try{
+    await loadConfig();
+    await startSession(true);
+    renderHome();
+  }catch(error){
+    app.innerHTML=`
+      <main class="page">
+        <section class="card">
+          <div class="status warning">
+            ${esc(t(
+              "No se pudo cargar REMESAS.",
+              "REMESAS could not be loaded."
+            ))}
+          </div>
 
-@app.post("/api/compare",response_model=ComparisonResponse)
-async def compare(request:Request):
-    require_access(request)
-    body=await json_body(request)
-    comparison=ComparisonRequest(**body)
-    return engine.compare(comparison)
+          <p>${esc(error.message)}</p>
 
-@app.post("/api/session/{session_id}/compare",response_model=ComparisonResponse)
-async def compare_session(session_id:str,request:Request):
-    require_access(request)
-    validate_session_id(session_id)
-    session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
-    if not session.get("amount"):raise HTTPException(422,"Amount is required.")
-    if not session.get("destination_country"):raise HTTPException(422,"Destination country is required.")
-    return engine.compare_session(session_id)
-
-@app.post("/api/session/{session_id}/select/{provider_id}")
-async def select_provider_option(session_id:str,provider_id:str,request:Request):
-    require_access(request)
-    validate_session_id(session_id)
-    try:
-        option=engine.select_provider(session_id,provider_id)
-    except KeyError as exc:
-        code=str(exc).strip("'")
-        messages={
-            "session_expired":(404,"Session not found."),
-            "provider_not_found":(404,"Provider not found."),
-            "provider_not_available":(404,"Provider not available.")
-        }
-        status,msg=messages.get(code,(404,"Provider option not found."))
-        raise HTTPException(status,msg)
-    return {"success":True,"selected_option":option,"session":engine.get_session(session_id)}
-
-# ============================================================
-# REVISIÓN FINAL
-# ============================================================
-
-@app.post("/api/final-check",response_model=FinalCheckResponse)
-async def final_check(request:Request):
-    require_access(request)
-    body=await json_body(request)
-    final_request=FinalCheckRequest(**body)
-    return engine.final_check(final_request)
-
-@app.post("/api/session/{session_id}/final-check",response_model=FinalCheckResponse)
-async def session_final_check(session_id:str,request:Request):
-    require_access(request)
-    validate_session_id(session_id)
-    session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
-    option=session.get("selected_option")
-    if not option:raise HTTPException(422,"No option selected.")
-    final_request=FinalCheckRequest(
-        language=session.get("language","es"),
-        provider_id=option.get("provider_id"),
-        amount=session.get("amount") or 0,
-        send_currency=session.get("send_currency","USD"),
-        destination_country=session.get("destination_country") or "",
-        delivery_method=option.get("delivery_method") or session.get("delivery_method"),
-        payment_method=session.get("payment_method"),
-        recipient_information_entered=bool(session.get("recipient_information_entered",False)),
-        recipient_amount=option.get("recipient_amount"),
-        fee=option.get("fee"),
-        exchange_rate=option.get("exchange_rate")
-    )
-    return engine.final_check(final_request,session_id)
-
-# ============================================================
-# AYUDA
-# ============================================================
-
-@app.get("/api/session/{session_id}/help")
-async def session_help(session_id:str,request:Request,language:str="es"):
-    require_access(request)
-    validate_session_id(session_id)
-    session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
-    language=normalize_language(language)
-    messages={
-        "opening":{
-            "es":"Indica cuánto quieres enviar, a qué país y qué es más importante para ti.",
-            "en":"Enter how much you want to send, the destination country, and what matters most to you."
-        },
-        "comparison":{
-            "es":"Compara las opciones disponibles según tus necesidades.",
-            "en":"Compare the available options according to your needs."
-        },
-        "results":{
-            "es":"Revisa las opciones disponibles y continúa con el proveedor que elijas.",
-            "en":"Review the available options and continue with the provider you choose."
-        },
-        "final_check":{
-            "es":"Revisa los datos antes de continuar con el proveedor.",
-            "en":"Review the information before continuing with the provider."
-        },
-        "assistant":{
-            "es":"Dime qué necesitas y la aplicación te llevará a la acción correspondiente.",
-            "en":"Tell me what you need and the app will take you to the appropriate action."
-        }
-    }
-    step=session.get("current_step","opening")
-    return {"success":True,"message":messages.get(step,messages["opening"]).get(language)}
-
-@app.get("/api/help")
-async def general_help(request:Request,language:str="es"):
-    require_access(request)
-    return {"success":True,"language":normalize_language(language),"topics":engine.help_topics(normalize_language(language))}
-
-@app.post("/api/session/{session_id}/reset")
-async def reset_session(session_id:str,request:Request):
-    require_access(request)
-    validate_session_id(session_id)
-    return {"success":True,"cleared":engine.clear_session(session_id),"message":"Sesión borrada."}
-
-@app.delete("/api/local-data",response_model=DeleteLocalDataResponse)
-async def local_data_info(request:Request):
-    require_access(request)
-    return DeleteLocalDataResponse(
-        success=True,
-        message="El borrado de los datos personales y financieros se realiza localmente en este dispositivo."
-    )
-
-# ============================================================
-# APRENDER
-# ============================================================
-
-@app.get("/api/learn")
-async def learn(request:Request,language:str="es"):
-    require_access(request)
-    language=normalize_language(language)
-    return engine.get_learning_lessons(language)
-
-@app.get("/api/learn/providers")
-async def learn_providers(request:Request,language:str="es"):
-    require_access(request)
-    language=normalize_language(language)
-    data=engine.get_learning_lessons(language)
-    return {
-        "success":True,
-        "language":language,
-        "providers":data.get("providers",[]),
-        "notice":data.get("notice")
-    }
-
-@app.get("/api/learn/{provider_id}")
-async def learn_provider(provider_id:str,request:Request,language:str="es"):
-    require_access(request)
-    language=normalize_language(language)
-    try:return engine.provider_learning(provider_id,language)
-    except KeyError:raise HTTPException(404,"Provider not found.")
-
-@app.get("/api/quick-guide")
-async def quick_guide(request:Request,language:str="es",provider_id:Optional[str]=None):
-    require_access(request)
-    language=normalize_language(language)
-    try:return engine.quick_guide(language,provider_id)
-    except KeyError:raise HTTPException(404,"Provider not found.")
-
-@app.get("/api/quick-guide/{provider_id}")
-async def quick_guide_provider(provider_id:str,request:Request,language:str="es"):
-    require_access(request)
-    language=normalize_language(language)
-    try:return engine.quick_guide(language,provider_id)
-    except KeyError:raise HTTPException(404,"Provider not found.")
-
-@app.get("/api/learning-pdf")
-async def learning_pdf(request:Request,language:str="es",provider_id:Optional[str]=None):
-    require_access(request)
-    language=normalize_language(language)
-    try:return engine.learning_pdf_data(language,provider_id)
-    except KeyError:raise HTTPException(404,"Provider not found.")
-
-@app.get("/api/learn/{provider_id}/pdf")
-async def learning_provider_pdf(provider_id:str,request:Request,language:str="es"):
-    require_access(request)
-    language=normalize_language(language)
-    try:return engine.learning_pdf_data(language,provider_id)
-    except KeyError:raise HTTPException(404,"Provider not found.")
-
-# ============================================================
-# ASISTENTE
-# ============================================================
-
-@app.post("/api/assistant")
-async def assistant(request:Request):
-    require_access(request)
-    body=await json_body(request)
-    language=normalize_language(body.get("language","es"))
-    text=str(body.get("text") or "")
-    need_type=str(body.get("need_type") or engine.classify_need(text,language).get("need_type","other"))
-    return engine.assistant_response(need_type,language,text)
-
-@app.post("/api/chat")
-async def chat_compat(request:Request):
-    require_access(request)
-    body=await json_body(request)
-    language=normalize_language(body.get("language",body.get("lang","es")))
-    text=str(body.get("text") or "")
-    messages=body.get("messages",[])
-    if not text and isinstance(messages,list) and messages:
-        last=messages[-1]
-        if isinstance(last,dict):text=str(last.get("content") or "")
-    parsed=engine.parse_need(ParseNeedRequest(text=text,language=language))
-    response=engine.assistant_response(parsed.get("need_type","other"),language,text)
-    return {
-        "success":True,
-        "reply":response.get("message"),
-        "provider":"remesas-engine",
-        "need_type":parsed.get("need_type"),
-        "parsed":parsed
-    }
-
-# ============================================================
-# STRIPE — PAGO ÚNICO $10.99 / 20 MINUTOS
-# ============================================================
-
-@app.get("/api/subscription/status")
-async def subscription_status():
-    return {
-        "configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),
-        "price":SERVICE_PRICE,
-        "currency":SERVICE_CURRENCY,
-        "period":"one_time",
-        "payment_mode":"payment",
-        "subscription":False,
-        "minutes":SERVICE_MINUTES
-    }
-
-@app.get("/api/stripe/public")
-async def stripe_public():
-    return {
-        "enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1 and STRIPE_SECRET_KEY),
-        "publishable_key":STRIPE_PUBLISHABLE_KEY,
-        "price":SERVICE_PRICE,
-        "currency":SERVICE_CURRENCY,
-        "mode":"payment",
-        "minutes":SERVICE_MINUTES
-    }
-
-@app.post("/api/create-checkout-session")
-async def create_checkout_session(request:Request):
-    if not STRIPE_SECRET_KEY or not STRIPE_PRICE_ID1:
-        raise HTTPException(503,"Stripe is not configured.")
-    base_url=str(request.base_url).rstrip("/")
-    try:
-        checkout=stripe.checkout.Session.create(
-            mode="payment",
-            line_items=[{"price":STRIPE_PRICE_ID1,"quantity":1}],
-            success_url=f"{base_url}/?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{base_url}/?payment=cancelled",
-            allow_promotion_codes=True,
-            billing_address_collection="auto",
-            metadata={
-                "app":APP_NAME,
-                "service_type":"one_time",
-                "service_minutes":str(SERVICE_MINUTES)
-            }
-        )
-    except stripe.error.StripeError as exc:
-        raise HTTPException(502,"Unable to create the payment session.") from exc
-    return {"success":True,"checkout_url":checkout.url,"session_id":checkout.id}
-
-@app.get("/api/payment/check")
-async def payment_check(session_id:Optional[str]=None):
-    if not STRIPE_SECRET_KEY:
-        return {"success":False,"active":False,"message":"Stripe not configured."}
-    if not session_id:
-        return {"success":False,"active":False,"message":"Payment session not provided."}
-    try:
-        checkout=stripe.checkout.Session.retrieve(session_id,expand=["line_items"])
-        paid=checkout.payment_status=="paid"
-        correct_mode=getattr(checkout,"mode",None)=="payment"
-        allowed_prices=set(x for x in [STRIPE_PRICE_ID1] if x)
-        paid_prices=set()
-        for item in getattr(checkout.line_items,"data",[]) or []:
-            price=getattr(item,"price",None)
-            price_id=getattr(price,"id",None) if price else None
-            if price_id:paid_prices.add(price_id)
-        valid_price=bool(paid_prices.intersection(allowed_prices))
-        if not paid or not correct_mode or not valid_price:
-            return {
-                "success":True,
-                "active":False,
-                "paid":paid,
-                "payment_status":getattr(checkout,"payment_status",None),
-                "checkout_status":getattr(checkout,"status",None),
-                "mode":getattr(checkout,"mode",None),
-                "valid_price":valid_price
-            }
-        now=time.time()
-        if session_id in PAYMENT_ACCESS and PAYMENT_ACCESS[session_id]>now:
-            expires_at=PAYMENT_ACCESS[session_id]
-            remaining=max(0,int(expires_at-now))
-            return {
-                "success":True,
-                "paid":True,
-                "active":True,
-                "authorized":True,
-                "seconds_remaining":remaining,
-                "expires_at":expires_at,
-                "session_id":session_id
-            }
-        if session_id in REDEEMED_PAYMENTS:
-            return {
-                "success":True,
-                "paid":True,
-                "active":False,
-                "authorized":False,
-                "message":"This payment access has already been used or expired."
-            }
-        access=create_access(f"stripe:{session_id}",ACCESS_SECONDS)
-        PAYMENT_ACCESS[session_id]=access["expires_at"]
-        REDEEMED_PAYMENTS.add(session_id)
-        return {
-            "success":True,
-            "paid":True,
-            "active":True,
-            "authorized":True,
-            "token":access["token"],
-            "seconds_remaining":ACCESS_SECONDS,
-            "expires_at":access["expires_at"],
-            "session_id":session_id,
-            "payment_status":checkout.payment_status,
-            "mode":checkout.mode
-        }
-    except stripe.error.StripeError as exc:
-        raise HTTPException(502,"Unable to verify payment.") from exc
-
-@app.post("/api/stripe/webhook")
-async def stripe_webhook(request:Request):
-    if not STRIPE_WEBHOOK_SECRET:
-        raise HTTPException(503,"Stripe webhook is not configured.")
-    payload=await request.body()
-    if len(payload)>MAX_BODY_SIZE:raise HTTPException(413,"Webhook payload too large.")
-    signature=request.headers.get("stripe-signature")
-    if not signature:raise HTTPException(400,"Missing Stripe signature.")
-    try:
-        event=stripe.Webhook.construct_event(payload,signature,STRIPE_WEBHOOK_SECRET)
-    except ValueError as exc:
-        raise HTTPException(400,"Invalid webhook payload.") from exc
-    except stripe.error.SignatureVerificationError as exc:
-        raise HTTPException(400,"Invalid webhook signature.") from exc
-    event_type=event.get("type","")
-    handled={
-        "checkout.session.completed",
-        "payment_intent.succeeded",
-        "payment_intent.payment_failed",
-        "charge.refunded"
-    }
-    if event_type=="charge.refunded":
-        try:
-            obj=event.get("data",{}).get("object",{})
-            payment_intent=obj.get("payment_intent")
-            if payment_intent:
-                expired=[sid for sid in list(PAYMENT_ACCESS) if PAYMENT_ACCESS.get(sid,0)>time.time()]
-                for sid in expired:
-                    try:
-                        checkout=stripe.checkout.Session.retrieve(sid)
-                        if getattr(checkout,"payment_intent",None)==payment_intent:
-                            PAYMENT_ACCESS.pop(sid,None)
-                            REDEEMED_PAYMENTS.add(sid)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-    return {
-        "success":True,
-        "received":True,
-        "event_type":event_type,
-        "handled":event_type in handled
-    }
-
-@app.post("/api/payment-success")
-async def payment_success_compat(session_id:str):
-    result=await payment_check(session_id)
-    if result.get("authorized") and result.get("token"):
-        return {
-            "status":"success",
-            "access":"granted",
-            "token":result["token"],
-            "expires_at":result.get("expires_at"),
-            "seconds_remaining":result.get("seconds_remaining")
-        }
-    return result
-
-# ============================================================
-# ADMINISTRACIÓN
-# ============================================================
-
-@app.get("/api/admin/config-status")
-async def admin_config_status(request:Request):
-    access=require_access(request)
-    if access.get("subject")!="admin":
-        raise HTTPException(403,"Admin access required.")
-    return {
-        "success":True,
-        "app":APP_NAME,
-        "version":APP_VERSION,
-        "brain_loaded":bool(engine.brain),
-        "brain_version":engine.brain.get("app",{}).get("version"),
-        "gemini_configured":bool(GEMINI_API_KEY),
-        "stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),
-        "stripe_publishable_configured":bool(STRIPE_PUBLISHABLE_KEY),
-        "stripe_webhook_configured":bool(STRIPE_WEBHOOK_SECRET),
-        "service_price":SERVICE_PRICE,
-        "service_minutes":SERVICE_MINUTES
-    }
-
-# ============================================================
-# ERRORES
-# ============================================================
-
-@app.exception_handler(ValueError)
-async def value_error_handler(request:Request,exc:ValueError):
-    return JSONResponse(status_code=400,content={"success":False,"error":str(exc)})
-
-@app.exception_handler(Exception)
-async def generic_error_handler(request:Request,exc:Exception):
-    if isinstance(exc,HTTPException):raise exc
-    return JSONResponse(status_code=500,content={"success":False,"error":"Ocurrió un problema. Intenta nuevamente."})
+          <button class="primary"
+            type="button"
+            onclick="location.reload()">
+            ${esc(t("Reintentar","Retry"))}
+          </button>
+        </section>
+      </main>`;
+  }
+});
