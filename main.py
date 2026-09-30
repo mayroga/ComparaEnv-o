@@ -1,4 +1,4 @@
-# main.py — REMESAS | May Roga LLC | v4.2.0
+# main.py — REMESAS | May Roga LLC | v4.2.1
 import os,secrets,time
 from pathlib import Path
 from typing import Any,Dict,Optional
@@ -10,7 +10,7 @@ from remittance_engine import engine
 from schemas import ComparisonRequest,ComparisonResponse,DeleteLocalDataResponse,FinalCheckRequest,FinalCheckResponse,ParseNeedRequest,SessionResponse,UserNeedRequest
 
 APP_NAME="REMESAS"
-APP_VERSION="4.2.0"
+APP_VERSION="4.2.1"
 SERVICE_PRICE=10.99
 SERVICE_CURRENCY="USD"
 SERVICE_MINUTES=20
@@ -80,6 +80,9 @@ def require_access(request:Request)->Dict[str,Any]:
 def public_access(request:Request)->Dict[str,Any]:
     cleanup_access()
     token=request.headers.get("X-Remesas-Access-Token","").strip()
+    if not token:
+        auth=request.headers.get("Authorization","")
+        if auth.startswith("Bearer "):token=auth[7:].strip()
     data=ACCESS_TOKENS.get(token)
     if not data or float(data.get("expires_at",0))<=time.time():
         return {"active":False,"seconds_remaining":0}
@@ -167,11 +170,7 @@ async def service_info(language:str="es"):
         "payment_type":"one_time",
         "subscription":False,
         "title":localized("Servicio REMESAS","REMESAS Service",language),
-        "message":localized(
-            "Un solo pago. Acceso al servicio durante 20 minutos.",
-            "One payment. Access to the service for 20 minutes.",
-            language
-        ),
+        "message":localized("Un solo pago. Acceso al servicio durante 20 minutos.","One payment. Access to the service for 20 minutes.",language),
         "includes":{
             "es":[
                 "Organización del dinero",
@@ -267,7 +266,6 @@ async def service_start(request:Request):
 
 @app.post("/api/session",response_model=SessionResponse)
 async def create_session(request:Request,language:str="es"):
-    require_access(request)
     language=normalize_language(language)
     return SessionResponse(
         success=True,
@@ -527,7 +525,6 @@ async def assistant(request:Request):
     need_type=str(body.get("need_type") or engine.classify_need(text,language).get("need_type","other"))
     return engine.assistant_response(need_type,language,text)
 
-# Compatibilidad con frontend que use /api/chat.
 @app.post("/api/chat")
 async def chat_compat(request:Request):
     require_access(request)
@@ -708,7 +705,6 @@ async def stripe_webhook(request:Request):
         "handled":event_type in handled
     }
 
-# Compatibilidad con nombres anteriores.
 @app.post("/api/payment-success")
 async def payment_success_compat(session_id:str):
     result=await payment_check(session_id)
@@ -756,10 +752,4 @@ async def value_error_handler(request:Request,exc:ValueError):
 @app.exception_handler(Exception)
 async def generic_error_handler(request:Request,exc:Exception):
     if isinstance(exc,HTTPException):raise exc
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success":False,
-            "error":"Ocurrió un problema. Intenta nuevamente."
-        }
-    )
+    return JSONResponse(status_code=500,content={"success":False,"error":"Ocurrió un problema. Intenta nuevamente."})
