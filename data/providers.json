@@ -1,7 +1,7 @@
 {
 "version":"3.0.0",
 "schema_version":"3.0",
-"data_policy":{"commercial_data_status":"unavailable_until_verified","do_not_invent_fees":true,"do_not_invent_exchange_rates":true,"do_not_invent_delivery_times":true,"do_not_invent_availability":true,"official_urls_only":true},
+"data_policy":{"commercial_data_status":"unavailable_until_verified","do_not_invent_fees":true,"do_not_invent_exchange_rates":true,"do_not_invent_delivery_times":true,"do_not_invent_availability":true,"official_urls_only":true,"declared_methods_are_not_current_availability":true},
 "providers":[
 {
 "id":"western_union",
@@ -10,11 +10,23 @@
 "type":"remittance_provider",
 "origin_country":"US",
 "official_url":"https://www.westernunion.com",
-"official_urls":{"home":"[https://www.westernunion.com","us":"https://www.westernunion.com/us/en/home.html](https://www.westernunion.com%22,%22us%22:%22https://www.westernunion.com/us/en/home.html)"},
-"description":{"es":"Servicio internacional de transferencia de dinero. Las opciones disponibles dependen del país, método y operación.","en":"International money transfer service. Available options depend on the country, method and transaction."},
+"official_urls":{
+"home":"https://www.westernunion.com",
+"us_es":"https://www.westernunion.com/us/es/home.html",
+"us_send_es":"https://www.westernunion.com/us/es/web/send-money/start",
+"us_en":"https://www.westernunion.com/us/en/home.html",
+"us_send":"https://www.westernunion.com/us/en/web/send-money/start"
+},
+"description":{
+"es":"Servicio internacional de transferencia de dinero. Las opciones disponibles dependen del país, método y operación.",
+"en":"International money transfer service. Available options depend on the country, method and transaction."
+},
 "delivery_methods":["cash_pickup","bank_deposit","mobile_wallet"],
 "payment_methods":["bank_account","debit_card","credit_card","cash"],
-"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"last_verified":null},
+"supports_online":true,
+"supports_agent":true,
+"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"recipient_amount":null,"currency":null,"delivery_method":null,"payment_method":null,"important_condition":null,"source":null,"verified_at":null},
+"requirements":[],
 "corridors":{"destinations":{}}
 },
 {
@@ -24,11 +36,23 @@
 "type":"remittance_provider",
 "origin_country":"US",
 "official_url":"https://www.moneygram.com",
-"official_urls":{"home":"[https://www.moneygram.com","us":"https://www.moneygram.com/mgo/us/en/](https://www.moneygram.com%22,%22us%22:%22https://www.moneygram.com/mgo/us/en/)"},
-"description":{"es":"Servicio de transferencia de dinero con opciones que pueden variar según país, método y operación.","en":"Money transfer service with options that may vary by country, method and transaction."},
+"official_urls":{
+"home":"https://www.moneygram.com",
+"us_es":"https://www.moneygram.com/us/es/",
+"us_send_es":"https://www.moneygram.com/us/es/send-money",
+"us_en":"https://www.moneygram.com/us/en/",
+"us_send":"https://www.moneygram.com/us/en/send-money"
+},
+"description":{
+"es":"Servicio de transferencia de dinero con opciones que pueden variar según país, método y operación.",
+"en":"Money transfer service with options that may vary by country, method and transaction."
+},
 "delivery_methods":["cash_pickup","bank_deposit","mobile_wallet"],
 "payment_methods":["bank_account","debit_card","credit_card","cash"],
-"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"last_verified":null},
+"supports_online":true,
+"supports_agent":true,
+"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"recipient_amount":null,"currency":null,"delivery_method":null,"payment_method":null,"important_condition":null,"source":null,"verified_at":null},
+"requirements":[],
 "corridors":{"destinations":{}}
 },
 {
@@ -38,11 +62,23 @@
 "type":"remittance_provider",
 "origin_country":"US",
 "official_url":"https://www.remitly.com",
-"official_urls":{"home":"[https://www.remitly.com","us":"https://www.remitly.com/us/en/home](https://www.remitly.com%22,%22us%22:%22https://www.remitly.com/us/en/home)"},
-"description":{"es":"Servicio digital de remesas. Las opciones, costos y métodos disponibles dependen del destino y de la operación.","en":"Digital remittance service. Available options, costs and methods depend on the destination and transaction."},
+"official_urls":{
+"home":"https://www.remitly.com",
+"us_es":"https://www.remitly.com/us/es/home",
+"us_send_es":"https://www.remitly.com/us/es/money-transfer",
+"us_en":"https://www.remitly.com/us/en/home",
+"us_send":"https://www.remitly.com/us/en/money-transfer"
+},
+"description":{
+"es":"Servicio digital de remesas. Las opciones, costos y métodos disponibles dependen del destino y de la operación.",
+"en":"Digital remittance service. Available options, costs and methods depend on the destination and transaction."
+},
 "delivery_methods":["cash_pickup","bank_deposit","mobile_wallet"],
 "payment_methods":["bank_account","debit_card","credit_card"],
-"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"last_verified":null},
+"supports_online":true,
+"supports_agent":false,
+"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"recipient_amount":null,"currency":null,"delivery_method":null,"payment_method":null,"important_condition":null,"source":null,"verified_at":null},
+"requirements":[],
 "corridors":{"destinations":{}}
 },
 {
@@ -52,16 +88,25 @@
 "type":"remittance_provider",
 "origin_country":"US",
 "official_url":"https://www.xoom.com",
-"official_urls":{"home":"[https://www.xoom.com","us":"https://www.xoom.com/](https://www.xoom.com%22,%22us%22:%22https://www.xoom.com/)"},
-"description":{"es":"Servicio de PayPal para enviar dinero internacionalmente. Las opciones dependen del país y de la operación.","en":"PayPal service for international money transfers. Available options depend on the country and transaction."},
+"official_urls":{
+"home":"https://www.xoom.com",
+"us_es":"https://www.xoom.com",
+"us_send_es":"https://www.xoom.com/money-transfer",
+"us_en":"https://www.xoom.com",
+"us_send":"https://www.xoom.com/money-transfer"
+},
+"description":{
+"es":"Servicio de PayPal para enviar dinero internacionalmente. Las opciones dependen del país y de la operación.",
+"en":"PayPal service for international money transfers. Available options depend on the country and transaction."
+},
 "delivery_methods":["cash_pickup","bank_deposit","mobile_wallet"],
 "payment_methods":["bank_account","debit_card","credit_card"],
-"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"last_verified":null},
+"supports_online":true,
+"supports_agent":false,
+"commercial_data":{"status":"unavailable","fee":null,"exchange_rate":null,"delivery_time":null,"minimum_amount":null,"maximum_amount":null,"recipient_amount":null,"currency":null,"delivery_method":null,"payment_method":null,"important_condition":null,"source":null,"verified_at":null},
+"requirements":[],
 "corridors":{"destinations":{}}
 }
 ],
-"corridors":{
-"origin":"US",
-"destinations":{}
-}
+"corridors":{"origin":"US","destinations":{}}
 }
