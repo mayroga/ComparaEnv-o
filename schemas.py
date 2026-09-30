@@ -1,46 +1,110 @@
-from typing import Any,Dict,List,Optional,Literal
-from pydantic import BaseModel,Field,ConfigDict
+from typing import Any,Dict,List,Optional
+from pydantic import BaseModel,Field,ConfigDict,field_validator
 
-Lang=Literal["es","en"]
-Frequency=Literal["daily","weekly","biweekly","monthly","one_time"]
-RecordType=Literal["income","essential","flexible","other_expense","savings","remittance","purchase","family","adjustment"]
-ActionType=Literal["add","subtract","replace","ignore","review"]
-Period=Literal["daily","weekly","biweekly","monthly"]
+MAX_AMOUNT=1000000.0
+MAX_TEXT=2000
 
 class UserNeedRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
-    language:Lang="es"
+    language:str="es"
     need_type:Optional[str]=None
-    amount:Optional[float]=Field(default=None,ge=0)
+    amount:Optional[float]=Field(None,gt=0,le=MAX_AMOUNT)
     destination_country:Optional[str]=None
     destination_region:Optional[str]=None
     priority:Optional[str]=None
     urgency:Optional[bool]=None
-    frequency:Optional[str]=None
     delivery_method:Optional[str]=None
     payment_method:Optional[str]=None
-    recipient_amount_target:Optional[float]=Field(default=None,ge=0)
-    special_need:Optional[str]=None
-    free_text:Optional[str]=None
+    recipient_amount_target:Optional[float]=Field(None,gt=0,le=MAX_AMOUNT)
+    special_need:Optional[str]=Field(None,max_length=500)
+    free_text:Optional[str]=Field(None,max_length=MAX_TEXT)
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
+
+    @field_validator("destination_country")
+    @classmethod
+    def clean_country(cls,v):
+        return v.upper().strip() if v else v
 
 class ParseNeedRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
-    text:str=""
-    language:Lang="es"
+    text:str=Field("",max_length=MAX_TEXT)
+    language:str="es"
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
+
+class IncomeRequest(BaseModel):
+    model_config=ConfigDict(extra="ignore")
+    language:str="es"
+    amount:float=Field(...,gt=0,le=MAX_AMOUNT)
+    frequency:str=Field(...,min_length=3,max_length=20)
+    other_income:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+
+class ExpenseItem(BaseModel):
+    model_config=ConfigDict(extra="ignore")
+    description:str=Field(...,min_length=1,max_length=120)
+    amount:float=Field(...,gt=0,le=MAX_AMOUNT)
+    category:Optional[str]=Field(None,max_length=60)
+    frequency:Optional[str]=Field("monthly",min_length=3,max_length=20)
+
+class SavingsRequest(BaseModel):
+    model_config=ConfigDict(extra="ignore")
+    language:str="es"
+    amount:float=Field(...,ge=0,le=MAX_AMOUNT)
+    savings_type:Optional[str]=Field("general",max_length=60)
+
+class PurchaseRequest(BaseModel):
+    model_config=ConfigDict(extra="ignore")
+    language:str="es"
+    purchase_amount:float=Field(...,gt=0,le=MAX_AMOUNT)
+    purchase_category:Optional[str]=Field(None,max_length=60)
+
+class MoneyPlanRequest(BaseModel):
+    model_config=ConfigDict(extra="ignore")
+    language:str="es"
+    income_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    income_frequency:Optional[str]=Field(None,max_length=20)
+    other_income:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    essential_expenses:List[ExpenseItem]=Field(default_factory=list)
+    flexible_expenses:List[ExpenseItem]=Field(default_factory=list)
+    remittance_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    remittance_frequency:Optional[str]=Field(None,max_length=20)
+    savings_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    period:Optional[str]=Field("monthly",max_length=20)
 
 class ComparisonRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
-    amount:float=Field(gt=0)
-    destination_country:str
-    priority:Optional[str]=None
+    amount:float=Field(...,gt=0,le=MAX_AMOUNT)
+    destination_country:str=Field(...,min_length=2,max_length=3)
+    priority:Optional[str]=Field(None,max_length=40)
     urgency:Optional[bool]=None
-    delivery_method:Optional[str]=None
-    payment_method:Optional[str]=None
-    language:Lang="es"
-    send_currency:str="USD"
-    recipient_amount_target:Optional[float]=Field(default=None,ge=0)
-    special_need:Optional[str]=None
-    provider_ids:Optional[List[str]]=None
+    delivery_method:Optional[str]=Field(None,max_length=60)
+    payment_method:Optional[str]=Field(None,max_length=60)
+    language:str="es"
+    send_currency:str=Field("USD",min_length=3,max_length=3)
+    recipient_amount_target:Optional[float]=Field(None,gt=0,le=MAX_AMOUNT)
+    special_need:Optional[str]=Field(None,max_length=500)
+
+    @field_validator("destination_country")
+    @classmethod
+    def clean_country(cls,v):
+        return v.upper().strip()
+
+    @field_validator("send_currency")
+    @classmethod
+    def clean_currency(cls,v):
+        return (v or "USD").upper().strip()
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
 
 class ComparisonResult(BaseModel):
     model_config=ConfigDict(extra="ignore")
@@ -48,254 +112,86 @@ class ComparisonResult(BaseModel):
     provider_name:str
     amount_sent:float
     send_currency:str="USD"
-    fee:Optional[Any]=None
-    exchange_rate:Optional[Any]=None
-    recipient_amount:Optional[Any]=None
-    delivery_method:Optional[Any]=None
-    payment_method:Optional[Any]=None
+    fee:Optional[float]=None
+    exchange_rate:Optional[float]=None
+    recipient_amount:Optional[float]=None
+    delivery_method:Optional[str]=None
+    payment_method:Optional[str]=None
     estimated_delivery:Optional[Any]=None
-    recipient_currency:Optional[Any]=None
-    availability:bool=False
-    important_condition:Optional[Any]=None
-    requirements:List[Any]=Field(default_factory=list)
+    recipient_currency:Optional[str]=None
+    availability:Optional[bool]=None
+    important_condition:Optional[str]=None
+    requirements:List[str]=Field(default_factory=list)
     source:Optional[str]=None
     verified_at:Optional[str]=None
     status:str="unavailable"
     continue_url:Optional[str]=None
 
-class FinalCheckRequest(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    provider_id:Optional[str]=None
-    destination_country:str
-    amount:float=Field(gt=0)
-    send_currency:str="USD"
-    delivery_method:Optional[str]=None
-    recipient_information:Optional[bool]=None
-    fee:Optional[Any]=None
-    exchange_rate:Optional[Any]=None
-    recipient_amount:Optional[Any]=None
-    language:Lang="es"
-
-class SessionState(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    session_id:str
-    language:Lang="es"
-    need_type:Optional[str]=None
-    amount:Optional[float]=None
-    send_currency:str="USD"
-    destination_country:Optional[str]=None
-    priority:Optional[str]=None
-    urgency:Optional[bool]=None
-    frequency:Optional[str]=None
-    delivery_method:Optional[str]=None
-    payment_method:Optional[str]=None
-    special_need:Optional[str]=None
-    free_text:Optional[str]=None
-    parsed_user_need:Optional[Dict[str,Any]]=None
-    candidate_providers:List[str]=Field(default_factory=list)
-    available_providers:List[Dict[str,Any]]=Field(default_factory=list)
-    verified_results:List[Dict[str,Any]]=Field(default_factory=list)
-    selected_option:Optional[Dict[str,Any]]=None
-    final_check:Dict[str,Any]=Field(default_factory=dict)
-    current_step:str="opening"
-    created_at:str=""
-    updated_at:str=""
-
-class SessionResponse(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    success:bool=True
-    session:Optional[SessionState]=None
-    message:str=""
-    next_step:Optional[str]=None
-
 class ComparisonResponse(BaseModel):
     model_config=ConfigDict(extra="ignore")
     success:bool=True
-    message:str=""
+    message:Optional[str]=None
     results:List[ComparisonResult]=Field(default_factory=list)
     available_providers:List[Dict[str,Any]]=Field(default_factory=list)
     provider_count:int=0
     verified_count:int=0
     results_available:bool=False
-    destination_country:str=""
-    destination_name:str=""
-    amount:float=0
+    destination_country:Optional[str]=None
+    destination_name:Optional[str]=None
+    amount:Optional[float]=None
     send_currency:str="USD"
     priority:Optional[str]=None
-    urgency:Optional[bool]=None
-    language:Lang="es"
-    explanation:str=""
+    language:str="es"
+    explanation:Optional[str]=None
     differences:List[Dict[str,Any]]=Field(default_factory=list)
     precautions:List[str]=Field(default_factory=list)
+
+class FinalCheckRequest(BaseModel):
+    model_config=ConfigDict(extra="ignore")
+    language:str="es"
+    provider_id:str=Field(...,min_length=2,max_length=100)
+    amount:float=Field(...,gt=0,le=MAX_AMOUNT)
+    send_currency:str=Field("USD",min_length=3,max_length=3)
+    destination_country:str=Field(...,min_length=2,max_length=3)
+    delivery_method:Optional[str]=Field(None,max_length=60)
+    payment_method:Optional[str]=Field(None,max_length=60)
+    recipient_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    fee:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    exchange_rate:Optional[float]=Field(None,gt=0)
+
+    @field_validator("destination_country")
+    @classmethod
+    def clean_country(cls,v):
+        return v.upper().strip()
+
+    @field_validator("send_currency")
+    @classmethod
+    def clean_currency(cls,v):
+        return (v or "USD").upper().strip()
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
 
 class FinalCheckResponse(BaseModel):
     model_config=ConfigDict(extra="ignore")
     success:bool=True
     ready_to_continue:bool=False
-    language:Lang="es"
+    language:str="es"
     provider_id:Optional[str]=None
     checks:List[Dict[str,Any]]=Field(default_factory=list)
-    message:str=""
+    message:Optional[str]=None
     precautions:List[str]=Field(default_factory=list)
     requirements:List[str]=Field(default_factory=list)
+
+class SessionResponse(BaseModel):
+    model_config=ConfigDict(extra="ignore")
+    success:bool=True
+    session:Optional[Dict[str,Any]]=None
+    message:Optional[str]=None
 
 class DeleteLocalDataResponse(BaseModel):
     model_config=ConfigDict(extra="ignore")
     success:bool=True
     message:str=""
-    deleted:bool=True
-
-class MoneyPlanRequest(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    income:float=Field(default=0,ge=0)
-    essential:float=Field(default=0,ge=0)
-    flexible:float=Field(default=0,ge=0)
-    savings:float=Field(default=0,ge=0)
-    remittance:float=Field(default=0,ge=0)
-    purchase:float=Field(default=0,ge=0)
-    other:float=Field(default=0,ge=0)
-    frequency:Frequency="monthly"
-    language:Lang="es"
-
-class MoneyRecord(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    id:Optional[str]=None
-    type:RecordType
-    amount:float=Field(gt=0)
-    description:Optional[str]=""
-    frequency:Frequency="one_time"
-    date:Optional[str]=None
-    source:Optional[str]="user"
-    category:Optional[str]=None
-    period:Optional[Period]=None
-
-class RecordDecisionRequest(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    record:MoneyRecord
-    existing_records:List[MoneyRecord]=Field(default_factory=list)
-    language:Lang="es"
-
-class RecordDecision(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    success:bool=True
-    action:ActionType="review"
-    reason:str=""
-    message:str=""
-    normalized_record:Optional[MoneyRecord]=None
-    duplicate_of:Optional[str]=None
-    affected_total:Optional[float]=None
-
-class FinancialSnapshotRequest(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    records:List[MoneyRecord]=Field(default_factory=list)
-    income:float=Field(default=0,ge=0)
-    period:Period="monthly"
-    language:Lang="es"
-    created_at:Optional[str]=None
-    source:str="local_device"
-
-class FinancialSummary(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    income:float=0
-    essential:float=0
-    flexible:float=0
-    other_expense:float=0
-    savings:float=0
-    remittance:float=0
-    purchase:float=0
-    family:float=0
-    available:float=0
-    daily_available:float=0
-    weekly_available:float=0
-    biweekly_available:float=0
-    monthly_available:float=0
-    negative_warning:bool=False
-    savings_rate:float=0
-    period:Period="monthly"
-    currency:str="USD"
-
-class FinancialSnapshot(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    version:str="1.0"
-    created_at:str=""
-    language:Lang="es"
-    period:Period="monthly"
-    summary:FinancialSummary
-    records:List[MoneyRecord]=Field(default_factory=list)
-    action_message:str=""
-    next_action:str=""
-    informational:bool=True
-
-class SnapshotImportRequest(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    snapshot:Dict[str,Any]
-    existing_records:List[MoneyRecord]=Field(default_factory=list)
-    language:Lang="es"
-
-class SnapshotImportResponse(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    success:bool=True
-    added:List[MoneyRecord]=Field(default_factory=list)
-    ignored:List[MoneyRecord]=Field(default_factory=list)
-    review:List[MoneyRecord]=Field(default_factory=list)
-    summary:Optional[FinancialSummary]=None
-    message:str=""
-
-class EvolutionRequest(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    current_records:List[MoneyRecord]=Field(default_factory=list)
-    previous_records:List[MoneyRecord]=Field(default_factory=list)
-    income:float=Field(default=0,ge=0)
-    period:Period="monthly"
-    language:Lang="es"
-
-class EvolutionResponse(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    success:bool=True
-    current:Optional[FinancialSummary]=None
-    previous:Optional[FinancialSummary]=None
-    changes:Dict[str,float]=Field(default_factory=dict)
-    direction:Dict[str,str]=Field(default_factory=dict)
-    message:str=""
-    action:str=""
-    confidence:str="informational"
-
-class FamilyPerson(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    id:Optional[str]=None
-    name:str
-    relationship:Optional[str]=""
-    country:Optional[str]=None
-    note:Optional[str]=""
-
-class PurchasePlanRequest(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    amount:float=Field(gt=0)
-    income:float=Field(default=0,ge=0)
-    essential:float=Field(default=0,ge=0)
-    flexible:float=Field(default=0,ge=0)
-    savings:float=Field(default=0,ge=0)
-    remittance:float=Field(default=0,ge=0)
-    period:Period="monthly"
-    language:Lang="es"
-
-class PurchasePlanResponse(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    success:bool=True
-    purchase_amount:float=0
-    available_before:float=0
-    available_after:float=0
-    affordable:bool=False
-    message:str=""
-    action:str=""
-    recommendation:str=""
-
-class ActionResponse(BaseModel):
-    model_config=ConfigDict(extra="ignore")
-    success:bool=True
-    action:str=""
-    title:str=""
-    message:str=""
-    data:Dict[str,Any]=Field(default_factory=dict)
-    next_step:Optional[str]=None
-    continue_url:Optional[str]=None
