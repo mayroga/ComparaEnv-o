@@ -1,5 +1,26 @@
 const APP={name:"REMESAS",version:"4.0.0",lang:localStorage.getItem("remesas_lang_v4")||localStorage.getItem("remesas_lang")||"es",session:null,config:null,comparison:null,pendingParsed:null,keys:{money:"remesas_money_v4",expenses:"remesas_expenses_v4",family:"remesas_family_v4",prefs:"remesas_prefs_v4",lang:"remesas_lang_v4",savings:"remesas_savings_v4"}};
 
+const COUNTRY_REGISTRY=[
+{code:"MX",name:{es:"México",en:"Mexico"}},
+{code:"GT",name:{es:"Guatemala",en:"Guatemala"}},
+{code:"SV",name:{es:"El Salvador",en:"El Salvador"}},
+{code:"HN",name:{es:"Honduras",en:"Honduras"}},
+{code:"NI",name:{es:"Nicaragua",en:"Nicaragua"}},
+{code:"CR",name:{es:"Costa Rica",en:"Costa Rica"}},
+{code:"PA",name:{es:"Panamá",en:"Panama"}},
+{code:"CO",name:{es:"Colombia",en:"Colombia"}},
+{code:"VE",name:{es:"Venezuela",en:"Venezuela"}},
+{code:"EC",name:{es:"Ecuador",en:"Ecuador"}},
+{code:"PE",name:{es:"Perú",en:"Peru"}},
+{code:"BO",name:{es:"Bolivia",en:"Bolivia"}},
+{code:"PY",name:{es:"Paraguay",en:"Paraguay"}},
+{code:"CL",name:{es:"Chile",en:"Chile"}},
+{code:"AR",name:{es:"Argentina",en:"Argentina"}},
+{code:"BR",name:{es:"Brasil",en:"Brazil"}},
+{code:"DO",name:{es:"República Dominicana",en:"Dominican Republic"}},
+{code:"CU",name:{es:"Cuba",en:"Cuba"}}
+];
+
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
 const money=(v,c="USD")=>{const n=Number(v);if(!Number.isFinite(n))return"—";try{return new Intl.NumberFormat(APP.lang==="en"?"en-US":"es-US",{style:"currency",currency:String(c||"USD").toUpperCase(),maximumFractionDigits:2}).format(n)}catch{return new Intl.NumberFormat(APP.lang==="en"?"en-US":"es-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(n)}};
@@ -11,10 +32,21 @@ const loading=(m=t("Cargando...","Loading..."))=>`<div class="loading"><span cla
 const errorBox=m=>`<div class="error">${esc(m)}</div>`;
 
 function getCountries(){
-    const c=APP.config?.countries;
-    if(Array.isArray(c))return c;
-    if(Array.isArray(c?.supported))return c.supported;
-    return[];
+    const source=APP.config?.countries;
+    let list=[];
+    if(Array.isArray(source))list=source;
+    else if(Array.isArray(source?.supported))list=source.supported;
+    else if(Array.isArray(APP.config?.supported_countries))list=APP.config.supported_countries;
+    if(!list.length)list=COUNTRY_REGISTRY;
+    const normalized=list.map(c=>{
+        if(typeof c==="string")return{code:c.toUpperCase(),name:{es:c,en:c}};
+        const code=String(c?.code||c?.country_code||"").toUpperCase();
+        const raw=c?.name??c?.country_name??code;
+        const name=typeof raw==="object"?{es:raw.es||raw.en||code,en:raw.en||raw.es||code}:{es:String(raw||code),en:String(raw||code)};
+        return{code,name};
+    }).filter(c=>c.code);
+    const seen=new Set();
+    return normalized.filter(c=>{if(seen.has(c.code))return false;seen.add(c.code);return true});
 }
 
 function getHelpTopics(){
@@ -123,11 +155,10 @@ function renderRemittance(parsed=null){
     const countries=getCountries();
     const currentCountry=String(s.destination_country||parsed?.destination_country||"").toUpperCase();
     const destinations=countries.map(c=>{
-        const code=String(c?.code||c?.country_code||c||"").toUpperCase();
-        const rawName=c?.name??c?.country_name??code;
-        const name=typeof rawName==="object"?(rawName[APP.lang]||rawName.es||rawName.en||code):rawName;
-        const selected=currentCountry===code;
-        return `<option value="${esc(code)}" ${selected?"selected":""}>${esc(name||code)}</option>`;
+        const code=String(c.code||"").toUpperCase();
+        const raw=c.name;
+        const name=typeof raw==="object"?(raw[APP.lang]||raw.es||raw.en||code):raw;
+        return `<option value="${esc(code)}" ${currentCountry===code?"selected":""}>${esc(name||code)}</option>`;
     }).join("");
     const amount=s.amount??parsed?.amount??"";
     const priority=s.priority||parsed?.priority||"";
@@ -140,77 +171,42 @@ function renderRemittance(parsed=null){
 <div class="section-title"><div><h2>${esc(t("Preparar una remesa","Prepare a remittance"))}</h2><p>${esc(t("Solo pedimos lo necesario para revisar opciones.","We only ask for what is needed to review options."))}</p></div></div>
 <div class="card form-card">
 <div class="notice info">${esc(t("REMESAS no mueve tu dinero. Antes de enviar una transacción, siempre debes revisar las condiciones actuales directamente con el proveedor oficial.","REMESAS does not move your money. Before sending a transaction, always review current conditions directly with the official provider."))}</div>
-
 <div class="form-row">
-<div class="field">
-<label for="remAmount">${esc(t("¿Cuánto quieres enviar?","How much do you want to send?"))}</label>
-<input id="remAmount" type="number" min=".01" max="1000000" step=".01" value="${esc(amount)}" placeholder="100">
+<div class="field"><label for="remAmount">${esc(t("¿Cuánto quieres enviar?","How much do you want to send?"))}</label><input id="remAmount" type="number" min=".01" max="1000000" step=".01" value="${esc(amount)}" placeholder="100"></div>
+<div class="field"><label for="remCountry">${esc(t("¿A qué país?","Which country?"))}</label><select id="remCountry"><option value="">${esc(t("Selecciona","Select"))}</option>${destinations}</select></div>
 </div>
-
-<div class="field">
-<label for="remCountry">${esc(t("¿A qué país?","Which country?"))}</label>
-<select id="remCountry">
-<option value="">${esc(t("Selecciona","Select"))}</option>
-${destinations}
-</select>
-</div>
-</div>
-
-<div class="field">
-<label>${esc(t("¿Qué te importa más?","What matters most?"))}</label>
-<div class="choice-grid">
+<div class="field"><label>${esc(t("¿Qué te importa más?","What matters most?"))}</label><div class="choice-grid">
 ${choice("priority","save",t("Ahorrar / menor costo","Save / lower cost"),priority)}
 ${choice("priority","fastest",t("Rapidez","Speed"),priority)}
 ${choice("priority","recipient_gets_more",t("Más para quien recibe","More for recipient"),priority)}
 ${choice("priority","balanced",t("Equilibrio","Balance"),priority)}
-</div>
-</div>
-
-<div class="check-row">
-<input id="remUrgency" type="checkbox" ${urgency?"checked":""}>
-<label for="remUrgency">${esc(t("Es urgente o necesitas hacerlo hoy","It is urgent or you need it today"))}</label>
-</div>
-
+</div></div>
+<div class="check-row"><input id="remUrgency" type="checkbox" ${urgency?"checked":""}><label for="remUrgency">${esc(t("Es urgente o necesitas hacerlo hoy","It is urgent or you need it today"))}</label></div>
 <div class="form-row">
-<div class="field">
-<label for="remFrequency">${esc(t("Frecuencia","Frequency"))}</label>
-<select id="remFrequency">
+<div class="field"><label for="remFrequency">${esc(t("Frecuencia","Frequency"))}</label><select id="remFrequency">
 <option value="one_time" ${frequency==="one_time"?"selected":""}>${esc(t("Una vez","One time"))}</option>
 <option value="weekly" ${frequency==="weekly"?"selected":""}>${esc(t("Semanal","Weekly"))}</option>
 <option value="biweekly" ${frequency==="biweekly"?"selected":""}>${esc(t("Quincenal","Biweekly"))}</option>
 <option value="monthly" ${frequency==="monthly"?"selected":""}>${esc(t("Mensual","Monthly"))}</option>
-</select>
-</div>
-
-<div class="field">
-<label for="remDelivery">${esc(t("Cómo recibe","How recipient receives"))}</label>
-<select id="remDelivery">
+</select></div>
+<div class="field"><label for="remDelivery">${esc(t("Cómo recibe","How recipient receives"))}</label><select id="remDelivery">
 <option value="">${esc(t("Selecciona","Select"))}</option>
 <option value="cash_pickup" ${delivery==="cash_pickup"?"selected":""}>${esc(t("Efectivo / recoger","Cash pickup"))}</option>
 <option value="bank_account" ${delivery==="bank_account"?"selected":""}>${esc(t("Cuenta bancaria","Bank account"))}</option>
 <option value="debit_card" ${delivery==="debit_card"?"selected":""}>${esc(t("Tarjeta de débito","Debit card"))}</option>
 <option value="mobile_wallet" ${delivery==="mobile_wallet"?"selected":""}>${esc(t("Billetera móvil","Mobile wallet"))}</option>
 <option value="home_delivery" ${delivery==="home_delivery"?"selected":""}>${esc(t("Entrega a domicilio","Home delivery"))}</option>
-</select>
+</select></div>
 </div>
-</div>
-
-<div class="field">
-<label for="remPayment">${esc(t("Cómo pagas","How you pay"))}</label>
-<select id="remPayment">
+<div class="field"><label for="remPayment">${esc(t("Cómo pagas","How you pay"))}</label><select id="remPayment">
 <option value="">${esc(t("Selecciona","Select"))}</option>
 <option value="bank_account" ${payment==="bank_account"?"selected":""}>${esc(t("Cuenta bancaria","Bank account"))}</option>
 <option value="debit_card" ${payment==="debit_card"?"selected":""}>${esc(t("Tarjeta de débito","Debit card"))}</option>
 <option value="credit_card" ${payment==="credit_card"?"selected":""}>${esc(t("Tarjeta de crédito","Credit card"))}</option>
 <option value="cash" ${payment==="cash"?"selected":""}>${esc(t("Efectivo","Cash"))}</option>
 <option value="other" ${payment==="other"?"selected":""}>${esc(t("Otro","Other"))}</option>
-</select>
-</div>
-
-<div class="actions">
-<button class="btn" onclick="compareRemittance()">${esc(t("Revisar opciones","Review options"))}</button>
-<button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button>
-</div>
+</select></div>
+<div class="actions"><button class="btn" onclick="compareRemittance()">${esc(t("Revisar opciones","Review options"))}</button><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div>
 </div>
 </section>`);
 }
@@ -516,9 +512,8 @@ async function askAssistant(){
 
 function beginParsedRemittance(){
     const p=APP.pendingParsed||{};
-    if(!APP.session){
-        startSession().then(()=>renderRemittance(p)).catch(()=>renderRemittance(p));
-    }else renderRemittance(p);
+    if(!APP.session)startSession().then(()=>renderRemittance(p)).catch(()=>renderRemittance(p));
+    else renderRemittance(p);
 }
 
 function showHelpTopic(id){
