@@ -1,7 +1,7 @@
 # main.py — REMESAS | May Roga LLC | 4.1.0
 import os,secrets
 from pathlib import Path
-from typing import Optional
+from typing import Any,Dict,Optional
 import stripe
 from fastapi import FastAPI,HTTPException,Request
 from fastapi.responses import FileResponse,JSONResponse
@@ -16,8 +16,16 @@ STATIC_DIR=BASE_DIR/"static"
 ALLOWED_LANGUAGES={"es","en"}
 MAX_BODY_SIZE=1024*1024
 
-app=FastAPI(title=APP_NAME,version=APP_VERSION,description="REMESAS — May Roga LLC",docs_url="/docs",redoc_url="/redoc")
-if STATIC_DIR.exists():app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
+app=FastAPI(
+    title=APP_NAME,
+    version=APP_VERSION,
+    description="Herramienta privada de información, organización y preparación de remesas.",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+if STATIC_DIR.exists():
+    app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
 
 ADMIN_USERNAME=os.getenv("ADMIN_USERNAME","")
 ADMIN_PASSWORD=os.getenv("ADMIN_PASSWORD","")
@@ -26,126 +34,247 @@ STRIPE_PRICE_ID1=os.getenv("STRIPE_PRICE_ID1","")
 STRIPE_PUBLISHABLE_KEY=os.getenv("STRIPE_PUBLISHABLE_KEY","")
 STRIPE_SECRET_KEY=os.getenv("STRIPE_SECRET_KEY","")
 STRIPE_WEBHOOK_SECRET=os.getenv("STRIPE_WEBHOOK_SECRET","")
-if STRIPE_SECRET_KEY:stripe.api_key=STRIPE_SECRET_KEY
+
+if STRIPE_SECRET_KEY:
+    stripe.api_key=STRIPE_SECRET_KEY
+
 
 @app.on_event("startup")
-async def startup_event():engine.load_brain()
+async def startup_event():
+    engine.load_brain()
+
 
 @app.get("/",include_in_schema=False)
 async def root():
     index=STATIC_DIR/"index.html"
-    if not index.exists():raise HTTPException(404,"Application interface not found.")
+    if not index.exists():
+        raise HTTPException(404,"Application interface not found.")
     return FileResponse(str(index))
+
 
 @app.get("/health")
 async def health():
-    return {"status":"ok","app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"brain_version":engine.brain.get("app",{}).get("version"),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)}
+    return {
+        "status":"ok",
+        "app":APP_NAME,
+        "version":APP_VERSION,
+        "brain_loaded":bool(engine.brain),
+        "brain_version":engine.brain.get("app",{}).get("version"),
+        "stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)
+    }
+
 
 @app.get("/ping",include_in_schema=False)
-async def ping():return {"status":"ok"}
+async def ping():
+    return {"status":"ok"}
+
 
 @app.get("/api/config")
 async def public_configuration(language:str="es"):
     language=normalize_language(language)
     config=engine.public_config(language)
-    config["stripe"]={"enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),"publishable_key":STRIPE_PUBLISHABLE_KEY,"price":15.99,"currency":"USD","period":"1_month"}
+    config=normalize_public_config(config,language)
+    config["stripe"]={
+        "enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),
+        "publishable_key":STRIPE_PUBLISHABLE_KEY,
+        "price":15.99,
+        "currency":"USD",
+        "period":"1_month"
+    }
     return config
+
 
 @app.get("/api/brain/version")
 async def brain_version():
-    return {"app":APP_NAME,"version":engine.brain.get("app",{}).get("version"),"engine_version":APP_VERSION}
+    return {
+        "app":APP_NAME,
+        "version":engine.brain.get("app",{}).get("version"),
+        "engine_version":APP_VERSION
+    }
+
 
 @app.post("/api/session",response_model=SessionResponse)
-async def create_session(language:str="es"):
+async def create_session(language:str="es")->SessionResponse:
     language=normalize_language(language)
-    return SessionResponse(success=True,session=engine.create_session(language),message=localized("Sesión iniciada.","Session started.",language))
+    return SessionResponse(
+        success=True,
+        session=engine.create_session(language),
+        message=localized("Sesión iniciada.","Session started.",language)
+    )
+
 
 @app.get("/api/session/{session_id}",response_model=SessionResponse)
 async def get_session(session_id:str):
     validate_session_id(session_id)
     session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
+    if session is None:
+        raise HTTPException(404,"Session not found.")
     return SessionResponse(success=True,session=session)
+
 
 @app.delete("/api/session/{session_id}")
 async def delete_session(session_id:str):
     validate_session_id(session_id)
     deleted=engine.clear_session(session_id)
-    return {"success":deleted,"message":"Session cleared." if deleted else "Session already cleared."}
+    return {
+        "success":deleted,
+        "message":"Session cleared." if deleted else "Session already cleared."
+    }
+
 
 @app.post("/api/need",response_model=SessionResponse)
 async def apply_need(request:Request):
-    try:body=await request.json()
-    except Exception:raise HTTPException(400,"Invalid request body.")
-    if not isinstance(body,dict):raise HTTPException(400,"Invalid request body.")
+    try:
+        body=await request.json()
+    except Exception:
+        raise HTTPException(400,"Invalid request body.")
+
+    if not isinstance(body,dict):
+        raise HTTPException(400,"Invalid request body.")
+
     session_id=str(body.get("session_id") or "")
     language=normalize_language(body.get("language","es"))
+
     if session_id:
         validate_session_id(session_id)
-        if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
+        if engine.get_session(session_id) is None:
+            raise HTTPException(404,"Session not found.")
     else:
         session_id=engine.create_session(language)["session_id"]
+
     body.pop("session_id",None)
     body["language"]=language
+
     try:
         user_request=UserNeedRequest(**body)
         session=engine.apply_need(session_id,user_request)
-    except KeyError:raise HTTPException(404,"Session not found.")
-    except ValueError as exc:raise HTTPException(400,str(exc))
+    except KeyError:
+        raise HTTPException(404,"Session not found.")
+    except ValueError as exc:
+        raise HTTPException(400,str(exc))
+
     return SessionResponse(success=True,session=session)
+
 
 @app.post("/api/need/parse")
 async def parse_need(request:ParseNeedRequest):
-    return {"success":True,"parsed":engine.parse_need(request)}
+    return {
+        "success":True,
+        "parsed":engine.parse_need(request)
+    }
+
 
 @app.post("/api/session/{session_id}/need/parse")
-async def parse_need_into_session(session_id:str,request:ParseNeedRequest):
+async def parse_need_into_session(
+    session_id:str,
+    request:ParseNeedRequest
+):
     validate_session_id(session_id)
-    if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
+
+    if engine.get_session(session_id) is None:
+        raise HTTPException(404,"Session not found.")
+
     parsed=engine.parse_need(request)
-    values={k:parsed[k] for k in ("amount","destination_country","priority","urgency","delivery_method","payment_method") if parsed.get(k) is not None}
+
+    values={
+        k:parsed[k]
+        for k in (
+            "amount",
+            "destination_country",
+            "priority",
+            "urgency",
+            "delivery_method",
+            "payment_method"
+        )
+        if parsed.get(k) is not None
+    }
+
     values["parsed_user_need"]=parsed
-    session=engine.update_session(session_id,**values)
-    return {"success":True,"parsed":parsed,"session":session}
+
+    return {
+        "success":True,
+        "parsed":parsed,
+        "session":engine.update_session(session_id,**values)
+    }
+
 
 @app.post("/api/compare",response_model=ComparisonResponse)
 async def compare(request:ComparisonRequest):
     return engine.compare(request)
 
+
 @app.post("/api/session/{session_id}/compare",response_model=ComparisonResponse)
 async def compare_session(session_id:str):
     validate_session_id(session_id)
+
     session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
-    if not session.get("amount"):raise HTTPException(422,"Amount is required.")
-    if not session.get("destination_country"):raise HTTPException(422,"Destination country is required.")
+
+    if session is None:
+        raise HTTPException(404,"Session not found.")
+
+    if not session.get("amount"):
+        raise HTTPException(422,"Amount is required.")
+
+    if not session.get("destination_country"):
+        raise HTTPException(422,"Destination country is required.")
+
     return engine.compare_session(session_id)
 
+
 @app.post("/api/session/{session_id}/select/{provider_id}")
-async def select_provider_option(session_id:str,provider_id:str):
+async def select_provider_option(
+    session_id:str,
+    provider_id:str
+):
     validate_session_id(session_id)
-    try:option=engine.select_provider(session_id,provider_id)
+
+    try:
+        option=engine.select_provider(session_id,provider_id)
     except KeyError as exc:
         code=str(exc).strip("'")
-        errors={"session_expired":(404,"Session not found."),"provider_not_available":(404,"Provider not available.")}
-        status,message=errors.get(code,(404,"Provider option not found."))
+
+        messages={
+            "session_expired":(404,"Session not found."),
+            "provider_not_found":(404,"Provider not found."),
+            "provider_not_available":(404,"Provider not available.")
+        }
+
+        status,message=messages.get(
+            code,
+            (404,"Provider option not found.")
+        )
+
         raise HTTPException(status,message)
-    return {"success":True,"selected_option":option,"session":engine.get_session(session_id)}
+
+    return {
+        "success":True,
+        "selected_option":option,
+        "session":engine.get_session(session_id)
+    }
+
 
 @app.post("/api/final-check",response_model=FinalCheckResponse)
 async def final_check(request:FinalCheckRequest):
     return engine.final_check(request)
 
+
 @app.post("/api/session/{session_id}/final-check",response_model=FinalCheckResponse)
 async def session_final_check(session_id:str):
     validate_session_id(session_id)
+
     session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
+
+    if session is None:
+        raise HTTPException(404,"Session not found.")
+
     option=session.get("selected_option")
-    if not option:raise HTTPException(422,"No option selected.")
+
+    if not option:
+        raise HTTPException(422,"No option selected.")
+
     request=FinalCheckRequest(
         language=session.get("language","es"),
-        provider_id=option.get("provider_id",""),
+        provider_id=option.get("provider_id"),
         amount=session.get("amount") or 0,
         send_currency=session.get("send_currency","USD"),
         destination_country=session.get("destination_country") or "",
@@ -155,105 +284,564 @@ async def session_final_check(session_id:str):
         fee=option.get("fee"),
         exchange_rate=option.get("exchange_rate")
     )
+
     return engine.final_check(request,session_id)
 
+
 @app.get("/api/session/{session_id}/help")
-async def session_help(session_id:str,language:str="es"):
+async def session_help(
+    session_id:str,
+    language:str="es"
+):
     validate_session_id(session_id)
+
     session=engine.get_session(session_id)
-    if session is None:raise HTTPException(404,"Session not found.")
+
+    if session is None:
+        raise HTTPException(404,"Session not found.")
+
     language=normalize_language(language)
-    step=session.get("current_step","opening")
+
     messages={
-        "opening":{"es":"Indica cuánto quieres enviar, a qué país y qué es más importante para ti.","en":"Enter how much you want to send, the destination country, and what matters most to you."},
-        "comparison":{"es":"Revisa las opciones disponibles para tu destino.","en":"Review the available options for your destination."},
-        "results":{"es":"Revisa los proveedores disponibles y sus datos verificados cuando existan.","en":"Review available providers and verified data when available."},
-        "final_check":{"es":"Revisa los datos antes de continuar con el proveedor.","en":"Review the information before continuing with the provider."},
-        "ready":{"es":"La revisión básica está completa. Confirma los datos finales en el sitio oficial.","en":"The basic review is complete. Confirm the final details on the official site."}
+        "opening":{
+            "es":"Indica cuánto quieres enviar, a qué país y qué es más importante para ti.",
+            "en":"Enter how much you want to send, the destination country, and what matters most to you."
+        },
+        "comparison":{
+            "es":"Revisa las opciones que corresponden a tu necesidad.",
+            "en":"Review the options that correspond to your need."
+        },
+        "results":{
+            "es":"Revisa la información disponible y abre la fuente oficial.",
+            "en":"Review the available information and open the official source."
+        },
+        "final_check":{
+            "es":"Comprueba los datos antes de continuar con el proveedor.",
+            "en":"Check the information before continuing with the provider."
+        }
     }
-    return {"success":True,"message":messages.get(step,messages["opening"])[language]}
+
+    step=session.get("current_step","opening")
+
+    return {
+        "success":True,
+        "message":messages.get(
+            step,
+            messages["opening"]
+        ).get(language)
+    }
+
 
 @app.post("/api/session/{session_id}/reset")
 async def reset_session(session_id:str):
     validate_session_id(session_id)
-    return {"success":True,"cleared":engine.clear_session(session_id),"message":"Session cleared."}
+
+    cleared=engine.clear_session(session_id)
+
+    return {
+        "success":True,
+        "cleared":cleared,
+        "message":"Sesión borrada."
+    }
+
 
 @app.delete("/api/local-data",response_model=DeleteLocalDataResponse)
 async def local_data_info():
-    return DeleteLocalDataResponse(success=True,message="El borrado de datos locales se realiza en este dispositivo.")
+    return DeleteLocalDataResponse(
+        success=True,
+        message="El borrado de datos personales locales se realiza directamente en este dispositivo."
+    )
+
 
 @app.get("/api/subscription/status")
 async def subscription_status():
-    return {"configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),"price":15.99,"currency":"USD","period":"1_month"}
+    return {
+        "configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),
+        "price":15.99,
+        "currency":"USD",
+        "period":"1_month"
+    }
+
 
 @app.get("/api/stripe/public")
 async def stripe_public():
-    return {"enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),"publishable_key":STRIPE_PUBLISHABLE_KEY}
+    return {
+        "enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),
+        "publishable_key":STRIPE_PUBLISHABLE_KEY
+    }
+
 
 @app.post("/api/create-checkout-session")
 async def create_checkout_session(request:Request):
-    if not STRIPE_SECRET_KEY or not STRIPE_PRICE_ID1:raise HTTPException(503,"Stripe is not configured.")
+    if not STRIPE_SECRET_KEY or not STRIPE_PRICE_ID1:
+        raise HTTPException(503,"Stripe is not configured.")
+
     base_url=str(request.base_url).rstrip("/")
+
     try:
         checkout=stripe.checkout.Session.create(
             mode="subscription",
-            line_items=[{"price":STRIPE_PRICE_ID1,"quantity":1}],
+            line_items=[
+                {
+                    "price":STRIPE_PRICE_ID1,
+                    "quantity":1
+                }
+            ],
             success_url=f"{base_url}/?payment=success&session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{base_url}/?payment=cancelled",
             allow_promotion_codes=True,
             billing_address_collection="auto"
         )
-    except stripe.error.StripeError as exc:raise HTTPException(502,"Unable to create the payment session.") from exc
-    return {"success":True,"checkout_url":checkout.url}
+    except stripe.error.StripeError as exc:
+        raise HTTPException(
+            502,
+            "Unable to create the payment session."
+        ) from exc
+
+    return {
+        "success":True,
+        "checkout_url":checkout.url
+    }
+
 
 @app.get("/api/payment/check")
 async def payment_check(session_id:Optional[str]=None):
-    if not STRIPE_SECRET_KEY:return {"success":False,"active":False,"message":"Stripe not configured."}
-    if not session_id:return {"success":False,"active":False,"message":"Payment session not provided."}
+    if not STRIPE_SECRET_KEY:
+        return {
+            "success":False,
+            "active":False,
+            "message":"Stripe not configured."
+        }
+
+    if not session_id:
+        return {
+            "success":False,
+            "active":False,
+            "message":"Payment session not provided."
+        }
+
     try:
-        checkout=stripe.checkout.Session.retrieve(session_id,expand=["subscription"])
+        checkout=stripe.checkout.Session.retrieve(
+            session_id,
+            expand=["subscription"]
+        )
+
         paid=checkout.payment_status=="paid"
-        sub=getattr(checkout,"subscription",None)
-        status=getattr(sub,"status",None) if sub else None
-        return {"success":True,"active":bool(paid and status in {"active","trialing"}),"payment_status":checkout.payment_status,"checkout_status":checkout.status,"mode":checkout.mode,"subscription_status":status}
-    except stripe.error.StripeError as exc:raise HTTPException(502,"Unable to verify payment.") from exc
+        subscription=getattr(checkout,"subscription",None)
+        status=getattr(subscription,"status",None) if subscription else None
+
+        return {
+            "success":True,
+            "active":bool(
+                paid and status in {"active","trialing"}
+            ),
+            "payment_status":checkout.payment_status,
+            "checkout_status":checkout.status,
+            "mode":checkout.mode,
+            "subscription_status":status
+        }
+
+    except stripe.error.StripeError as exc:
+        raise HTTPException(
+            502,
+            "Unable to verify payment."
+        ) from exc
+
 
 @app.post("/api/stripe/webhook")
 async def stripe_webhook(request:Request):
-    if not STRIPE_WEBHOOK_SECRET:raise HTTPException(503,"Stripe webhook is not configured.")
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(
+            503,
+            "Stripe webhook is not configured."
+        )
+
     payload=await request.body()
-    if len(payload)>MAX_BODY_SIZE:raise HTTPException(413,"Webhook payload too large.")
+
+    if len(payload)>MAX_BODY_SIZE:
+        raise HTTPException(
+            413,
+            "Webhook payload too large."
+        )
+
     signature=request.headers.get("stripe-signature")
-    if not signature:raise HTTPException(400,"Missing Stripe signature.")
-    try:event=stripe.Webhook.construct_event(payload,signature,STRIPE_WEBHOOK_SECRET)
-    except ValueError as exc:raise HTTPException(400,"Invalid webhook payload.") from exc
-    except stripe.error.SignatureVerificationError as exc:raise HTTPException(400,"Invalid webhook signature.") from exc
-    handled={"checkout.session.completed","customer.subscription.created","customer.subscription.updated","customer.subscription.deleted","invoice.paid","invoice.payment_failed"}
-    return {"success":True,"received":True,"event_type":event.get("type",""),"handled":event.get("type","") in handled}
+
+    if not signature:
+        raise HTTPException(
+            400,
+            "Missing Stripe signature."
+        )
+
+    try:
+        event=stripe.Webhook.construct_event(
+            payload,
+            signature,
+            STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            400,
+            "Invalid webhook payload."
+        ) from exc
+    except stripe.error.SignatureVerificationError as exc:
+        raise HTTPException(
+            400,
+            "Invalid webhook signature."
+        ) from exc
+
+    handled={
+        "checkout.session.completed",
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+        "invoice.paid",
+        "invoice.payment_failed"
+    }
+
+    return {
+        "success":True,
+        "received":True,
+        "event_type":event.get("type",""),
+        "handled":event.get("type","") in handled
+    }
+
 
 @app.get("/api/admin/config-status")
 async def admin_config_status(request:Request):
     username=request.headers.get("X-Admin-Username","")
     password=request.headers.get("X-Admin-Password","")
-    if not ADMIN_USERNAME or not ADMIN_PASSWORD:raise HTTPException(503,"Admin access is not configured.")
-    if not secrets.compare_digest(username,ADMIN_USERNAME) or not secrets.compare_digest(password,ADMIN_PASSWORD):raise HTTPException(401,"Unauthorized.")
-    return {"success":True,"app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"gemini_configured":bool(GEMINI_API_KEY),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),"stripe_webhook_configured":bool(STRIPE_WEBHOOK_SECRET)}
 
-@app.exception_handler(ValueError)
-async def value_error_handler(request:Request,exc:ValueError):
-    return JSONResponse(status_code=400,content={"success":False,"error":str(exc)})
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+        raise HTTPException(
+            503,
+            "Admin access is not configured."
+        )
 
-@app.exception_handler(Exception)
-async def generic_error_handler(request:Request,exc:Exception):
-    return JSONResponse(status_code=500,content={"success":False,"error":"Ocurrió un problema. Intenta nuevamente."})
+    if (
+        not secrets.compare_digest(username,ADMIN_USERNAME)
+        or
+        not secrets.compare_digest(password,ADMIN_PASSWORD)
+    ):
+        raise HTTPException(401,"Unauthorized.")
+
+    return {
+        "success":True,
+        "app":APP_NAME,
+        "version":APP_VERSION,
+        "brain_loaded":bool(engine.brain),
+        "brain_version":engine.brain.get("app",{}).get("version"),
+        "gemini_configured":bool(GEMINI_API_KEY),
+        "stripe_configured":bool(
+            STRIPE_SECRET_KEY and STRIPE_PRICE_ID1
+        ),
+        "stripe_webhook_configured":bool(
+            STRIPE_WEBHOOK_SECRET
+        )
+    }
+
 
 def normalize_language(language:Optional[str])->str:
     value=(language or "es").lower().strip()
     return value if value in ALLOWED_LANGUAGES else "es"
 
-def validate_session_id(session_id:str)->None:
-    if not session_id or len(session_id)>128:raise HTTPException(400,"Invalid session.")
-    allowed=set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
-    if any(c not in allowed for c in session_id):raise HTTPException(400,"Invalid session.")
 
-def localized(es:str,en:str,language:str)->str:return en if language=="en" else es
+def localized(es:str,en:str,language:str)->str:
+    return en if language=="en" else es
+
+
+def validate_session_id(session_id:str)->None:
+    if not session_id or len(session_id)>128:
+        raise HTTPException(400,"Invalid session.")
+
+    allowed=set(
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789-_"
+    )
+
+    if any(c not in allowed for c in session_id):
+        raise HTTPException(400,"Invalid session.")
+
+
+def local_text(value:Any,language:str="es")->str:
+    if value is None:
+        return ""
+
+    if isinstance(value,str):
+        return value
+
+    if isinstance(value,(int,float)):
+        return str(value)
+
+    if isinstance(value,list):
+        return ", ".join(
+            local_text(x,language)
+            for x in value
+            if local_text(x,language)
+        )
+
+    if isinstance(value,dict):
+        if language in value:
+            return local_text(value[language],language)
+
+        if "label" in value:
+            return local_text(value["label"],language)
+
+        if "name" in value:
+            return local_text(value["name"],language)
+
+        if "title" in value:
+            return local_text(value["title"],language)
+
+        if "id" in value:
+            return str(value["id"])
+
+    return str(value)
+
+
+def normalize_list(value:Any,language:str)->list:
+    if value is None:
+        return []
+
+    if isinstance(value,list):
+        output=[]
+
+        for item in value:
+            if isinstance(item,dict):
+                obj=dict(item)
+
+                if "label" not in obj:
+                    label=obj.get("name") or obj.get("title") or obj.get("id")
+                    if label is not None:
+                        obj["label"]=local_text(label,language)
+                else:
+                    obj["label"]=local_text(obj["label"],language)
+
+                output.append(obj)
+            else:
+                output.append({
+                    "id":str(item),
+                    "label":str(item)
+                })
+
+        return output
+
+    if isinstance(value,dict):
+        output=[]
+
+        for key,item in value.items():
+            if isinstance(item,dict):
+                obj=dict(item)
+                obj.setdefault("id",key)
+
+                if "label" not in obj:
+                    obj["label"]=local_text(
+                        obj.get("name") or obj.get("title") or key,
+                        language
+                    )
+                else:
+                    obj["label"]=local_text(
+                        obj["label"],
+                        language
+                    )
+
+                output.append(obj)
+
+            else:
+                output.append({
+                    "id":key,
+                    "label":local_text(item,language)
+                })
+
+        return output
+
+    return []
+
+
+def normalize_public_config(
+    config:Dict[str,Any],
+    language:str
+)->Dict[str,Any]:
+    """
+    Convierte el catálogo interno del brain en una respuesta
+    sencilla y estable para el frontend.
+
+    No cambia la fuente de verdad del motor.
+    Solo adapta la presentación pública.
+    """
+
+    if not isinstance(config,dict):
+        config={}
+
+    result=dict(config)
+
+    countries=result.get("countries")
+
+    if isinstance(countries,dict):
+        country_names=countries.get("country_names",{})
+        supported=countries.get("initial_supported",[])
+
+        country_list=[]
+
+        if isinstance(supported,list):
+            for code in supported:
+                raw=country_names.get(code,{}) if isinstance(country_names,dict) else {}
+
+                if isinstance(raw,dict):
+                    name=raw.get(language) or raw.get("es") or raw.get("en") or code
+                    currency=raw.get("currency") or ""
+                else:
+                    name=str(raw or code)
+                    currency=""
+
+                country_list.append({
+                    "id":code,
+                    "name":name,
+                    "currency":currency
+                })
+
+        result["countries"]=country_list
+
+    else:
+        result["countries"]=normalize_list(
+            countries,
+            language
+        )
+
+    opening=result.get("opening")
+
+    if isinstance(opening,dict):
+        priorities=opening.get("priorities",[])
+    else:
+        priorities=[]
+
+    result["opening"]=dict(opening or {})
+    result["opening"]["priorities"]=normalize_list(
+        priorities,
+        language
+    )
+
+    if "delivery_methods" not in result:
+        result["delivery_methods"]=normalize_list(
+            result.get("delivery"),
+            language
+        )
+    else:
+        result["delivery_methods"]=normalize_list(
+            result.get("delivery_methods"),
+            language
+        )
+
+    if "payment_methods" not in result:
+        result["payment_methods"]=normalize_list(
+            result.get("payments"),
+            language
+        )
+    else:
+        result["payment_methods"]=normalize_list(
+            result.get("payment_methods"),
+            language
+        )
+
+    if "help_topics" not in result:
+        help_center=result.get("help_center",{})
+
+        topics=[]
+
+        if isinstance(help_center,dict):
+            raw_topics=help_center.get("topics",help_center.get("items",[]))
+            topics=normalize_list(raw_topics,language)
+
+        result["help_topics"]=topics
+    else:
+        result["help_topics"]=normalize_list(
+            result.get("help_topics"),
+            language
+        )
+
+    messages=result.get("messages")
+
+    if not isinstance(messages,dict):
+        result["messages"]={}
+
+    result["messages"].setdefault(
+        "local_only",
+        localized(
+            "Los datos personales de dinero que registres para organizarte permanecen en este dispositivo.",
+            "Personal money information you record for organization stays on this device.",
+            language
+        )
+    )
+
+    result.setdefault(
+        "privacy",
+        {
+            "server_durable_storage":False,
+            "local_storage":True
+        }
+    )
+
+    result.setdefault(
+        "legal",
+        {
+            "is_bank":False,
+            "is_financial_institution":False,
+            "is_financial_advisor":False,
+            "is_payment_processor":False,
+            "executes_transfers":False
+        }
+    )
+
+    result.setdefault(
+        "security",
+        {
+            "never_collect":[
+                "bank_password",
+                "pin",
+                "cvv",
+                "security_code",
+                "provider_password",
+                "bank_login"
+            ]
+        }
+    )
+
+    return result
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(
+    request:Request,
+    exc:ValueError
+):
+    return JSONResponse(
+        status_code=400,
+        content={
+            "success":False,
+            "error":str(exc)
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_error_handler(
+    request:Request,
+    exc:Exception
+):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success":False,
+            "error":"Ocurrió un problema. Intenta nuevamente."
+        }
+    )
+
+
+if __name__=="__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT","10000")),
+        reload=False
+    )
