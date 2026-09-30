@@ -6,6 +6,7 @@ MAX_TEXT=2000
 
 class UserNeedRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
+    session_id:Optional[str]=None
     language:str="es"
     need_type:Optional[str]=None
     amount:Optional[float]=Field(None,gt=0,le=MAX_AMOUNT)
@@ -24,6 +25,11 @@ class UserNeedRequest(BaseModel):
     @classmethod
     def clean_language(cls,v):
         return (v or "es").lower().strip()
+
+    @field_validator("session_id")
+    @classmethod
+    def clean_session_id(cls,v):
+        return v.strip() if v else v
 
     @field_validator("destination_country")
     @classmethod
@@ -47,6 +53,11 @@ class IncomeRequest(BaseModel):
     frequency:str=Field(...,min_length=3,max_length=20)
     other_income:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
 
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
+
 class ExpenseItem(BaseModel):
     model_config=ConfigDict(extra="ignore")
     description:str=Field(...,min_length=1,max_length=120)
@@ -60,11 +71,21 @@ class SavingsRequest(BaseModel):
     amount:float=Field(...,ge=0,le=MAX_AMOUNT)
     savings_type:Optional[str]=Field("general",max_length=60)
 
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
+
 class PurchaseRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
     language:str="es"
     purchase_amount:float=Field(...,gt=0,le=MAX_AMOUNT)
     purchase_category:Optional[str]=Field(None,max_length=60)
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
 
 class MoneyPlanRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
@@ -78,6 +99,11 @@ class MoneyPlanRequest(BaseModel):
     remittance_frequency:Optional[str]=Field(None,max_length=20)
     savings_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
     period:Optional[str]=Field("monthly",max_length=20)
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
 
 class ComparisonRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
