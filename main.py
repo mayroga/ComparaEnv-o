@@ -1,4 +1,3 @@
-# main.py — REMESAS | May Roga LLC
 import os,secrets
 from pathlib import Path
 from typing import Any,Dict,Optional
@@ -13,7 +12,6 @@ APP_NAME="REMESAS"
 APP_VERSION="3.0.0"
 BASE_DIR=Path(__file__).resolve().parent
 STATIC_DIR=BASE_DIR/"static"
-
 app=FastAPI(title=APP_NAME,version=APP_VERSION,description="Asistencia sencilla para remesas y organización personal del dinero.",docs_url="/docs",redoc_url="/redoc")
 
 if STATIC_DIR.exists():app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
@@ -30,6 +28,7 @@ if STRIPE_SECRET_KEY:stripe.api_key=STRIPE_SECRET_KEY
 
 ALLOWED_LANGUAGES={"es","en"}
 MAX_BODY_SIZE=1024*1024
+MAX_SESSION_ID_LENGTH=128
 
 @app.on_event("startup")
 async def startup_event():
@@ -44,7 +43,7 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status":"ok","app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"brain_version":engine.brain.get("app",{}).get("version"),"providers_loaded":bool(engine.providers_data),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)}
+    return {"status":"ok","app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"brain_version":engine.brain.get("app",{}).get("version"),"providers_loaded":bool(engine.providers_data),"provider_count":len(engine.get_provider_registry()),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)}
 
 @app.get("/ping",include_in_schema=False)
 async def ping():return {"status":"ok"}
@@ -62,7 +61,7 @@ async def brain_version():
     return {"app":APP_NAME,"version":engine.brain.get("app",{}).get("version"),"engine_version":APP_VERSION}
 
 @app.post("/api/session",response_model=SessionResponse)
-async def create_session(language:str="es")->SessionResponse:
+async def create_session(language:str="es"):
     language=normalize_language(language)
     return SessionResponse(success=True,session=engine.create_session(language),message=localized("Sesión iniciada.","Session started.",language))
 
@@ -89,8 +88,7 @@ async def apply_need(request:Request):
     if session_id:
         validate_session_id(session_id)
         if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
-    else:
-        session_id=engine.create_session(language)["session_id"]
+    else:session_id=engine.create_session(language)["session_id"]
     body.pop("session_id",None)
     body["language"]=language
     try:
@@ -102,13 +100,16 @@ async def apply_need(request:Request):
 
 @app.post("/api/need/parse")
 async def parse_need(request:ParseNeedRequest):
+    language=normalize_language(request.language)
+    request.language=language
     parsed=engine.parse_need(request)
-    return {"success":True,"parsed":parsed,"assistant":engine.assistant_response(parsed.get("need_type","other"),request.language,request.text)}
+    return {"success":True,"parsed":parsed,"assistant":engine.assistant_response(parsed.get("need_type","other"),language,request.text)}
 
 @app.post("/api/session/{session_id}/need/parse")
 async def parse_need_into_session(session_id:str,request:ParseNeedRequest):
     validate_session_id(session_id)
     if engine.get_session(session_id) is None:raise HTTPException(404,"Session not found.")
+    request.language=normalize_language(request.language)
     parsed=engine.parse_need(request)
     values={k:parsed[k] for k in ("amount","destination_country","priority","urgency","delivery_method","payment_method","special_need") if parsed.get(k) is not None}
     values["parsed_user_need"]=parsed
@@ -119,6 +120,7 @@ async def parse_need_into_session(session_id:str,request:ParseNeedRequest):
 
 @app.post("/api/assistant")
 async def assistant(request:ParseNeedRequest):
+    request.language=normalize_language(request.language)
     parsed=engine.parse_need(request)
     return {"success":True,"parsed":parsed,"assistant":engine.assistant_response(parsed.get("need_type","other"),request.language,request.text),"help_topics":engine.help_topics(request.language)}
 
@@ -130,8 +132,7 @@ async def help_topics(language:str="es"):
 @app.get("/api/help/{topic}")
 async def help_topic(topic:str,language:str="es"):
     language=normalize_language(language)
-    topics=engine.help_topics(language)
-    for item in topics:
+    for item in engine.help_topics(language):
         if item.get("id")==topic:return {"success":True,"topic":item}
     raise HTTPException(404,"Help topic not found.")
 
@@ -151,6 +152,8 @@ async def provider(provider_id:str,language:str="es",country:str=""):
 
 @app.post("/api/compare",response_model=ComparisonResponse)
 async def compare(request:ComparisonRequest):
+    request.language=normalize_language(request.language)
+    request.destination_country=request.destination_country.upper().strip()
     return engine.compare(request)
 
 @app.post("/api/session/{session_id}/compare",response_model=ComparisonResponse)
@@ -169,15 +172,16 @@ async def select_provider_option(session_id:str,provider_id:str):
         option=engine.select_provider(session_id,provider_id)
     except KeyError as exc:
         code=str(exc).strip("'")
-        messages={"session_expired":(404,"Session not found."),"provider_not_found":(404,"Provider not found."),"provider_not_available":(404,"Provider not available.")}
+        messages={"session_expired":(404,"Session not found."),"provider_not_found":(404,"Provider not found."),"provider_not_available":(404,"Provider not available for this destination.")}
         status,msg=messages.get(code,(404,"Provider option not found."))
         raise HTTPException(status,msg)
-    except ValueError as exc:
-        raise HTTPException(400,str(exc))
+    except ValueError as exc:raise HTTPException(400,str(exc))
     return {"success":True,"selected_option":option,"session":engine.get_session(session_id)}
 
 @app.post("/api/final-check",response_model=FinalCheckResponse)
 async def final_check(request:FinalCheckRequest):
+    request.language=normalize_language(request.language)
+    request.destination_country=request.destination_country.upper().strip()
     return engine.final_check(request)
 
 @app.post("/api/session/{session_id}/final-check",response_model=FinalCheckResponse)
@@ -242,8 +246,7 @@ async def stripe_webhook(request:Request):
     if len(payload)>MAX_BODY_SIZE:raise HTTPException(413,"Webhook payload too large.")
     signature=request.headers.get("stripe-signature")
     if not signature:raise HTTPException(400,"Missing Stripe signature.")
-    try:
-        event=stripe.Webhook.construct_event(payload,signature,STRIPE_WEBHOOK_SECRET)
+    try:event=stripe.Webhook.construct_event(payload,signature,STRIPE_WEBHOOK_SECRET)
     except ValueError as exc:raise HTTPException(400,"Invalid webhook payload.") from exc
     except stripe.error.SignatureVerificationError as exc:raise HTTPException(400,"Invalid webhook signature.") from exc
     handled={"checkout.session.completed","customer.subscription.created","customer.subscription.updated","customer.subscription.deleted","invoice.paid","invoice.payment_failed"}
@@ -255,7 +258,7 @@ async def admin_config_status(request:Request):
     password=request.headers.get("X-Admin-Password","")
     if not ADMIN_USERNAME or not ADMIN_PASSWORD:raise HTTPException(503,"Admin access is not configured.")
     if not secrets.compare_digest(username,ADMIN_USERNAME) or not secrets.compare_digest(password,ADMIN_PASSWORD):raise HTTPException(401,"Unauthorized.")
-    return {"success":True,"app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"gemini_configured":bool(GEMINI_API_KEY),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),"stripe_webhook_configured":bool(STRIPE_WEBHOOK_SECRET)}
+    return {"success":True,"app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"gemini_configured":bool(GEMINI_API_KEY),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1),"stripe_webhook_configured":bool(STRIPE_WEBHOOK_SECRET),"providers_loaded":len(engine.get_provider_registry())}
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request:Request,exc:ValueError):
@@ -270,8 +273,9 @@ def normalize_language(language:Optional[str])->str:
     return value if value in ALLOWED_LANGUAGES else "es"
 
 def validate_session_id(session_id:str)->None:
-    if not session_id or len(session_id)>128:raise HTTPException(400,"Invalid session.")
+    if not session_id or len(session_id)>MAX_SESSION_ID_LENGTH:raise HTTPException(400,"Invalid session.")
     allowed=set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
     if any(c not in allowed for c in session_id):raise HTTPException(400,"Invalid session.")
 
-def localized(es:str,en:str,language:str)->str:return en if language=="en" else es
+def localized(es:str,en:str,language:str)->str:
+    return en if language=="en" else es
