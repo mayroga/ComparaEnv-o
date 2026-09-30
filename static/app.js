@@ -1,1547 +1,960 @@
 "use strict";
 
 const APP={
-  name:"REMESAS",
-  version:"4.0.0",
-  lang:localStorage.getItem("remesas_lang_v4")||"es",
-  session:null,
-  config:null,
-  moneyKey:"remesas_money_v4",
-  expensesKey:"remesas_expenses_v4",
-  familyKey:"remesas_family_v4",
-  prefsKey:"remesas_prefs_v4"
+ version:"4.2.1",
+ config:null,
+ sessionId:null,
+ language:localStorage.getItem("remesas_language")||"es",
+ amount:"",
+ destination:localStorage.getItem("remesas_destination")||"",
+ priority:"",
+ delivery:"",
+ paymentMethod:"",
+ freeText:"",
+ comparison:null,
+ selectedProvider:null,
+ access:null,
+ accessToken:localStorage.getItem("remesas_access_token")||"",
+ accessExpires:Number(localStorage.getItem("remesas_access_expires")||0),
+ paymentChecking:false,
+ adminTaps:[],
+ moneyKey:"remesas_money_v4",
+ expensesKey:"remesas_expenses_v4",
+ familyKey:"remesas_family_v4",
+ prefsKey:"remesas_prefs_v4"
 };
 
-const app=document.getElementById("app");
+const TEXT={
+es:{
+loading:"Preparando REMESAS.",
+title:"REMESAS",
+subtitle:"Una forma sencilla de organizar tu dinero y preparar una remesa.",
+serviceTitle:"SERVICIO REMESAS",
+servicePrice:"$10.99",
+serviceTime:"20 minutos",
+serviceText:"Un solo pago. Acceso al servicio durante 20 minutos.",
+pay:"PAGAR $10.99",
+checkingPayment:"Verificando tu pago...",
+paymentError:"No pudimos confirmar el pago. Inténtalo nuevamente.",
+paymentCancelled:"El pago fue cancelado.",
+accessExpired:"Tu acceso terminó. Puedes volver a entrar realizando un nuevo pago.",
+admin:"Acceso administrativo",
+username:"Usuario",
+password:"Contraseña",
+login:"ENTRAR",
+cancel:"CANCELAR",
+invalidLogin:"Usuario o contraseña incorrectos.",
+adminConfigured:"Acceso administrativo",
+question:"¿QUÉ NECESITAS HOY?",
+amount:"¿Cuánto quieres enviar?",
+amountPlaceholder:"Ej. 500",
+destination:"¿A qué país quieres enviar?",
+destinationPlaceholder:"Selecciona un país",
+priority:"¿Qué es lo más importante para ti?",
+fastest:"MÁS RÁPIDO",
+save:"AHORRAR",
+receiveMore:"QUE RECIBA MÁS",
+urgent:"URGENTE",
+balanced:"MEJOR EQUILIBRIO",
+compare:"COMPARAR TODO",
+other:"OTRA NECESIDAD",
+freeText:"Cuéntame qué necesitas",
+freeTextPlaceholder:"Ej. Quiero mandar $500 a México y necesito que llegue hoy.",
+continue:"CONTINUAR",
+back:"ATRÁS",
+clear:"EMPEZAR DE NUEVO",
+help:"NO SÉ QUÉ HACER",
+options:"Opciones para ti",
+verified:"Información verificada",
+fee:"Tarifa",
+rate:"Tipo de cambio",
+receive:"Recibe",
+delivery:"Entrega",
+method:"Forma de entrega",
+official:"IR AL PROVEEDOR",
+review:"REVISA ANTES DE CONTINUAR",
+country:"País",
+sendAmount:"Monto a enviar",
+receiveAmount:"Monto que recibe",
+payment:"Forma de pago",
+check:"VERIFICAR",
+selected:"Opción seleccionada",
+finalText:"Antes de continuar, revisa que los datos coincidan con lo que quieres enviar.",
+yes:"CONFIRMAR",
+no:"VOLVER",
+noResults:"No encontramos una cotización comercial verificada todavía.",
+tryAgain:"Las opciones están disponibles, pero los datos comerciales actuales requieren verificación.",
+helpTitle:"Te ayudamos a decidir",
+helpText:"No necesitas saber qué plataforma usar. Dime qué es lo más importante para ti.",
+close:"CERRAR",
+language:"EN",
+available:"Plataformas disponibles para tu destino.",
+commercialUnavailable:"Cotización actual no disponible",
+error:"No pudimos completar la consulta.",
+countryRequired:"Selecciona un país.",
+amountRequired:"Indica cuánto quieres enviar.",
+learn:"APRENDER",
+guide:"GUÍA RÁPIDA",
+money:"MI DINERO",
+learnTitle:"APRENDE A HACER UNA REMESA",
+guideTitle:"GUÍA RÁPIDA",
+moneyTitle:"MI DINERO",
+learnText:"Aprende el proceso con explicaciones originales de REMESAS.",
+guideText:"Sigue los pasos y termina en la página oficial del proveedor.",
+moneyText:"Organiza tus entradas, gastos, ahorro y dinero disponible.",
+officialNotice:"REMESAS es un servicio independiente. No es banco, financiera, procesador de pagos, asesor financiero ni representante oficial de ningún proveedor."
+},
+en:{
+loading:"Preparing REMITTANCES.",
+title:"REMITTANCES",
+subtitle:"A simple way to organize your money and prepare a remittance.",
+serviceTitle:"REMITTANCES SERVICE",
+servicePrice:"$10.99",
+serviceTime:"20 minutes",
+serviceText:"One payment. Service access for 20 minutes.",
+pay:"PAY $10.99",
+checkingPayment:"Checking your payment...",
+paymentError:"We could not confirm the payment. Please try again.",
+paymentCancelled:"Payment was cancelled.",
+accessExpired:"Your access ended. You can enter again with a new payment.",
+admin:"Administrative access",
+username:"Username",
+password:"Password",
+login:"ENTER",
+cancel:"CANCEL",
+invalidLogin:"Incorrect username or password.",
+adminConfigured:"Administrative access",
+question:"WHAT DO YOU NEED TODAY?",
+amount:"How much do you want to send?",
+amountPlaceholder:"Example: 500",
+destination:"Which country are you sending to?",
+destinationPlaceholder:"Select a country",
+priority:"What matters most to you?",
+fastest:"FASTEST",
+save:"SAVE MONEY",
+receiveMore:"RECIPIENT GETS MORE",
+urgent:"URGENT",
+balanced:"BEST BALANCE",
+compare:"COMPARE EVERYTHING",
+other:"OTHER NEED",
+freeText:"Tell me what you need",
+freeTextPlaceholder:"Example: I want to send $500 to Mexico and need it there today.",
+continue:"CONTINUE",
+back:"BACK",
+clear:"START OVER",
+help:"I DON'T KNOW WHAT TO DO",
+options:"Options for you",
+verified:"Verified information",
+fee:"Fee",
+rate:"Exchange rate",
+receive:"Recipient gets",
+delivery:"Delivery",
+method:"Delivery method",
+official:"GO TO PROVIDER",
+review:"REVIEW BEFORE CONTINUING",
+country:"Country",
+sendAmount:"Amount to send",
+receiveAmount:"Recipient gets",
+payment:"Payment method",
+check:"VERIFY",
+selected:"Selected option",
+finalText:"Before continuing, make sure the details match what you want to send.",
+yes:"CONFIRM",
+no:"GO BACK",
+noResults:"We could not find a verified commercial quote yet.",
+tryAgain:"The options are available, but current commercial data requires verification.",
+helpTitle:"We'll help you decide",
+helpText:"You don't need to know which platform to use. Tell us what matters most.",
+close:"CLOSE",
+language:"ES",
+available:"Platforms available for your destination.",
+commercialUnavailable:"Current quote unavailable",
+error:"We couldn't complete the request.",
+countryRequired:"Select a country.",
+amountRequired:"Enter the amount.",
+learn:"LEARN",
+guide:"QUICK GUIDE",
+money:"MY MONEY",
+learnTitle:"LEARN HOW TO SEND A REMITTANCE",
+guideTitle:"QUICK GUIDE",
+moneyTitle:"MY MONEY",
+learnText:"Learn the process with original REMITTANCES explanations.",
+guideText:"Follow the steps and finish at the provider's official website.",
+moneyText:"Organize income, expenses, savings and available money.",
+officialNotice:"REMITTANCES is an independent service. It is not a bank, financial institution, payment processor, financial advisor or official representative of any provider."
+}
+};
+
+function t(k){return(TEXT[APP.language]||TEXT.es)[k]||k}
 
 function esc(v){
-  return String(v??"")
-    .replace(/&/g,"&amp;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;")
-    .replace(/'/g,"&#039;");
+return String(v==null?"":v)
+.replace(/&/g,"&amp;")
+.replace(/</g,"&lt;")
+.replace(/>/g,"&gt;")
+.replace(/"/g,"&quot;")
+.replace(/'/g,"&#039;")
 }
 
-function t(es,en){return APP.lang==="en"?en:es;}
-
-function loc(v){
-  if(v&&typeof v==="object")return v[APP.lang]??v.es??v.en??"";
-  return v??"";
+function money(v,currency="USD"){
+if(v===null||v===undefined||v==="")return"—";
+const n=Number(v);
+if(!Number.isFinite(n))return esc(v);
+try{
+return new Intl.NumberFormat(APP.language==="es"?"es-US":"en-US",{style:"currency",currency:currency||"USD",maximumFractionDigits:2}).format(n)
+}catch(e){
+return`${n.toFixed(2)} ${currency}`
+}
 }
 
-function money(v){
-  const n=Number(v||0);
-  return new Intl.NumberFormat(
-    APP.lang==="en"?"en-US":"es-US",
-    {style:"currency",currency:"USD",maximumFractionDigits:2}
-  ).format(n);
+function saveLocal(){
+localStorage.setItem("remesas_language",APP.language);
+if(APP.destination)localStorage.setItem("remesas_destination",APP.destination);
 }
 
-function getJSON(key,fallback){
-  try{
-    const v=JSON.parse(localStorage.getItem(key)||"");
-    return v??fallback;
-  }catch{
-    return fallback;
-  }
+function accessValid(){
+return!!APP.accessToken&&APP.accessExpires>Date.now();
 }
 
-function setJSON(key,value){
-  try{
-    localStorage.setItem(key,JSON.stringify(value));
-  }catch(e){
-    showError(t("No se pudo guardar la información en este dispositivo.","The information could not be saved on this device."));
-  }
+function clearAccess(){
+APP.accessToken="";
+APP.accessExpires=0;
+APP.access=null;
+localStorage.removeItem("remesas_access_token");
+localStorage.removeItem("remesas_access_expires");
+}
+
+function setAccess(data){
+if(!data)return false;
+const token=data.token||data.access?.token;
+const expires=Number(data.expires_at||data.access?.expires_at||0);
+if(!token||!expires)return false;
+APP.accessToken=token;
+APP.accessExpires=expires>100000000000?expires:expires*1000;
+APP.access={
+token:APP.accessToken,
+expires_at:APP.accessExpires,
+seconds_remaining:Math.max(0,Math.floor((APP.accessExpires-Date.now())/1000)),
+active:true,
+subject:data.subject||data.access?.subject||"user"
+};
+localStorage.setItem("remesas_access_token",APP.accessToken);
+localStorage.setItem("remesas_access_expires",String(APP.accessExpires));
+return true
 }
 
 async function api(url,options={}){
-  const opts={
-    ...options,
-    headers:{
-      "Content-Type":"application/json",
-      ...(options.headers||{})
-    }
-  };
-  const response=await fetch(url,opts);
-  let data={};
-  try{data=await response.json();}catch{}
-  if(!response.ok){
-    throw new Error(
-      data.error||
-      data.detail||
-      t("No se pudo completar la operación.","The operation could not be completed.")
-    );
-  }
-  return data;
+const headers={"Accept":"application/json",...(options.headers||{})};
+if(options.body!==undefined&&!headers["Content-Type"])headers["Content-Type"]="application/json";
+if(APP.accessToken)headers["X-Remesas-Access-Token"]=APP.accessToken;
+const response=await fetch(url,{...options,headers});
+let data=null;
+try{data=await response.json()}catch(e){}
+if(response.status===401){
+clearAccess();
+if(!options.skipAccessRedirect)renderPaywall(t("accessExpired"));
+throw new Error(data?.detail||data?.message||"401")
+}
+if(!response.ok)throw new Error(data?.detail||data?.message||data?.error||t("error"));
+return data
 }
 
-async function loadConfig(){
-  const data=await api(`/api/config?language=${encodeURIComponent(APP.lang)}`);
-  APP.config=data||{};
-  return APP.config;
+async function publicApi(url,options={}){
+const headers={"Accept":"application/json",...(options.headers||{})};
+if(options.body!==undefined&&!headers["Content-Type"])headers["Content-Type"]="application/json";
+const response=await fetch(url,{...options,headers});
+let data=null;
+try{data=await response.json()}catch(e){}
+if(!response.ok)throw new Error(data?.detail||data?.message||data?.error||t("error"));
+return data
 }
 
-async function startSession(preserve=true){
-  if(preserve&&APP.session?.session_id){
-    try{
-      const data=await api(`/api/session/${encodeURIComponent(APP.session.session_id)}`);
-      if(data.session){
-        APP.session=data.session;
-        return APP.session;
-      }
-    }catch{}
-  }
+function priorityId(p){return typeof p==="string"?p:p?.id||""}
 
-  const data=await api(
-    `/api/session?language=${encodeURIComponent(APP.lang)}`,
-    {method:"POST"}
-  );
-
-  APP.session=data.session||data;
-  return APP.session;
+function priorityLabel(p){
+if(typeof p==="string"){
+const map={fastest:"fastest",save:"save",recipient_gets_more:"receiveMore",urgent:"urgent",balanced:"balanced",compare_all:"compare",other:"other"};
+return t(map[p]||p)
 }
-
-async function changeLanguage(){
-  APP.lang=APP.lang==="es"?"en":"es";
-  localStorage.setItem("remesas_lang_v4",APP.lang);
-
-  try{
-    if(APP.session?.session_id){
-      const data=await api("/api/need",{
-        method:"POST",
-        body:JSON.stringify({
-          session_id:APP.session.session_id,
-          language:APP.lang
-        })
-      });
-      if(data.session)APP.session=data.session;
-    }else{
-      await startSession(false);
-    }
-
-    await loadConfig();
-    renderHome();
-  }catch(error){
-    showError(error.message);
-  }
-}
-
-function topbar(title="REMESAS"){
-  return `
-    <header class="topbar">
-      <button class="icon-button" type="button"
-        onclick="renderHome()"
-        aria-label="${esc(t("Volver","Back"))}">←</button>
-      <strong>${esc(title)}</strong>
-      <button class="lang-button" type="button"
-        onclick="changeLanguage()">${APP.lang==="es"?"EN":"ES"}</button>
-    </header>`;
-}
-
-function renderShell(content,title="REMESAS"){
-  app.innerHTML=`
-    ${topbar(title)}
-    <main class="page">${content}</main>`;
-  window.scrollTo({top:0,behavior:"smooth"});
-}
-
-function renderHome(){
-  const opening=APP.config?.opening||{};
-  const title=loc(opening.title)||t("TU DINERO, MÁS CLARO","YOUR MONEY, CLEARER");
-  const subtitle=loc(opening.subtitle)||t(
-    "Entiende tu necesidad, compara lo que puede verificarse y continúa en la fuente oficial.",
-    "Understand your need, compare what can be verified, and continue to the official source."
-  );
-  const notice=loc(opening.notice)||t(
-    "REMESAS no inventa tarifas, tasas, tiempos ni disponibilidad.",
-    "REMESAS does not invent fees, rates, delivery times, or availability."
-  );
-
-  app.innerHTML=`
-    <header class="hero">
-      <div class="hero-top">
-        <span class="brand">REMESAS</span>
-        <button class="lang-button" type="button"
-          onclick="changeLanguage()">${APP.lang==="es"?"EN":"ES"}</button>
-      </div>
-      <h1>${esc(title)}</h1>
-      <p>${esc(subtitle)}</p>
-    </header>
-
-    <main class="home">
-      <div class="notice">
-        <strong>${esc(t("Importante","Important"))}</strong>
-        <p>${esc(notice)}</p>
-      </div>
-
-      <section class="quick-grid">
-        ${homeCard(
-          "💸",
-          t("Enviar dinero","Send money"),
-          t("Organiza una remesa y revisa proveedores.","Organize a transfer and review providers."),
-          "renderRemittance()"
-        )}
-        ${homeCard(
-          "💰",
-          t("Mi dinero","My money"),
-          t("Calcula cuánto puedes usar.","Calculate how much you can use."),
-          "renderMoney()"
-        )}
-        ${homeCard(
-          "📅",
-          t("Mi semana","My week"),
-          t("Mira tu dinero disponible por semana.","See your money available per week."),
-          "renderWeek()"
-        )}
-        ${homeCard(
-          "🧾",
-          t("Mis gastos","My expenses"),
-          t("Registra y revisa tus gastos.","Record and review your expenses."),
-          "renderExpenses()"
-        )}
-        ${homeCard(
-          "👨‍👩‍👧",
-          t("Familia","Family"),
-          t("Guarda una referencia para una remesa.","Save a reference for a transfer."),
-          "renderFamily()"
-        )}
-        ${homeCard(
-          "❓",
-          t("No entiendo","I need help"),
-          t("Escribe qué necesitas y te orientamos.","Write what you need and we will guide you."),
-          "renderHelp()"
-        )}
-        ${homeCard(
-          "🛒",
-          t("Planear una compra","Plan a purchase"),
-          t("Comprueba si una compra cabe en tu dinero.","Check whether a purchase fits your money."),
-          "renderPurchase()"
-        )}
-        ${homeCard(
-          "🏦",
-          t("Ahorrar","Save"),
-          t("Reserva dinero para un objetivo.","Reserve money for a goal."),
-          "renderSavings()"
-        )}
-      </section>
-
-      <section class="card need-card">
-        <h2>${esc(t("¿Qué necesitas hacer?","What do you need to do?"))}</h2>
-        <textarea
-          id="freeNeed"
-          maxlength="2000"
-          placeholder="${esc(t(
-            "Ejemplo: quiero enviar $200 a México...",
-            "Example: I want to send $200 to Mexico..."
-          ))}"></textarea>
-        <button class="primary" type="button"
-          onclick="understandNeed()">
-          ${esc(t("Ayúdame","Help me"))}
-        </button>
-      </section>
-
-      <section class="privacy">
-        <strong>${esc(t("Privacidad","Privacy"))}</strong>
-        <span>${esc(t(
-          "Tus datos personales de dinero permanecen en este dispositivo. La sesión de remesa es temporal.",
-          "Your personal money data stays on this device. The remittance session is temporary."
-        ))}</span>
-      </section>
-
-      <footer>${esc(t("REMESAS · May Roga LLC","REMESAS · May Roga LLC"))}</footer>
-    </main>`;
-}
-
-function homeCard(icon,title,text,action){
-  return `
-    <button class="home-card" type="button" onclick="${action}">
-      <span class="card-icon">${icon}</span>
-      <strong>${esc(title)}</strong>
-      <small>${esc(text)}</small>
-    </button>`;
-}
-
-async function understandNeed(){
-  const input=document.getElementById("freeNeed");
-  const text=(input?.value||"").trim();
-
-  if(!text){
-    showError(t("Escribe primero qué necesitas.","Write what you need first."));
-    return;
-  }
-
-  try{
-    const data=await api("/api/assistant",{
-      method:"POST",
-      body:JSON.stringify({
-        text,
-        language:APP.lang
-      })
-    });
-    renderAssistant(data||{});
-  }catch(error){
-    showError(error.message);
-  }
-}
-
-function renderAssistant(data){
-  const parsed=data.parsed||{};
-  const isRemittance=parsed.need_type==="remittance";
-
-  const summary=[
-    parsed.amount!=null?
-      `<div><small>${esc(t("Monto","Amount"))}</small><strong>${money(parsed.amount)}</strong></div>`:"",
-    parsed.destination_country?
-      `<div><small>${esc(t("Destino","Destination"))}</small><strong>${esc(countryName(parsed.destination_country))}</strong></div>`:"",
-    parsed.priority?
-      `<div><small>${esc(t("Prioridad","Priority"))}</small><strong>${esc(priorityLabel(parsed.priority))}</strong></div>`:"",
-    parsed.frequency?
-      `<div><small>${esc(t("Frecuencia","Frequency"))}</small><strong>${esc(frequencyLabel(parsed.frequency))}</strong></div>`:""
-  ].join("");
-
-  let action="renderHome()";
-
-  if(isRemittance){
-    window.__parsedRemittance=parsed;
-    action="beginParsedRemittance()";
-  }else{
-    action=actionForNeed(parsed.need_type);
-  }
-
-  renderShell(`
-    <section class="card">
-      <div class="status success">${esc(t("Entendido","Understood"))}</div>
-      <h1>${esc(data.assistant||t("Entendí tu necesidad.","I understood your need."))}</h1>
-      ${summary?`<div class="review-grid">${summary}</div>`:""}
-
-      <button class="primary" type="button" onclick="${action}">
-        ${esc(isRemittance?
-          t("Continuar con la remesa","Continue with transfer"):
-          t("Continuar","Continue"))}
-      </button>
-
-      <button class="secondary" type="button" onclick="renderHome()">
-        ${esc(t("Volver","Back"))}
-      </button>
-    </section>`,
-    t("Tu necesidad","Your need")
-  );
-}
-
-function actionForNeed(type){
-  const map={
-    money_available:"renderMoney()",
-    expenses:"renderExpenses()",
-    savings:"renderSavings()",
-    purchase:"renderPurchase()",
-    family:"renderFamily()",
-    fees:"renderHelp()",
-    exchange_rate:"renderHelp()",
-    delivery:"renderHelp()",
-    provider_difference:"renderRemittance()",
-    security:"renderHelp()"
-  };
-  return map[type]||"renderHome()";
-}
-
-async function beginParsedRemittance(){
-  const parsed=window.__parsedRemittance||{};
-
-  try{
-    await startSession(true);
-
-    const body={
-      session_id:APP.session.session_id,
-      language:APP.lang,
-      need_type:"remittance"
-    };
-
-    [
-      "amount",
-      "destination_country",
-      "priority",
-      "urgency",
-      "frequency",
-      "delivery_method",
-      "payment_method",
-      "recipient_amount_target"
-    ].forEach(key=>{
-      if(parsed[key]!==undefined&&parsed[key]!==null){
-        body[key]=parsed[key];
-      }
-    });
-
-    const data=await api("/api/need",{
-      method:"POST",
-      body:JSON.stringify(body)
-    });
-
-    if(data.session)APP.session=data.session;
-
-    renderRemittance(parsed);
-  }catch(error){
-    showError(error.message);
-  }
+return p?.label||p?.name||p?.id||""
 }
 
 function countryName(code){
-  const list=APP.config?.countries||[];
-  const item=list.find(
-    x=>String(x.code||"").toUpperCase()===String(code||"").toUpperCase()
-  );
-  return loc(item?.name)||item?.code||code||"";
+const list=APP.config?.countries||[];
+const found=list.find(c=>(typeof c==="string"?c:(c.id||c.code))===code);
+return found?(typeof found==="string"?found:(found.name||found.country||code)):code||""
 }
 
-function priorityLabel(value){
-  const map={
-    recipient_gets_more:t("Más para el destinatario","More for recipient"),
-    fastest:t("Rapidez","Speed"),
-    urgent:t("Urgente","Urgent"),
-    save:t("Ahorrar","Save"),
-    balanced:t("Equilibrio","Balanced"),
-    compare_all:t("Comparar","Compare")
-  };
-  return map[value]||value||"";
+function renderHeader(){
+return`<header class="topbar"><div class="brand"><div class="brand-mark">R</div><div><strong>${esc(t("title"))}</strong><span>May Roga LLC</span></div></div><button class="language-btn" id="languageBtn">${esc(t("language"))}</button></header>`
 }
 
-function frequencyLabel(value){
-  const map={
-    weekly:t("Semanal","Weekly"),
-    biweekly:t("Quincenal","Biweekly"),
-    monthly:t("Mensual","Monthly"),
-    one_time:t("Una vez","One time")
-  };
-  return map[value]||value||"";
+function bindLanguage(fn){
+document.getElementById("languageBtn")?.addEventListener("click",()=>{
+APP.language=APP.language==="es"?"en":"es";
+saveLocal();
+fn()
+})
 }
 
-function renderRemittance(parsed={}){
-  const session=APP.session||{};
-  const amount=session.amount??parsed.amount??"";
-  const country=session.destination_country||parsed.destination_country||"";
-  const priority=session.priority||parsed.priority||"";
-  const frequency=session.frequency||parsed.frequency||"";
-  const urgency=session.urgency??parsed.urgency??null;
-  const delivery=session.delivery_method||parsed.delivery_method||"";
-  const payment=session.payment_method||parsed.payment_method||"";
-
-  const countries=APP.config?.countries||[];
-  const deliveryMethods=APP.config?.delivery_methods||[];
-  const paymentMethods=APP.config?.payment_methods||[];
-
-  renderShell(`
-    <section class="card">
-      <h1>${esc(t("Enviar dinero","Send money"))}</h1>
-      <p class="small">${esc(t(
-        "Solo preguntamos lo que puede cambiar el siguiente paso.",
-        "We only ask what can change the next step."
-      ))}</p>
-
-      <label>${esc(t("¿Cuánto quieres enviar?","How much do you want to send?"))}</label>
-      <input id="sendAmount"
-        type="number"
-        min="0.01"
-        max="1000000"
-        step="0.01"
-        value="${esc(amount)}"
-        oninput="updateMoneyWarning()">
-
-      <label>${esc(t("¿A qué país?","Which country?"))}</label>
-      <select id="sendCountry">
-        <option value="">${esc(t("Selecciona","Select"))}</option>
-        ${countries.map(c=>`
-          <option value="${esc(c.code)}"
-            ${String(c.code)===String(country)?"selected":""}>
-            ${esc(loc(c.name)||c.code)}
-          </option>`).join("")}
-      </select>
-
-      <label>${esc(t("¿Qué importa más?","What matters most?"))}</label>
-      <select id="sendPriority">
-        <option value="">${esc(t("No estoy seguro","Not sure"))}</option>
-        <option value="recipient_gets_more" ${priority==="recipient_gets_more"?"selected":""}>
-          ${esc(t("Que reciba más","Recipient gets more"))}
-        </option>
-        <option value="fastest" ${priority==="fastest"?"selected":""}>
-          ${esc(t("Rapidez","Speed"))}
-        </option>
-        <option value="save" ${priority==="save"?"selected":""}>
-          ${esc(t("Ahorrar","Save"))}
-        </option>
-        <option value="balanced" ${priority==="balanced"?"selected":""}>
-          ${esc(t("Equilibrio","Balanced"))}
-        </option>
-      </select>
-
-      <label>${esc(t("¿Es urgente?","Is it urgent?"))}</label>
-      <select id="sendUrgency">
-        <option value="">${esc(t("No estoy seguro","Not sure"))}</option>
-        <option value="true" ${urgency===true?"selected":""}>
-          ${esc(t("Sí","Yes"))}
-        </option>
-        <option value="false" ${urgency===false?"selected":""}>
-          ${esc(t("No","No"))}
-        </option>
-      </select>
-
-      <label>${esc(t("¿Cada cuánto envías?","How often do you send?"))}</label>
-      <select id="sendFrequency">
-        <option value="">${esc(t("Una sola vez / no sé","One time / not sure"))}</option>
-        <option value="one_time" ${frequency==="one_time"?"selected":""}>
-          ${esc(t("Una vez","One time"))}
-        </option>
-        <option value="weekly" ${frequency==="weekly"?"selected":""}>
-          ${esc(t("Cada semana","Weekly"))}
-        </option>
-        <option value="biweekly" ${frequency==="biweekly"?"selected":""}>
-          ${esc(t("Cada dos semanas","Every two weeks"))}
-        </option>
-        <option value="monthly" ${frequency==="monthly"?"selected":""}>
-          ${esc(t("Cada mes","Monthly"))}
-        </option>
-      </select>
-
-      <label>${esc(t("¿Cómo recibe?","How does the recipient receive?"))}</label>
-      <select id="sendDelivery">
-        <option value="">${esc(t("No sé todavía","Not yet sure"))}</option>
-        ${deliveryMethods.map(x=>`
-          <option value="${esc(x.id)}"
-            ${delivery===x.id?"selected":""}>
-            ${esc(loc(x.label)||x.id)}
-          </option>`).join("")}
-      </select>
-
-      <label>${esc(t("¿Cómo pagarías?","How will you pay?"))}</label>
-      <select id="sendPayment">
-        <option value="">${esc(t("No sé todavía","Not yet sure"))}</option>
-        ${paymentMethods.map(x=>`
-          <option value="${esc(x.id)}"
-            ${payment===x.id?"selected":""}>
-            ${esc(loc(x.label)||x.id)}
-          </option>`).join("")}
-      </select>
-
-      <div id="moneyWarning"></div>
-
-      <button class="primary" type="button" onclick="compare()">
-        ${esc(t("Revisar opciones","Review options"))}
-      </button>
-    </section>`,
-    t("Enviar dinero","Send money")
-  );
-
-  updateMoneyWarning();
+function renderPaywall(message=""){
+const configured=!!APP.config?.stripe?.enabled;
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell centered">
+<section class="main-card paywall-card">
+<div class="hero-badge">● ${esc(t("serviceTitle"))}</div>
+<h1>${esc(t("serviceTitle"))}</h1>
+<div class="pay-price">${esc(t("servicePrice"))}</div>
+<h2>${esc(t("serviceTime"))}</h2>
+<p>${esc(t("serviceText"))}</p>
+<div class="paywall-includes">
+<div>✓ ${esc(t("money"))}</div>
+<div>✓ ${esc(t("question"))}</div>
+<div>✓ ${esc(t("learn"))}</div>
+<div>✓ ${esc(t("guide"))}</div>
+<div>✓ ${esc(t("compare"))}</div>
+</div>
+${message?`<div class="error-box">${esc(message)}</div>`:""}
+${configured?
+`<button class="primary-btn" id="payBtn">${esc(t("pay"))}</button>`:
+`<div class="error-box">${esc(APP.language==="es"?"El pago no está configurado en este momento.":"Payment is not configured at this time.")}</div>`}
+<p class="small-note">${esc(t("officialNotice"))}</p>
+</section>
+</main>
+<div id="modal"></div>`;
+document.getElementById("payBtn")?.addEventListener("click",startPayment);
+bindLanguage(()=>renderPaywall(message))
 }
 
-function getMoneyState(){
-  return getJSON(APP.moneyKey,{
-    income:0,
-    incomeFreq:"monthly",
-    monthlyIncome:0,
-    essential:0,
-    flexible:0,
-    savings:0,
-    remittance:0,
-    available:0,
-    reserved:0
-  });
+async function startPayment(){
+const btn=document.getElementById("payBtn");
+if(btn){btn.disabled=true;btn.textContent=t("loading")}
+try{
+const data=await publicApi("/api/create-checkout-session",{method:"POST",body:"{}"});
+if(!data?.checkout_url)throw new Error(t("paymentError"));
+window.location.href=data.checkout_url
+}catch(e){
+renderPaywall(e.message)
+}
 }
 
-function updateMoneyWarning(){
-  const box=document.getElementById("moneyWarning");
-  const input=document.getElementById("sendAmount");
-
-  if(!box||!input)return;
-
-  const amount=Number(input.value||0);
-  const m=getMoneyState();
-  const available=Number(m.available||0);
-  const warnings=[];
-
-  if(available>0&&amount>available){
-    warnings.push(t(
-      `El monto supera tu disponible calculado (${money(available)}).`,
-      `The amount is above your calculated available balance (${money(available)}).`
-    ));
-  }
-
-  if(amount>10000){
-    warnings.push(t(
-      "Por este monto conviene revisar cuidadosamente los datos finales del proveedor.",
-      "For this amount, carefully review the provider's final details."
-    ));
-  }
-
-  box.innerHTML=warnings.length
-    ?`<div class="status warning">${warnings.map(esc).join("<br>")}</div>`
-    :"";
+async function checkPaymentReturn(){
+const params=new URLSearchParams(window.location.search);
+const payment=params.get("payment");
+const sessionId=params.get("session_id");
+if(payment==="cancelled"){
+history.replaceState({},document.title,window.location.pathname);
+renderPaywall(t("paymentCancelled"));
+return false
+}
+if(payment!=="success"||!sessionId)return false;
+renderLoading(t("checkingPayment"));
+try{
+const data=await publicApi(`/api/payment/check?session_id=${encodeURIComponent(sessionId)}`);
+history.replaceState({},document.title,window.location.pathname);
+if(data?.authorized&&data?.token){
+setAccess(data);
+await afterAccess();
+return true
+}
+renderPaywall(t("paymentError"));
+return true
+}catch(e){
+history.replaceState({},document.title,window.location.pathname);
+renderPaywall(e.message||t("paymentError"));
+return true
+}
 }
 
-async function compare(){
-  const amount=Number(document.getElementById("sendAmount")?.value||0);
-  const destination=document.getElementById("sendCountry")?.value||"";
-
-  if(!amount||amount<=0){
-    showError(t("Indica un monto válido.","Enter a valid amount."));
-    return;
-  }
-
-  if(!destination){
-    showError(t("Selecciona el país de destino.","Select the destination country."));
-    return;
-  }
-
-  const priority=document.getElementById("sendPriority")?.value||null;
-  const urgencyValue=document.getElementById("sendUrgency")?.value||"";
-  const urgency=urgencyValue===""?null:urgencyValue==="true";
-  const frequency=document.getElementById("sendFrequency")?.value||null;
-  const delivery=document.getElementById("sendDelivery")?.value||null;
-  const payment=document.getElementById("sendPayment")?.value||null;
-
-  try{
-    await startSession(true);
-
-    const data=await api("/api/need",{
-      method:"POST",
-      body:JSON.stringify({
-        session_id:APP.session.session_id,
-        language:APP.lang,
-        need_type:"remittance",
-        amount,
-        destination_country:destination,
-        priority,
-        urgency,
-        frequency,
-        delivery_method:delivery,
-        payment_method:payment
-      })
-    });
-
-    if(data.session)APP.session=data.session;
-
-    const result=await api(
-      `/api/session/${encodeURIComponent(APP.session.session_id)}/compare`,
-      {method:"POST"}
-    );
-
-    renderComparison(result||{});
-  }catch(error){
-    showError(error.message);
-  }
+async function checkAccess(){
+if(!accessValid())return false;
+try{
+const data=await api("/api/access/status",{skipAccessRedirect:true});
+if(data?.active){
+APP.access={...data,token:APP.accessToken};
+if(data.expires_at){
+APP.accessExpires=Number(data.expires_at)>100000000000?Number(data.expires_at):Number(data.expires_at)*1000;
+localStorage.setItem("remesas_access_expires",String(APP.accessExpires))
+}
+return true
+}
+}catch(e){}
+clearAccess();
+return false
 }
 
-function providerStatus(provider){
-  return provider.commercial_data_status==="verified"
-    ?t("Datos verificados","Verified data")
-    :t("Revisar en sitio oficial","Review official site");
+async function afterAccess(){
+if(!APP.config)await loadConfig();
+await createSession();
+renderHome()
 }
 
-function renderComparison(data){
-  const providers=data.available_providers||[];
-  const results=data.results||data.verified_results||[];
-
-  renderShell(`
-    <section class="card">
-      <div class="status ${data.results_available?"success":"warning"}">
-        ${esc(
-          data.results_available
-            ?t(
-              `${data.verified_count??results.length} opción(es) con datos verificados`,
-              `${data.verified_count??results.length} option(s) with verified data`
-            )
-            :t(
-              "No hay datos comerciales actuales verificados",
-              "No current verified commercial data"
-            )
-        )}
-      </div>
-
-      <h1>${esc(t("Opciones para tu remesa","Options for your transfer"))}</h1>
-
-      <div class="summary">
-        <strong>${esc(countryName(data.destination_country||APP.session?.destination_country))}</strong>
-        <span>${money(data.amount??APP.session?.amount)}</span>
-      </div>
-
-      <p>${esc(data.explanation||"")}</p>
-
-      <div class="provider-list">
-        ${providers.map(p=>providerCard(p,results)).join("")}
-      </div>
-
-      ${
-        data.precautions?.length
-        ?`
-          <div class="notice">
-            <strong>${esc(t("Antes de continuar","Before continuing"))}</strong>
-            <ul>
-              ${data.precautions.map(x=>`<li>${esc(loc(x))}</li>`).join("")}
-            </ul>
-          </div>`
-        :""
-      }
-
-      <button class="secondary" type="button" onclick="renderRemittance()">
-        ${esc(t("Cambiar datos","Change details"))}
-      </button>
-    </section>`,
-    t("Opciones","Options")
-  );
+async function createSession(){
+try{
+const data=await publicApi(`/api/session?language=${encodeURIComponent(APP.language)}`,{method:"POST",body:"{}"});
+APP.sessionId=data?.session?.session_id||data?.session_id||null;
+return APP.sessionId
+}catch(e){
+APP.sessionId=null;
+return null
+}
 }
 
-function providerCard(provider,results=[]){
-  const verified=provider.commercial_data_status==="verified";
-
-  const result=results.find(
-    x=>x.provider_id===provider.provider_id
-  );
-
-  const urls=provider.official_urls||{};
-  const providerId=provider.provider_id||provider.id||"";
-  const delivery=(provider.delivery_methods||[]).join(", ");
-
-  return `
-    <article class="provider-card">
-      <div class="provider-head">
-        <div>
-          <h3>${esc(provider.provider_name||provider.name||"")}</h3>
-          <span class="status ${verified?"success":"warning"}">
-            ${esc(providerStatus(provider))}
-          </span>
-        </div>
-      </div>
-
-      ${
-        verified&&result
-        ?`
-          <div class="metric-grid">
-            <div>
-              <small>${esc(t("Tarifa","Fee"))}</small>
-              <strong>${result.fee!=null?money(result.fee):"—"}</strong>
-            </div>
-            <div>
-              <small>${esc(t("Tasa","Rate"))}</small>
-              <strong>${esc(result.exchange_rate??"—")}</strong>
-            </div>
-            <div>
-              <small>${esc(t("Recibe","Gets"))}</small>
-              <strong>${result.recipient_amount!=null?money(result.recipient_amount):"—"}</strong>
-            </div>
-            <div>
-              <small>${esc(t("Entrega","Delivery"))}</small>
-              <strong>${esc(result.estimated_delivery??"—")}</strong>
-            </div>
-          </div>`
-        :`
-          <p class="small">
-            ${esc(t(
-              "No mostramos tarifas, tasas, tiempos ni disponibilidad como datos actuales porque no están verificados.",
-              "We do not show fees, rates, timing, or availability as current data because they are not verified."
-            ))}
-          </p>`
-      }
-
-      ${
-        delivery
-        ?`
-          <div class="small">
-            ${esc(t("Métodos declarados:","Declared methods:"))}
-            ${esc(delivery)}
-          </div>`
-        :""
-      }
-
-      ${
-        urls.site||urls.send_money
-        ?`
-          <button class="primary" type="button"
-            onclick="selectProvider('${esc(providerId)}')">
-            ${esc(t("Revisar proveedor","Review provider"))}
-          </button>`
-        :""
-      }
-    </article>`;
+async function ensureSession(){
+if(!APP.sessionId)await createSession();
+return APP.sessionId
 }
 
-async function selectProvider(providerId){
-  if(!providerId){
-    showError(t("Proveedor no disponible.","Provider unavailable."));
-    return;
-  }
-
-  try{
-    if(!APP.session?.session_id){
-      await startSession(false);
-    }
-
-    const data=await api(
-      `/api/session/${encodeURIComponent(APP.session.session_id)}/select/${encodeURIComponent(providerId)}`,
-      {method:"POST"}
-    );
-
-    if(data.session)APP.session=data.session;
-
-    renderFinalCheck();
-  }catch(error){
-    showError(error.message);
-  }
+async function loadConfig(){
+APP.config=await publicApi(`/api/config?language=${encodeURIComponent(APP.language)}`)
 }
 
-async function renderFinalCheck(){
-  if(!APP.session?.selected_option){
-    showError(t(
-      "Selecciona primero un proveedor.",
-      "Select a provider first."
-    ));
-    return;
-  }
-
-  try{
-    const data=await api(
-      `/api/session/${encodeURIComponent(APP.session.session_id)}/final-check`,
-      {method:"POST"}
-    );
-
-    renderFinalResult(data||{});
-  }catch(error){
-    showError(error.message);
-  }
+function renderLoading(text=t("loading")){
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell centered">
+<section class="loading-card">
+<div class="loader large"></div>
+<h2>${esc(text)}</h2>
+</section>
+</main>`;
+bindLanguage(()=>renderLoading(text))
 }
 
-function renderFinalResult(data){
-  const option=APP.session?.selected_option||{};
-  const urls=option.official_urls||{};
-  const url=option.continue_url||urls.send_money||urls.site||"";
-
-  renderShell(`
-    <section class="card">
-      <div class="status ${data.ready_to_continue?"success":"warning"}">
-        ${esc(
-          data.ready_to_continue
-            ?t("Revisión completada","Review completed")
-            :t("Revisa los datos","Review the details")
-        )}
-      </div>
-
-      <h1>${esc(option.provider_name||option.name||"")}</h1>
-
-      <p>${esc(data.message||"")}</p>
-
-      <div class="checks">
-        ${(data.checks||[]).map(check=>`
-          <div class="check ${check.ok?"ok":"bad"}">
-            <strong>${check.ok?"✓":"!"}</strong>
-            <span>
-              <b>${esc(loc(check.label))}</b>
-              ${esc(loc(check.message))}
-            </span>
-          </div>
-        `).join("")}
-      </div>
-
-      ${
-        data.requirements?.length
-        ?`
-          <div class="notice">
-            <strong>${esc(t("Requisitos","Requirements"))}</strong>
-            <ul>
-              ${data.requirements.map(x=>`<li>${esc(loc(x))}</li>`).join("")}
-            </ul>
-          </div>`
-        :""
-      }
-
-      <div class="notice">
-        ${esc(t(
-          "Confirma la tarifa, tasa, tiempo, disponibilidad y datos del destinatario directamente en el sitio oficial.",
-          "Confirm the fee, rate, timing, availability, and recipient details directly on the official site."
-        ))}
-      </div>
-
-      ${
-        url
-        ?`
-          <button class="primary" type="button"
-            onclick="openOfficial(${JSON.stringify(url)})">
-            ${esc(t("Abrir sitio oficial","Open official site"))}
-          </button>`
-        :""
-      }
-
-      <button class="secondary" type="button"
-        onclick="renderComparisonFromSession()">
-        ${esc(t("Ver otros proveedores","See other providers"))}
-      </button>
-    </section>`,
-    t("Revisión final","Final review")
-  );
+function renderHome(){
+if(!accessValid()){
+renderPaywall();
+return
+}
+const opening=APP.config?.opening||{};
+const countries=APP.config?.countries||[];
+const priorities=opening.priorities||[];
+const buttons=(priorities.length?priorities:["fastest","save","recipient_gets_more","urgent","balanced","compare_all"]).map(p=>{
+const id=priorityId(p);
+return`<button class="priority-btn ${APP.priority===id?"active":""}" data-priority="${esc(id)}">${esc(priorityLabel(p))}</button>`
+}).join("");
+let options=`<option value="">${esc(t("destinationPlaceholder"))}</option>`;
+countries.forEach(c=>{
+const id=typeof c==="string"?c:(c.id||c.code||"");
+const name=typeof c==="string"?c:(c.name||c.country||id);
+options+=`<option value="${esc(id)}" ${APP.destination===id?"selected":""}>${esc(name)}</option>`
+});
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell">
+<section class="hero">
+<div class="hero-badge">● SIMPLE · CLARO · DIRECTO</div>
+<h1>${esc(opening.primary_question||t("question"))}</h1>
+<p>${esc(opening.secondary_text||t("subtitle"))}</p>
+</section>
+<section class="main-card">
+<div class="field"><label>${esc(t("amount"))}</label><div class="amount-wrap"><span>$</span><input id="amountInput" inputmode="decimal" type="number" min="1" step="0.01" placeholder="${esc(opening.amount?.placeholder||t("amountPlaceholder"))}" value="${esc(APP.amount)}"></div></div>
+<div class="field"><label>${esc(t("destination"))}</label><select id="destinationInput">${options}</select></div>
+<div class="field"><label>${esc(t("priority"))}</label><div class="priority-grid">${buttons}</div></div>
+<button class="help-link" id="helpBtn">?</button>
+<button class="primary-btn" id="continueBtn">${esc(t("continue"))}</button>
+<button class="secondary-btn" id="freeTextBtn">${esc(t("other"))}</button>
+<div id="freeTextArea" class="free-text-area hidden">
+<label>${esc(t("freeText"))}</label>
+<textarea id="freeTextInput" rows="3" placeholder="${esc(opening.free_text?.placeholder||t("freeTextPlaceholder"))}">${esc(APP.freeText)}</textarea>
+<button class="primary-btn" id="freeTextContinue">${esc(t("continue"))}</button>
+</div>
+</section>
+<section class="main-card quick-actions">
+<button class="secondary-btn" id="learnBtn">${esc(t("learn"))}</button>
+<button class="secondary-btn" id="guideBtn">${esc(t("guide"))}</button>
+<button class="secondary-btn" id="moneyBtn">${esc(t("money"))}</button>
+</section>
+<footer class="footer"><span>© May Roga LLC</span><button id="clearBtn">${esc(t("clear"))}</button></footer>
+</main><div id="modal"></div>`;
+document.getElementById("amountInput")?.addEventListener("input",e=>APP.amount=e.target.value);
+document.getElementById("destinationInput")?.addEventListener("change",e=>{APP.destination=e.target.value;saveLocal()});
+document.querySelectorAll(".priority-btn").forEach(b=>b.addEventListener("click",()=>{
+APP.priority=b.dataset.priority;
+document.querySelectorAll(".priority-btn").forEach(x=>x.classList.remove("active"));
+b.classList.add("active")
+}));
+document.getElementById("continueBtn")?.addEventListener("click",startComparison);
+document.getElementById("freeTextBtn")?.addEventListener("click",()=>{
+document.getElementById("freeTextArea")?.classList.toggle("hidden");
+document.getElementById("freeTextInput")?.focus()
+});
+document.getElementById("freeTextContinue")?.addEventListener("click",startFreeText);
+document.getElementById("helpBtn")?.addEventListener("click",showHelp);
+document.getElementById("clearBtn")?.addEventListener("click",restart);
+document.getElementById("learnBtn")?.addEventListener("click",renderLearning);
+document.getElementById("guideBtn")?.addEventListener("click",renderQuickGuide);
+document.getElementById("moneyBtn")?.addEventListener("click",renderMoney);
+bindLanguage(renderHome)
 }
 
-function openOfficial(url){
-  if(!/^https:\/\//i.test(String(url||""))){
-    showError(t(
-      "El enlace oficial no es válido.",
-      "The official link is not valid."
-    ));
-    return;
-  }
-
-  window.open(url,"_blank","noopener,noreferrer");
+function collectNeed(){
+return{
+session_id:APP.sessionId,
+language:APP.language,
+amount:Number(APP.amount),
+send_currency:"USD",
+destination_country:APP.destination,
+priority:APP.priority||"balanced",
+delivery_method:APP.delivery||null,
+payment_method:APP.paymentMethod||null,
+special_need:APP.freeText||null
+}
 }
 
-function renderComparisonFromSession(){
-  const providers=APP.session?.available_providers||[];
-  const results=APP.session?.verified_results||[];
+async function startComparison(){
+if(!accessValid()){renderPaywall();return}
+APP.amount=document.getElementById("amountInput")?.value||APP.amount;
+APP.destination=document.getElementById("destinationInput")?.value||APP.destination;
+const amount=Number(APP.amount);
+if(!APP.destination){document.getElementById("destinationInput")?.focus();return}
+if(!amount||amount<=0){document.getElementById("amountInput")?.focus();return}
+if(!APP.priority)APP.priority="balanced";
+renderLoading();
+try{
+await ensureSession();
+const need=collectNeed();
+await api("/api/need",{method:"POST",body:JSON.stringify(need)});
+APP.comparison=await api("/api/compare",{method:"POST",body:JSON.stringify(need)});
+renderResults()
+}catch(e){renderError(e.message)}
+}
 
-  renderComparison({
-    results,
-    available_providers:providers,
-    provider_count:providers.length,
-    verified_count:results.length,
-    results_available:results.length>0,
-    amount:APP.session?.amount,
-    destination_country:APP.session?.destination_country,
-    explanation:t(
-      "Estas son las opciones de la sesión actual.",
-      "These are the options from the current session."
-    ),
-    precautions:[]
-  });
+async function startFreeText(){
+const input=document.getElementById("freeTextInput");
+const text=input?.value.trim();
+if(!text)return;
+APP.freeText=text;
+renderLoading();
+try{
+await ensureSession();
+const response=await api("/api/need/parse",{method:"POST",body:JSON.stringify({text,language:APP.language})});
+const parsed=response?.parsed||{};
+if(parsed.amount)APP.amount=parsed.amount;
+if(parsed.destination_country)APP.destination=parsed.destination_country;
+if(parsed.priority)APP.priority=parsed.priority;
+if(parsed.delivery_method)APP.delivery=parsed.delivery_method;
+if(!APP.amount||!APP.destination){renderNeedMissing();return}
+await startComparison()
+}catch(e){renderError(e.message)}
+}
+
+function renderNeedMissing(){
+const missing=[];
+if(!APP.amount)missing.push(t("amount"));
+if(!APP.destination)missing.push(t("destination"));
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell"><section class="main-card">
+<div class="hero-badge">● ${esc(t("helpTitle"))}</div>
+<h1>${esc(t("question"))}</h1>
+<p>${esc(t("helpText"))}</p>
+<div class="missing-box">${missing.map(x=>`<div>• ${esc(x)}</div>`).join("")}</div>
+<button class="primary-btn" id="completeBtn">${esc(t("continue"))}</button>
+<button class="secondary-btn" id="backBtn">${esc(t("back"))}</button>
+</section></main>`;
+document.getElementById("completeBtn")?.addEventListener("click",renderHome);
+document.getElementById("backBtn")?.addEventListener("click",renderHome);
+bindLanguage(renderNeedMissing)
+}
+
+function resultId(r){return r?.provider_id||r?.id||""}
+
+function getResults(){
+const data=APP.comparison||{};
+const verified=Array.isArray(data.results)?data.results:[];
+const available=Array.isArray(data.available_providers)?data.available_providers:[];
+const merged=[],seen=new Set();
+verified.forEach(r=>{
+const id=resultId(r);
+if(id&&!seen.has(id)){seen.add(id);merged.push({...r,commercial_verified:true,commercial_status:"verified"})}
+});
+available.forEach(p=>{
+const id=resultId(p);
+if(id&&!seen.has(id)){seen.add(id);merged.push({...p,provider_id:id,provider_name:p.provider_name||p.name||id})}
+});
+return merged
+}
+
+function resultValue(r,key){
+if(r?.[key]!==undefined)return r[key];
+if(r?.commercial_data?.[key]!==undefined)return r.commercial_data[key];
+return null
+}
+
+function formatMethod(v){
+const map={
+cash_pickup:APP.language==="es"?"Efectivo":"Cash pickup",
+bank_account:APP.language==="es"?"Cuenta bancaria":"Bank account",
+debit_card:APP.language==="es"?"Tarjeta de débito":"Debit card",
+mobile_wallet:APP.language==="es"?"Billetera móvil":"Mobile wallet",
+home_delivery:APP.language==="es"?"Entrega a domicilio":"Home delivery"
+};
+return map[v]||v
+}
+
+function renderResults(){
+const data=APP.comparison||{};
+const results=getResults();
+const verified=(data.results||[]).length>0;
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell">
+<section class="results-head">
+<button class="back-btn" id="backBtn">← ${esc(t("back"))}</button>
+<div><div class="hero-badge">● ${esc(verified?t("verified"):t("available"))}</div><h1>${esc(t("options"))}</h1><p>${esc(formatSummary())}</p></div>
+</section>
+<section class="results-list">
+${results.length?results.map(renderResultCard).join(""):`<div class="empty-card"><div class="empty-icon">—</div><h2>${esc(t("noResults"))}</h2><p>${esc(t("tryAgain"))}</p></div>`}
+</section>
+<footer class="footer"><button id="clearBtn">${esc(t("clear"))}</button></footer>
+</main>`;
+document.getElementById("backBtn")?.addEventListener("click",renderHome);
+document.getElementById("clearBtn")?.addEventListener("click",restart);
+document.querySelectorAll("[data-provider]").forEach(b=>b.addEventListener("click",()=>{
+const p=results.find(x=>resultId(x)===b.dataset.provider);
+if(p)renderFinalCheck(p)
+}));
+bindLanguage(renderResults)
+}
+
+function formatSummary(){
+return`${money(Number(APP.amount),"USD")} → ${countryName(APP.destination)}`
+}
+
+function renderResultCard(r,i){
+const id=resultId(r);
+const name=r.provider_name||id;
+const verified=r.commercial_verified===true||r.commercial_status==="verified";
+const fee=verified?resultValue(r,"fee"):null;
+const rate=verified?resultValue(r,"exchange_rate"):null;
+const recipient=verified?resultValue(r,"recipient_amount"):null;
+const delivery=verified?(resultValue(r,"delivery_time")??resultValue(r,"estimated_delivery")):null;
+const method=verified?resultValue(r,"delivery_method"):null;
+const currency=resultValue(r,"currency")||resultValue(r,"recipient_currency")||"";
+const url=r.continue_url||r.official_site||"";
+return`
+<article class="provider-card">
+<div class="provider-top"><div><span class="provider-number">${i+1}</span><h2>${esc(name)}</h2></div><span class="verified-pill">${verified?"✓ "+esc(t("verified")):esc(t("commercialUnavailable"))}</span></div>
+<div class="provider-main">
+<div class="receive-box"><span>${esc(t("receive"))}</span><strong>${recipient!==null?money(recipient,currency):"—"}</strong></div>
+<div class="details-grid">
+<div><span>${esc(t("fee"))}</span><strong>${fee!==null?money(fee,"USD"):"—"}</strong></div>
+<div><span>${esc(t("rate"))}</span><strong>${rate!==null?esc(rate):"—"}</strong></div>
+<div><span>${esc(t("delivery"))}</span><strong>${delivery!==null?esc(delivery):"—"}</strong></div>
+<div><span>${esc(t("method"))}</span><strong>${method?esc(formatMethod(method)):"—"}</strong></div>
+</div></div>
+<div class="provider-foot"><small>${verified?esc(t("verified")):esc(t("commercialUnavailable"))}</small>${url?`<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("official"))}</a>`:""}</div>
+<button class="primary-btn provider-btn" data-provider="${esc(id)}">${esc(verified?t("check"):t("official"))}</button>
+</article>`
+}
+
+async function renderFinalCheck(provider){
+const id=resultId(provider);
+const verified=provider.commercial_verified===true||provider.commercial_status==="verified";
+if(!verified){
+const url=provider.continue_url||provider.official_site;
+if(url)window.open(url,"_blank","noopener,noreferrer");
+return
+}
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell">
+<section class="results-head"><button class="back-btn" id="backBtn">← ${esc(t("back"))}</button><div><div class="hero-badge">● ${esc(t("selected"))}</div><h1>${esc(provider.provider_name||id)}</h1><p>${esc(t("finalText"))}</p></div></section>
+<section class="review-card">
+<h2>${esc(t("review"))}</h2>
+<div class="review-row"><span>${esc(t("country"))}</span><strong>${esc(countryName(APP.destination))}</strong></div>
+<div class="review-row"><span>${esc(t("sendAmount"))}</span><strong>${money(Number(APP.amount),"USD")}</strong></div>
+<div class="review-row"><span>${esc(t("fee"))}</span><strong>${provider.fee!=null?money(provider.fee,"USD"):"—"}</strong></div>
+<div class="review-row"><span>${esc(t("rate"))}</span><strong>${provider.exchange_rate!=null?esc(provider.exchange_rate):"—"}</strong></div>
+<div class="review-row highlight"><span>${esc(t("receiveAmount"))}</span><strong>${provider.recipient_amount!=null?money(provider.recipient_amount,provider.currency||"USD"):"—"}</strong></div>
+<div class="review-row"><span>${esc(t("method"))}</span><strong>${provider.delivery_method?esc(formatMethod(provider.delivery_method)):"—"}</strong></div>
+<div class="review-actions"><button class="secondary-btn" id="backResults">${esc(t("no"))}</button><button class="primary-btn" id="verifyBtn">${esc(t("yes"))}</button></div>
+<div id="finalStatus"></div>
+</section></main>`;
+document.getElementById("backBtn")?.addEventListener("click",renderResults);
+document.getElementById("backResults")?.addEventListener("click",renderResults);
+document.getElementById("verifyBtn")?.addEventListener("click",()=>performFinalCheck(provider,id));
+bindLanguage(()=>renderFinalCheck(provider))
+}
+
+async function performFinalCheck(provider,id){
+const status=document.getElementById("finalStatus");
+if(!status)return;
+status.innerHTML=`<div class="checking"><div class="loader"></div>${esc(t("loading"))}</div>`;
+try{
+const result=await api("/api/final-check",{method:"POST",body:JSON.stringify({
+language:APP.language,
+provider_id:id,
+amount:Number(APP.amount),
+send_currency:"USD",
+destination_country:APP.destination,
+delivery_method:provider.delivery_method||null,
+payment_method:APP.paymentMethod||null,
+recipient_information_entered:false,
+recipient_amount:provider.recipient_amount??null,
+fee:provider.fee??null,
+exchange_rate:provider.exchange_rate??null
+})});
+const ready=result?.ready_to_continue!==false;
+const url=provider.continue_url||provider.official_site;
+status.innerHTML=`<div class="${ready?"success-box":"error-box"}"><strong>${ready?"✓ ":""}${esc(result?.message||t("finalText"))}</strong>${ready&&url?`<p><a class="primary-btn link-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("official"))}</a></p>`:""}</div>`
+}catch(e){
+status.innerHTML=`<div class="error-box">${esc(e.message||t("error"))}</div>`
+}
+}
+
+async function renderLearning(){
+renderLoading(t("loading"));
+try{
+const data=await api(`/api/learn?language=${encodeURIComponent(APP.language)}`);
+const providers=data?.providers||[];
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell">
+<section class="hero"><div class="hero-badge">● ${esc(t("learn"))}</div><h1>${esc(t("learnTitle"))}</h1><p>${esc(t("learnText"))}</p></section>
+<section class="results-list">
+${providers.map((p,i)=>`<article class="provider-card"><div class="provider-top"><div><span class="provider-number">${i+1}</span><h2>${esc(p.name||p.provider_name||p.id)}</h2></div></div><p>${esc(p.description||p.title||t("learnText"))}</p><button class="primary-btn learn-provider" data-provider="${esc(p.id||p.provider_id||"")}">${esc(t("learn"))}</button></article>`).join("")}
+</section>
+<footer class="footer"><button id="backBtn">${esc(t("back"))}</button></footer>
+</main>`;
+document.querySelectorAll(".learn-provider").forEach(b=>b.addEventListener("click",()=>renderProviderLearning(b.dataset.provider)));
+document.getElementById("backBtn")?.addEventListener("click",renderHome);
+bindLanguage(renderLearning)
+}catch(e){renderError(e.message)}
+}
+
+async function renderProviderLearning(id){
+renderLoading(t("loading"));
+try{
+const data=await api(`/api/learn/${encodeURIComponent(id)}?language=${encodeURIComponent(APP.language)}`);
+const steps=data?.steps||data?.lessons||[];
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell">
+<section class="hero"><div class="hero-badge">● ${esc(t("learn"))}</div><h1>${esc(data?.title||data?.provider_name||id)}</h1><p>${esc(data?.notice||t("learnText"))}</p></section>
+<section class="results-list">
+${steps.map((s,i)=>`<article class="main-card"><div class="hero-badge">${i+1}</div><h2>${esc(s.title||s.name||"")}</h2><p>${esc(s.teaches||s.description||s.text||"")}</p>${s.warning?`<div class="error-box">${esc(s.warning)}</div>`:""}</article>`).join("")}
+</section>
+<footer class="footer"><button id="backBtn">${esc(t("back"))}</button></footer>
+</main>`;
+document.getElementById("backBtn")?.addEventListener("click",renderLearning);
+bindLanguage(()=>renderProviderLearning(id))
+}catch(e){renderError(e.message)}
+}
+
+async function renderQuickGuide(){
+renderLoading(t("loading"));
+try{
+const data=await api(`/api/quick-guide?language=${encodeURIComponent(APP.language)}`);
+const providers=data?.providers||[];
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell">
+<section class="hero"><div class="hero-badge">● ${esc(t("guide"))}</div><h1>${esc(t("guideTitle"))}</h1><p>${esc(t("guideText"))}</p></section>
+<section class="results-list">
+${providers.map((p,i)=>`<article class="provider-card"><div class="provider-top"><div><span class="provider-number">${i+1}</span><h2>${esc(p.name||p.provider_name||p.id)}</h2></div></div><p>${esc(p.description||p.title||t("guideText"))}</p><button class="primary-btn guide-provider" data-provider="${esc(p.id||p.provider_id||"")}">${esc(t("guide"))}</button></article>`).join("")}
+</section>
+<footer class="footer"><button id="backBtn">${esc(t("back"))}</button></footer>
+</main>`;
+document.querySelectorAll(".guide-provider").forEach(b=>b.addEventListener("click",()=>renderProviderGuide(b.dataset.provider)));
+document.getElementById("backBtn")?.addEventListener("click",renderHome);
+bindLanguage(renderQuickGuide)
+}catch(e){renderError(e.message)}
+}
+
+async function renderProviderGuide(id){
+renderLoading(t("loading"));
+try{
+const data=await api(`/api/quick-guide/${encodeURIComponent(id)}?language=${encodeURIComponent(APP.language)}`);
+const steps=data?.steps||data?.guide||data?.lessons||[];
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell">
+<section class="hero"><div class="hero-badge">● ${esc(t("guide"))}</div><h1>${esc(data?.title||data?.provider_name||id)}</h1><p>${esc(data?.notice||t("guideText"))}</p></section>
+<section class="results-list">
+${steps.map((s,i)=>`<article class="main-card"><div class="hero-badge">${i+1}</div><h2>${esc(s.title||s.name||"")}</h2><p>${esc(s.action||s.description||s.text||s.teaches||"")}</p></article>`).join("")}
+</section>
+<footer class="footer"><button id="backBtn">${esc(t("back"))}</button></footer>
+</main>`;
+document.getElementById("backBtn")?.addEventListener("click",renderQuickGuide);
+bindLanguage(()=>renderProviderGuide(id))
+}catch(e){renderError(e.message)}
+}
+
+function readMoney(){
+try{return JSON.parse(localStorage.getItem(APP.moneyKey)||"{}")}catch(e){return{}}
+}
+
+function writeMoney(data){
+localStorage.setItem(APP.moneyKey,JSON.stringify(data))
 }
 
 function renderMoney(){
-  const m=getMoneyState();
-
-  renderShell(`
-    <section class="card">
-      <h1>${esc(t("Mi dinero","My money"))}</h1>
-
-      <p class="small">${esc(t(
-        "Todo se guarda en este dispositivo.",
-        "Everything is stored on this device."
-      ))}</p>
-
-      <label>${esc(t("Ingreso","Income"))}</label>
-      <input id="income" type="number" min="0" step="0.01"
-        value="${esc(m.income||"")}">
-
-      <label>${esc(t("Frecuencia del ingreso","Income frequency"))}</label>
-      <select id="incomeFreq">
-        <option value="weekly" ${m.incomeFreq==="weekly"?"selected":""}>${esc(t("Semanal","Weekly"))}</option>
-        <option value="biweekly" ${m.incomeFreq==="biweekly"?"selected":""}>${esc(t("Quincenal","Biweekly"))}</option>
-        <option value="monthly" ${m.incomeFreq==="monthly"?"selected":""}>${esc(t("Mensual","Monthly"))}</option>
-      </select>
-
-      <label>${esc(t("Gastos esenciales","Essential expenses"))}</label>
-      <input id="essential" type="number" min="0" step="0.01"
-        value="${esc(m.essential||"")}">
-
-      <label>${esc(t("Gastos flexibles","Flexible expenses"))}</label>
-      <input id="flexible" type="number" min="0" step="0.01"
-        value="${esc(m.flexible||"")}">
-
-      <label>${esc(t("Ahorro reservado","Reserved savings"))}</label>
-      <input id="savings" type="number" min="0" step="0.01"
-        value="${esc(m.savings||"")}">
-
-      <label>${esc(t("Remesas reservadas","Reserved remittance"))}</label>
-      <input id="remittance" type="number" min="0" step="0.01"
-        value="${esc(m.remittance||"")}">
-
-      <button class="primary" type="button" onclick="calculateMoney()">
-        ${esc(t("Calcular","Calculate"))}
-      </button>
-
-      <div id="moneyResult"></div>
-    </section>`,
-    t("Mi dinero","My money")
-  );
-
-  if(Number(m.income||0)>0)showMoneyResult(m);
-}
-
-function frequencyFactor(freq){
-  if(freq==="weekly")return 52/12;
-  if(freq==="biweekly")return 26/12;
-  return 1;
-}
-
-function calculateMoney(){
-  const income=Number(document.getElementById("income")?.value||0);
-  const incomeFreq=document.getElementById("incomeFreq")?.value||"monthly";
-  const essential=Number(document.getElementById("essential")?.value||0);
-  const flexible=Number(document.getElementById("flexible")?.value||0);
-  const savings=Number(document.getElementById("savings")?.value||0);
-  const remittance=Number(document.getElementById("remittance")?.value||0);
-
-  const monthlyIncome=income*frequencyFactor(incomeFreq);
-  const available=
-    monthlyIncome-
-    essential-
-    flexible-
-    savings-
-    remittance;
-
-  const data={
-    income,
-    incomeFreq,
-    monthlyIncome,
-    essential,
-    flexible,
-    savings,
-    remittance,
-    available,
-    reserved:0,
-    updatedAt:new Date().toISOString()
-  };
-
-  setJSON(APP.moneyKey,data);
-  showMoneyResult(data);
-}
-
-function showMoneyResult(data){
-  const box=document.getElementById("moneyResult");
-  if(!box)return;
-
-  const available=Number(data.available||0);
-
-  box.innerHTML=`
-    <div class="money-summary">
-      <span>${esc(t("Ingreso mensual equivalente","Equivalent monthly income"))}</span>
-      <strong>${money(data.monthlyIncome)}</strong>
-
-      <span>${esc(t("Disponible calculado","Calculated available"))}</span>
-      <strong>${money(available)}</strong>
-    </div>
-
-    <div class="status ${available>=0?"success":"warning"}">
-      ${esc(
-        available>=0
-          ?t("Tu cálculo queda por encima de cero.","Your calculation remains above zero.")
-          :t("Tus compromisos superan el ingreso calculado.","Your commitments exceed the calculated income.")
-      )}
-    </div>`;
-}
-
-function renderWeek(){
-  const m=getMoneyState();
-
-  if(!Number(m.income||0)){
-    renderMoney();
-    return;
-  }
-
-  const factor=4.333333;
-  const weeklyIncome=Number(m.monthlyIncome||0)/factor;
-  const weeklyEssential=Number(m.essential||0)/factor;
-  const weeklyFlexible=Number(m.flexible||0)/factor;
-  const weeklySavings=Number(m.savings||0)/factor;
-  const weeklyRemittance=Number(m.remittance||0)/factor;
-
-  const weeklyAvailable=
-    weeklyIncome-
-    weeklyEssential-
-    weeklyFlexible-
-    weeklySavings-
-    weeklyRemittance;
-
-  renderShell(`
-    <section class="card">
-      <h1>${esc(t("Mi semana","My week"))}</h1>
-
-      <div class="money-summary">
-        <span>${esc(t("Ingreso semanal equivalente","Equivalent weekly income"))}</span>
-        <strong>${money(weeklyIncome)}</strong>
-
-        <span>${esc(t("Compromisos semanales","Weekly commitments"))}</span>
-        <strong>${money(
-          weeklyEssential+
-          weeklyFlexible+
-          weeklySavings+
-          weeklyRemittance
-        )}</strong>
-
-        <span>${esc(t("Disponible semanal","Weekly available"))}</span>
-        <strong>${money(weeklyAvailable)}</strong>
-      </div>
-
-      <div class="status ${weeklyAvailable>=0?"success":"warning"}">
-        ${esc(
-          weeklyAvailable>=0
-            ?t("Este cálculo usa períodos comparables.","This calculation uses comparable periods.")
-            :t("Revisa tus compromisos antes de aumentar el gasto o la remesa.","Review your commitments before increasing spending or the transfer.")
-        )}
-      </div>
-
-      <button class="primary" type="button" onclick="renderMoney()">
-        ${esc(t("Modificar mi cálculo","Modify my calculation"))}
-      </button>
-    </section>`,
-    t("Mi semana","My week")
-  );
-}
-
-function getExpenses(){
-  return getJSON(APP.expensesKey,[]);
-}
-
-function saveExpenses(list){
-  setJSON(APP.expensesKey,list);
-}
-
-function renderExpenses(){
-  const expenses=getExpenses();
-
-  renderShell(`
-    <section class="card">
-      <h1>${esc(t("Mis gastos","My expenses"))}</h1>
-
-      <label>${esc(t("Descripción","Description"))}</label>
-      <input id="expenseName" maxlength="120">
-
-      <label>${esc(t("Monto","Amount"))}</label>
-      <input id="expenseAmount" type="number" min="0.01" step="0.01">
-
-      <label>${esc(t("Frecuencia","Frequency"))}</label>
-      <select id="expenseFrequency">
-        <option value="monthly">${esc(t("Mensual","Monthly"))}</option>
-        <option value="weekly">${esc(t("Semanal","Weekly"))}</option>
-        <option value="biweekly">${esc(t("Quincenal","Biweekly"))}</option>
-        <option value="one_time">${esc(t("Una vez","One time"))}</option>
-      </select>
-
-      <button class="primary" type="button" onclick="addExpense()">
-        ${esc(t("Guardar gasto","Save expense"))}
-      </button>
-
-      <div id="expenseList">
-        ${expenses.map(expenseRow).join("")}
-      </div>
-
-      <button class="secondary" type="button" onclick="renderMoney()">
-        ${esc(t("Actualizar Mi dinero","Update My money"))}
-      </button>
-    </section>`,
-    t("Mis gastos","My expenses")
-  );
-}
-
-function expenseRow(item,index){
-  return `
-    <div class="expense-row">
-      <div>
-        <strong>${esc(item.description)}</strong>
-        <small>${esc(frequencyLabel(item.frequency||"monthly"))}</small>
-      </div>
-      <strong>${money(item.amount)}</strong>
-      <button type="button"
-        class="danger-button"
-        onclick="removeExpense(${index})">×</button>
-    </div>`;
-}
-
-function addExpense(){
-  const description=(document.getElementById("expenseName")?.value||"").trim();
-  const amount=Number(document.getElementById("expenseAmount")?.value||0);
-  const frequency=document.getElementById("expenseFrequency")?.value||"monthly";
-
-  if(!description){
-    showError(t("Escribe una descripción.","Enter a description."));
-    return;
-  }
-
-  if(!amount||amount<=0){
-    showError(t("Indica un monto válido.","Enter a valid amount."));
-    return;
-  }
-
-  const expenses=getExpenses();
-
-  expenses.push({
-    description,
-    amount,
-    frequency,
-    createdAt:new Date().toISOString()
-  });
-
-  saveExpenses(expenses);
-  renderExpenses();
-}
-
-function removeExpense(index){
-  const expenses=getExpenses();
-
-  if(index<0||index>=expenses.length)return;
-
-  expenses.splice(index,1);
-  saveExpenses(expenses);
-  renderExpenses();
-}
-
-function renderFamily(){
-  const data=getJSON(APP.familyKey,{
-    name:"",
-    country:"",
-    amount:""
-  });
-
-  renderShell(`
-    <section class="card">
-      <h1>${esc(t("Familia","Family"))}</h1>
-
-      <p class="small">${esc(t(
-        "Esta información es solo una referencia local para preparar una remesa.",
-        "This information is only a local reference for preparing a transfer."
-      ))}</p>
-
-      <label>${esc(t("Nombre o apodo","Name or nickname"))}</label>
-      <input id="familyName"
-        maxlength="80"
-        value="${esc(data.name)}">
-
-      <label>${esc(t("País","Country"))}</label>
-      <select id="familyCountry">
-        <option value="">${esc(t("Selecciona","Select"))}</option>
-        ${(APP.config?.countries||[]).map(c=>`
-          <option value="${esc(c.code)}"
-            ${c.code===data.country?"selected":""}>
-            ${esc(loc(c.name)||c.code)}
-          </option>`).join("")}
-      </select>
-
-      <label>${esc(t("Monto de referencia","Reference amount"))}</label>
-      <input id="familyAmount"
-        type="number"
-        min="0"
-        step="0.01"
-        value="${esc(data.amount)}">
-
-      <button class="primary" type="button" onclick="saveFamily()">
-        ${esc(t("Guardar en este dispositivo","Save on this device"))}
-      </button>
-    </section>`,
-    t("Familia","Family")
-  );
-}
-
-function saveFamily(){
-  const data={
-    name:(document.getElementById("familyName")?.value||"").trim(),
-    country:document.getElementById("familyCountry")?.value||"",
-    amount:Number(document.getElementById("familyAmount")?.value||0)
-  };
-
-  setJSON(APP.familyKey,data);
-
-  renderShell(`
-    <section class="card">
-      <div class="status success">${esc(t("Guardado","Saved"))}</div>
-
-      <h1>${esc(data.name||t("Referencia familiar","Family reference"))}</h1>
-
-      <p>${esc(
-        data.country
-          ?countryName(data.country)
-          :t("Sin país seleccionado","No country selected")
-      )}</p>
-
-      <strong>${data.amount?money(data.amount):"—"}</strong>
-
-      <button class="primary" type="button" onclick="renderFamily()">
-        ${esc(t("Editar","Edit"))}
-      </button>
-    </section>`,
-    t("Familia","Family")
-  );
-}
-
-function renderSavings(){
-  const m=getMoneyState();
-  const current=Number(m.savings||0);
-  const purpose=m.savingsPurpose||"";
-
-  renderShell(`
-    <section class="card">
-      <h1>${esc(t("Ahorrar","Save"))}</h1>
-
-      <label>${esc(t("¿Cuánto quieres reservar?","How much do you want to reserve?"))}</label>
-      <input id="saveAmount"
-        type="number"
-        min="0"
-        step="0.01"
-        value="${esc(current||"")}">
-
-      <label>${esc(t("¿Para qué?","What for?"))}</label>
-      <input id="savePurpose"
-        maxlength="100"
-        value="${esc(purpose)}"
-        placeholder="${esc(t("Ejemplo: emergencia","Example: emergency"))}">
-
-      <button class="primary" type="button" onclick="saveSavings()">
-        ${esc(t("Guardar objetivo","Save goal"))}
-      </button>
-    </section>`,
-    t("Ahorrar","Save")
-  );
-}
-
-function saveSavings(){
-  const amount=Number(document.getElementById("saveAmount")?.value||0);
-  const purpose=(document.getElementById("savePurpose")?.value||"").trim();
-
-  if(amount<0){
-    showError(t("Indica un monto válido.","Enter a valid amount."));
-    return;
-  }
-
-  const m=getMoneyState();
-
-  m.savings=amount;
-  m.savingsPurpose=purpose;
-
-  setJSON(APP.moneyKey,m);
-
-  renderShell(`
-    <section class="card">
-      <div class="status success">${esc(t("Objetivo guardado","Goal saved"))}</div>
-      <h1>${money(amount)}</h1>
-      <p>${esc(purpose||t("Ahorro general","General savings"))}</p>
-
-      <button class="primary" type="button" onclick="renderMoney()">
-        ${esc(t("Ver Mi dinero","View My money"))}
-      </button>
-    </section>`,
-    t("Ahorrar","Save")
-  );
-}
-
-function renderPurchase(){
-  renderShell(`
-    <section class="card">
-      <h1>${esc(t("Planear una compra","Plan a purchase"))}</h1>
-
-      <label>${esc(t("¿Qué quieres comprar?","What do you want to buy?"))}</label>
-      <input id="purchaseName"
-        maxlength="120"
-        placeholder="${esc(t("Ejemplo: teléfono","Example: phone"))}">
-
-      <label>${esc(t("¿Cuánto cuesta?","How much does it cost?"))}</label>
-      <input id="purchaseAmount"
-        type="number"
-        min="0.01"
-        step="0.01">
-
-      <button class="primary" type="button" onclick="checkPurchase()">
-        ${esc(t("Comprobar","Check"))}
-      </button>
-    </section>`,
-    t("Planear una compra","Plan a purchase")
-  );
-}
-
-function checkPurchase(){
-  const name=(document.getElementById("purchaseName")?.value||"").trim();
-  const amount=Number(document.getElementById("purchaseAmount")?.value||0);
-
-  if(!name){
-    showError(t("Indica qué quieres comprar.","Tell us what you want to buy."));
-    return;
-  }
-
-  if(!amount||amount<=0){
-    showError(t("Indica un precio válido.","Enter a valid price."));
-    return;
-  }
-
-  const m=getMoneyState();
-  const available=Number(m.available||0);
-  const difference=available-amount;
-
-  renderShell(`
-    <section class="card">
-      <div class="status ${difference>=0?"success":"warning"}">
-        ${esc(
-          difference>=0
-            ?t("Cabe en tu cálculo actual","Fits your current calculation")
-            :t("Supera tu disponible actual","Exceeds your current available amount")
-        )}
-      </div>
-
-      <h1>${esc(name)}</h1>
-
-      <div class="money-summary">
-        <span>${esc(t("Precio","Price"))}</span>
-        <strong>${money(amount)}</strong>
-
-        <span>${esc(t("Disponible","Available"))}</span>
-        <strong>${money(available)}</strong>
-
-        <span>${esc(t("Después de comprar","After purchase"))}</span>
-        <strong>${money(difference)}</strong>
-      </div>
-
-      <button class="primary" type="button" onclick="renderMoney()">
-        ${esc(t("Revisar mi dinero","Review my money"))}
-      </button>
-    </section>`,
-    t("Resultado","Result")
-  );
-}
-
-function getHelpTopics(){
-  return APP.config?.help_topics||
-    APP.config?.help_center?.topics||
-    [];
-}
-
-function renderHelp(){
-  const topics=getHelpTopics();
-
-  renderShell(`
-    <section class="card">
-      <h1>${esc(t("¿Qué no entiendes?","What don't you understand?"))}</h1>
-
-      <div class="help-list">
-        ${topics.map(topic=>`
-          <button class="help-item"
-            type="button"
-            onclick="showHelpTopic(${JSON.stringify(topic.id)})">
-            <strong>${esc(loc(topic.title)||topic.id)}</strong>
-          </button>
-        `).join("")}
-      </div>
-
-      <button class="secondary" type="button" onclick="renderHome()">
-        ${esc(t("Volver","Back"))}
-      </button>
-    </section>`,
-    t("Ayuda","Help")
-  );
-}
-
-function showHelpTopic(id){
-  const topic=getHelpTopics().find(x=>x.id===id);
-
-  if(!topic){
-    showError(t("Tema no encontrado.","Topic not found."));
-    return;
-  }
-
-  renderShell(`
-    <section class="card">
-      <h1>${esc(loc(topic.title)||topic.id)}</h1>
-      <p>${esc(loc(topic.answer)||"")}</p>
-
-      <button class="primary" type="button" onclick="renderHelp()">
-        ${esc(t("Ver más ayuda","More help"))}
-      </button>
-    </section>`,
-    loc(topic.title)||topic.id
-  );
-}
-
-function showError(message){
-  document.querySelector(".error-box")?.remove();
-
-  const box=document.createElement("div");
-
-  box.className="error-box";
-  box.setAttribute("role","alert");
-
-  box.innerHTML=`
-    <strong>${esc(t("Atención","Attention"))}</strong>
-    <span>${esc(message)}</span>
-    <button type="button"
-      onclick="this.parentElement.remove()">×</button>`;
-
-  document.body.appendChild(box);
-
-  setTimeout(()=>{
-    if(box.isConnected)box.remove();
-  },7000);
-}
-
-async function deleteLocalData(){
-  const confirmed=window.confirm(
-    t(
-      "¿Borrar los datos guardados en este dispositivo?",
-      "Delete the data saved on this device?"
-    )
-  );
-
-  if(!confirmed)return;
-
-  [
-    APP.moneyKey,
-    APP.expensesKey,
-    APP.familyKey,
-    APP.prefsKey,
-    "remesas_lang_v4"
-  ].forEach(key=>localStorage.removeItem(key));
-
-  if(APP.session?.session_id){
-    api(
-      `/api/session/${encodeURIComponent(APP.session.session_id)}?language=${encodeURIComponent(APP.lang)}`,
-      {method:"DELETE"}
-    ).catch(()=>{});
-  }
-
-  APP.session=null;
-  APP.config=null;
-  window.location.reload();
-}
-
-window.renderHome=renderHome;
-window.renderRemittance=renderRemittance;
-window.renderMoney=renderMoney;
-window.renderWeek=renderWeek;
-window.renderExpenses=renderExpenses;
-window.renderFamily=renderFamily;
-window.renderHelp=renderHelp;
-window.renderPurchase=renderPurchase;
-window.renderSavings=renderSavings;
-window.changeLanguage=changeLanguage;
-window.understandNeed=understandNeed;
-window.beginParsedRemittance=beginParsedRemittance;
-window.compare=compare;
-window.selectProvider=selectProvider;
-window.renderFinalCheck=renderFinalCheck;
-window.renderComparisonFromSession=renderComparisonFromSession;
-window.openOfficial=openOfficial;
-window.calculateMoney=calculateMoney;
-window.addExpense=addExpense;
-window.removeExpense=removeExpense;
-window.saveFamily=saveFamily;
-window.saveSavings=saveSavings;
-window.checkPurchase=checkPurchase;
-window.showHelpTopic=showHelpTopic;
-window.deleteLocalData=deleteLocalData;
-window.updateMoneyWarning=updateMoneyWarning;
-
-document.addEventListener("DOMContentLoaded",async()=>{
-  try{
-    await loadConfig();
-    await startSession(true);
-    renderHome();
-  }catch(error){
-    app.innerHTML=`
-      <main class="page">
-        <section class="card">
-          <div class="status warning">
-            ${esc(t(
-              "No se pudo cargar REMESAS.",
-              "REMESAS could not be loaded."
-            ))}
-          </div>
-
-          <p>${esc(error.message)}</p>
-
-          <button class="primary"
-            type="button"
-            onclick="location.reload()">
-            ${esc(t("Reintentar","Retry"))}
-          </button>
-        </section>
-      </main>`;
-  }
+const data=readMoney();
+const income=Number(data.income||0);
+const expenses=Number(data.expenses||0);
+const savings=Number(data.savings||0);
+const available=income-expenses-savings;
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell">
+<section class="hero"><div class="hero-badge">● ${esc(t("money"))}</div><h1>${esc(t("moneyTitle"))}</h1><p>${esc(t("moneyText"))}</p></section>
+<section class="main-card">
+<div class="field"><label>GANO / ${APP.language==="es"?"INGRESOS":"INCOME"}</label><input id="incomeInput" type="number" min="0" step="0.01" value="${esc(income||"")}"></div>
+<div class="field"><label>GASTO / ${APP.language==="es"?"GASTOS":"EXPENSES"}</label><input id="expenseInput" type="number" min="0" step="0.01" value="${esc(expenses||"")}"></div>
+<div class="field"><label>AHORRO / ${APP.language==="es"?"AHORRO":"SAVINGS"}</label><input id="savingInput" type="number" min="0" step="0.01" value="${esc(savings||"")}"></div>
+<button class="primary-btn" id="saveMoneyBtn">${esc(t("continue"))}</button>
+</section>
+<section class="review-card">
+<div class="review-row"><span>INGRESOS</span><strong>${money(income)}</strong></div>
+<div class="review-row"><span>GASTOS</span><strong>${money(expenses)}</strong></div>
+<div class="review-row"><span>AHORRO</span><strong>${money(savings)}</strong></div>
+<div class="review-row highlight"><span>${APP.language==="es"?"DISPONIBLE":"AVAILABLE"}</span><strong>${money(available)}</strong></div>
+</section>
+<footer class="footer"><button id="backBtn">${esc(t("back"))}</button></footer>
+</main>`;
+document.getElementById("saveMoneyBtn")?.addEventListener("click",()=>{
+writeMoney({
+income:Number(document.getElementById("incomeInput")?.value||0),
+expenses:Number(document.getElementById("expenseInput")?.value||0),
+savings:Number(document.getElementById("savingInput")?.value||0),
+updated_at:new Date().toISOString()
 });
+renderMoney()
+});
+document.getElementById("backBtn")?.addEventListener("click",renderHome);
+bindLanguage(renderMoney)
+}
+
+function showHelp(){
+const modal=document.getElementById("modal");
+if(!modal)return;
+modal.innerHTML=`
+<div class="modal-backdrop" id="modalBackdrop">
+<div class="modal-card">
+<button class="modal-close" id="modalClose">×</button>
+<div class="hero-badge">?</div>
+<h2>${esc(t("helpTitle"))}</h2>
+<p>${esc(t("helpText"))}</p>
+<button class="primary-btn" id="modalStart">${esc(t("continue"))}</button>
+</div></div>`;
+document.getElementById("modalClose")?.addEventListener("click",()=>modal.innerHTML="");
+document.getElementById("modalBackdrop")?.addEventListener("click",e=>{if(e.target.id==="modalBackdrop")modal.innerHTML=""});
+document.getElementById("modalStart")?.addEventListener("click",()=>{modal.innerHTML="";document.getElementById("amountInput")?.focus()})
+}
+
+function renderError(message){
+document.getElementById("app").innerHTML=`
+${renderHeader()}
+<main class="shell centered">
+<section class="error-card">
+<div class="error-icon">!</div>
+<h2>${esc(t("error"))}</h2>
+<p>${esc(message||"")}</p>
+<button class="primary-btn" id="retryBtn">${esc(t("back"))}</button>
+</section></main>`;
+document.getElementById("retryBtn")?.addEventListener("click",()=>{
+if(accessValid())renderHome();else renderPaywall()
+});
+bindLanguage(()=>renderError(message))
+}
+
+function adminModal(){
+const modal=document.getElementById("modal")||document.body.appendChild(Object.assign(document.createElement("div"),{id:"modal"}));
+modal.innerHTML=`
+<div class="modal-backdrop" id="adminBackdrop">
+<div class="modal-card admin-card">
+<button class="modal-close" id="adminClose">×</button>
+<div class="hero-badge">● ${esc(t("admin"))}</div>
+<h2>${esc(t("adminConfigured"))}</h2>
+<div class="field"><label>${esc(t("username"))}</label><input id="adminUsername" autocomplete="username"></div>
+<div class="field"><label>${esc(t("password"))}</label><input id="adminPassword" type="password" autocomplete="current-password"></div>
+<div id="adminStatus"></div>
+<button class="primary-btn" id="adminLoginBtn">${esc(t("login"))}</button>
+<button class="secondary-btn" id="adminCancelBtn">${esc(t("cancel"))}</button>
+</div></div>`;
+document.getElementById("adminClose")?.addEventListener("click",()=>modal.innerHTML="");
+document.getElementById("adminCancelBtn")?.addEventListener("click",()=>modal.innerHTML="");
+document.getElementById("adminBackdrop")?.addEventListener("click",e=>{if(e.target.id==="adminBackdrop")modal.innerHTML=""});
+document.getElementById("adminLoginBtn")?.addEventListener("click",adminLogin);
+document.getElementById("adminPassword")?.addEventListener("keydown",e=>{if(e.key==="Enter")adminLogin()});
+document.getElementById("adminUsername")?.focus()
+}
+
+async function adminLogin(){
+const username=document.getElementById("adminUsername")?.value||"";
+const password=document.getElementById("adminPassword")?.value||"";
+const status=document.getElementById("adminStatus");
+const btn=document.getElementById("adminLoginBtn");
+if(!username||!password){
+if(status)status.innerHTML=`<div class="error-box">${esc(t("invalidLogin"))}</div>`;
+return
+}
+if(btn){btn.disabled=true;btn.textContent=t("loading")}
+try{
+const data=await publicApi("/api/access/admin",{method:"POST",body:JSON.stringify({username,password})});
+if(!setAccess(data))throw new Error(t("invalidLogin"));
+document.getElementById("modal").innerHTML="";
+await afterAccess()
+}catch(e){
+if(status)status.innerHTML=`<div class="error-box">${esc(e.message||t("invalidLogin"))}</div>`;
+if(btn){btn.disabled=false;btn.textContent=t("login")}
+}
+}
+
+function registerAdminTap(){
+const now=Date.now();
+APP.adminTaps=APP.adminTaps.filter(x=>now-x<1400);
+APP.adminTaps.push(now);
+if(APP.adminTaps.length>=3){
+APP.adminTaps=[];
+adminModal()
+}
+}
+
+function setupTripleTap(){
+let lastTouch=0;
+document.addEventListener("touchend",e=>{
+const now=Date.now();
+if(now-lastTouch<500||lastTouch===0){registerAdminTap()}
+lastTouch=now
+},{passive:true});
+document.addEventListener("dblclick",registerAdminTap)
+}
+
+function restart(){
+APP.sessionId=null;
+APP.amount="";
+APP.destination="";
+APP.priority="";
+APP.delivery="";
+APP.paymentMethod="";
+APP.freeText="";
+APP.comparison=null;
+APP.selectedProvider=null;
+localStorage.removeItem("remesas_destination");
+createSession().finally(()=>{
+if(accessValid())renderHome();else renderPaywall()
+})
+}
+
+async function boot(){
+setupTripleTap();
+try{
+await loadConfig();
+const paymentHandled=await checkPaymentReturn();
+if(paymentHandled)return;
+const active=await checkAccess();
+if(active){
+await afterAccess();
+return
+}
+renderPaywall()
+}catch(e){
+renderPaywall(e.message||t("error"))
+}
+}
+
+document.addEventListener("DOMContentLoaded",boot);
