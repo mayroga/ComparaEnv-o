@@ -1,85 +1,118 @@
-const APP={name:"REMESAS",version:"4.0.0",lang:localStorage.getItem("remesas_lang_v4")||localStorage.getItem("remesas_lang")||"es",session:null,config:null,comparison:null,pendingParsed:null,keys:{money:"remesas_money_v4",expenses:"remesas_expenses_v4",family:"remesas_family_v4",prefs:"remesas_prefs_v4",lang:"remesas_lang_v4",savings:"remesas_savings_v4"}};
+const APP={name:"REMESAS",version:"4.0.1",lang:localStorage.getItem("remesas_lang_v4")||localStorage.getItem("remesas_lang")||"es",session:null,config:null,comparison:null,pendingParsed:null,keys:{money:"remesas_money_v4",expenses:"remesas_expenses_v4",family:"remesas_family_v4",prefs:"remesas_prefs_v4",lang:"remesas_lang_v4",savings:"remesas_savings_v4"}};
 
-const COUNTRY_REGISTRY=[
-{code:"MX",name:{es:"México",en:"Mexico"}},
-{code:"GT",name:{es:"Guatemala",en:"Guatemala"}},
-{code:"SV",name:{es:"El Salvador",en:"El Salvador"}},
-{code:"HN",name:{es:"Honduras",en:"Honduras"}},
-{code:"NI",name:{es:"Nicaragua",en:"Nicaragua"}},
-{code:"CR",name:{es:"Costa Rica",en:"Costa Rica"}},
-{code:"PA",name:{es:"Panamá",en:"Panama"}},
-{code:"CO",name:{es:"Colombia",en:"Colombia"}},
-{code:"VE",name:{es:"Venezuela",en:"Venezuela"}},
-{code:"EC",name:{es:"Ecuador",en:"Ecuador"}},
-{code:"PE",name:{es:"Perú",en:"Peru"}},
-{code:"BO",name:{es:"Bolivia",en:"Bolivia"}},
-{code:"PY",name:{es:"Paraguay",en:"Paraguay"}},
-{code:"CL",name:{es:"Chile",en:"Chile"}},
-{code:"AR",name:{es:"Argentina",en:"Argentina"}},
-{code:"BR",name:{es:"Brasil",en:"Brazil"}},
-{code:"DO",name:{es:"República Dominicana",en:"Dominican Republic"}},
-{code:"CU",name:{es:"Cuba",en:"Cuba"}}
+const DEFAULT_COUNTRIES=[
+{code:"MX",name:{es:"México",en:"Mexico"},currency:"MXN"},
+{code:"GT",name:{es:"Guatemala",en:"Guatemala"},currency:"GTQ"},
+{code:"SV",name:{es:"El Salvador",en:"El Salvador"},currency:"USD"},
+{code:"HN",name:{es:"Honduras",en:"Honduras"},currency:"HNL"},
+{code:"NI",name:{es:"Nicaragua",en:"Nicaragua"},currency:"NIO"},
+{code:"CR",name:{es:"Costa Rica",en:"Costa Rica"},currency:"CRC"},
+{code:"PA",name:{es:"Panamá",en:"Panama"},currency:"USD"},
+{code:"CO",name:{es:"Colombia",en:"Colombia"},currency:"COP"},
+{code:"VE",name:{es:"Venezuela",en:"Venezuela"},currency:"VES"},
+{code:"EC",name:{es:"Ecuador",en:"Ecuador"},currency:"USD"},
+{code:"PE",name:{es:"Perú",en:"Peru"},currency:"PEN"},
+{code:"BO",name:{es:"Bolivia",en:"Bolivia"},currency:"BOB"},
+{code:"PY",name:{es:"Paraguay",en:"Paraguay"},currency:"PYG"},
+{code:"CL",name:{es:"Chile",en:"Chile"},currency:"CLP"},
+{code:"AR",name:{es:"Argentina",en:"Argentina"},currency:"ARS"},
+{code:"BR",name:{es:"Brasil",en:"Brazil"},currency:"BRL"},
+{code:"DO",name:{es:"República Dominicana",en:"Dominican Republic"},currency:"DOP"},
+{code:"CU",name:{es:"Cuba",en:"Cuba"},currency:"CUP"}
 ];
 
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
-const money=(v,c="USD")=>{const n=Number(v);if(!Number.isFinite(n))return"—";try{return new Intl.NumberFormat(APP.lang==="en"?"en-US":"es-US",{style:"currency",currency:String(c||"USD").toUpperCase(),maximumFractionDigits:2}).format(n)}catch{return new Intl.NumberFormat(APP.lang==="en"?"en-US":"es-US",{style:"currency",currency:"USD",maximumFractionDigits:2}).format(n)}};
+const money=(v,c="USD")=>{const n=Number(v);if(!Number.isFinite(n))return"—";try{return new Intl.NumberFormat(APP.lang==="en"?"en-US":"es-US",{style:"currency",currency:c,maximumFractionDigits:2}).format(n)}catch{return`${n.toFixed(2)} ${c}`}};
 const getJSON=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
 const setJSON=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch{return false}};
 const t=(es,en)=>APP.lang==="en"?en:es;
+
 const toast=m=>{const old=document.querySelector(".toast");if(old)old.remove();const el=document.createElement("div");el.className="toast";el.textContent=m;document.body.appendChild(el);setTimeout(()=>el.remove(),3200)};
 const loading=(m=t("Cargando...","Loading..."))=>`<div class="loading"><span class="spinner"></span><span>${esc(m)}</span></div>`;
 const errorBox=m=>`<div class="error">${esc(m)}</div>`;
 
-function getCountries(){
-    const source=APP.config?.countries;
-    let list=[];
-    if(Array.isArray(source))list=source;
-    else if(Array.isArray(source?.supported))list=source.supported;
-    else if(Array.isArray(APP.config?.supported_countries))list=APP.config.supported_countries;
-    if(!list.length)list=COUNTRY_REGISTRY;
-    const normalized=list.map(c=>{
-        if(typeof c==="string")return{code:c.toUpperCase(),name:{es:c,en:c}};
-        const code=String(c?.code||c?.country_code||"").toUpperCase();
-        const raw=c?.name??c?.country_name??code;
-        const name=typeof raw==="object"?{es:raw.es||raw.en||code,en:raw.en||raw.es||code}:{es:String(raw||code),en:String(raw||code)};
-        return{code,name};
-    }).filter(c=>c.code);
-    const seen=new Set();
-    return normalized.filter(c=>{if(seen.has(c.code))return false;seen.add(c.code);return true});
-}
-
-function getHelpTopics(){
-    const h=APP.config?.help_topics;
-    if(Array.isArray(h))return h;
-    if(Array.isArray(h?.topics))return h.topics;
-    return[];
-}
-
 async function api(url,options={}){
-    const opts={...options,headers:{"Content-Type":"application/json",...(options.headers||{})}};
-    const r=await fetch(url,opts);
-    let data=null;
-    try{data=await r.json()}catch{}
-    if(!r.ok)throw new Error(data?.detail||data?.message||t("No se pudo completar la operación.","The operation could not be completed."));
-    return data;
+const opts={...options,headers:{"Content-Type":"application/json",...(options.headers||{})}};
+const r=await fetch(url,opts);
+let data=null;
+try{data=await r.json()}catch{}
+if(!r.ok)throw new Error(data?.detail||data?.message||t("No se pudo completar la operación.","The operation could not be completed."));
+return data;
 }
 
 async function loadConfig(){
-    APP.config=await api(`/api/config?language=${encodeURIComponent(APP.lang)}`);
-    return APP.config;
+APP.config=await api(`/api/config?language=${encodeURIComponent(APP.lang)}`);
+return APP.config;
 }
 
 async function startSession(){
-    const data=await api("/api/session",{method:"POST",body:JSON.stringify({language:APP.lang})});
-    APP.session=data.session||null;
-    return APP.session;
+const data=await api("/api/session",{method:"POST",body:JSON.stringify({language:APP.lang})});
+APP.session=data.session||null;
+return APP.session;
+}
+
+function normalizeCountry(c){
+if(!c)return null;
+if(typeof c==="string")return{code:c.toUpperCase(),name:c,currency:""};
+if(typeof c!=="object")return null;
+const code=String(c.code||c.id||"").trim().toUpperCase();
+if(!code)return null;
+return{code,name:c.name||code,currency:c.currency||""};
+}
+
+function getCountries(){
+const c=APP.config?.countries;
+let list=[];
+if(Array.isArray(c))list=c;
+else if(Array.isArray(c?.supported))list=c.supported;
+else if(Array.isArray(c?.initial_supported)){
+const names=c.country_names||{};
+list=c.initial_supported.map(code=>({code,name:names?.[code]?.name||code,currency:names?.[code]?.currency||""}));
+}else if(c?.country_names&&typeof c.country_names==="object"){
+list=Object.entries(c.country_names).map(([code,v])=>({code,name:v?.name||code,currency:v?.currency||""}));
+}
+const normalized=list.map(normalizeCountry).filter(Boolean);
+const seen=new Set();
+const clean=normalized.filter(x=>{if(seen.has(x.code))return false;seen.add(x.code);return true});
+return clean.length?clean:DEFAULT_COUNTRIES;
+}
+
+function countryName(code){
+const c=getCountries().find(x=>x.code===String(code||"").toUpperCase());
+if(!c)return String(code||"");
+if(typeof c.name==="object")return c.name[APP.lang]||c.name.es||c.name.en||c.code;
+return c.name;
+}
+
+function getDeliveryMethods(){
+const list=APP.config?.delivery_methods;
+if(Array.isArray(list)&&list.length)return list;
+return[
+{id:"cash_pickup",label:t("Retiro en efectivo","Cash pickup")},
+{id:"bank_account",label:t("Cuenta bancaria","Bank account")},
+{id:"debit_card",label:t("Tarjeta de débito","Debit card")},
+{id:"mobile_wallet",label:t("Billetera móvil","Mobile wallet")},
+{id:"home_delivery",label:t("Entrega a domicilio","Home delivery")}
+];
+}
+
+function getPaymentMethods(){
+const list=APP.config?.payment_methods;
+if(Array.isArray(list)&&list.length)return list;
+return[
+{id:"bank_account",label:t("Cuenta bancaria","Bank account")},
+{id:"debit_card",label:t("Tarjeta de débito","Debit card")},
+{id:"credit_card",label:t("Tarjeta de crédito","Credit card")},
+{id:"cash",label:t("Efectivo","Cash")},
+{id:"other",label:t("Otro","Other")}
+];
 }
 
 function shell(content){
-    const cfg=APP.config||{};
-    const appName=cfg.app?.name||APP.name;
-    return `<div class="app-shell">
+const cfg=APP.config||{};
+const appName=cfg.app?.name||APP.name;
+return`<div class="app-shell">
 <header class="topbar">
 <button class="brand" style="border:0;background:transparent;padding:0;text-align:left" onclick="renderHome()">${esc(appName)}<small>${esc(cfg.app?.brand||"May Roga LLC")}</small></button>
 <div class="top-actions"><button class="lang-btn" onclick="changeLanguage()">${APP.lang==="es"?"EN":"ES"}</button></div>
@@ -97,16 +130,39 @@ ${content}
 }
 
 function render(content){
-    const app=$("app");
-    if(app)app.innerHTML=shell(content);
-    window.scrollTo({top:0,behavior:"smooth"});
+const app=$("app");
+if(app)app.innerHTML=shell(content);
+window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function actionCard(icon,title,desc,action){
+return`<button class="card action-card" onclick="${action}" style="border:1px solid var(--border);text-align:left;color:inherit"><div class="action-icon">${icon}</div><div><h3>${esc(title)}</h3><p>${esc(desc)}</p></div></button>`;
+}
+
+function frequencyFactor(f){
+switch(String(f||"monthly")){
+case"weekly":return 4.345;
+case"biweekly":return 2.173;
+case"one_time":return 1;
+default:return 1;
+}
+}
+
+function calculateLocalAvailable(){
+const moneyData=getJSON(APP.keys.money,{});
+const expenses=getJSON(APP.keys.expenses,[]);
+const savings=getJSON(APP.keys.savings,{});
+const income=Number(moneyData.income||0);
+const expenseTotal=expenses.reduce((a,x)=>a+Number(x.amount||0)*frequencyFactor(x.frequency||"monthly"),0);
+const saving=Number(savings.amount||0);
+return income-expenseTotal-saving;
 }
 
 function renderHome(){
-    const moneyData=getJSON(APP.keys.money,{});
-    const expenses=getJSON(APP.keys.expenses,[]);
-    const available=calculateLocalAvailable();
-    render(`
+const moneyData=getJSON(APP.keys.money,{});
+const expenses=getJSON(APP.keys.expenses,[]);
+const available=calculateLocalAvailable();
+render(`
 <section class="hero">
 <h1>${esc(t("TENGO → GANO → GASTO → AHORRO → QUIERO → PUEDO → HAGO","HAVE → EARN → SPEND → SAVE → WANT → CAN → DO"))}</h1>
 <p>${esc(t("Organiza tu dinero, prepara una remesa y revisa opciones sin complicarte.","Organize your money, prepare a remittance and review options without unnecessary complexity."))}</p>
@@ -146,437 +202,434 @@ ${actionCard("🏦",t("Ahorro","Savings"),t("Registra una cantidad para un objet
 </section>`);
 }
 
-function actionCard(icon,title,desc,action){
-    return `<button class="card action-card" onclick="${action}" style="border:1px solid var(--border);text-align:left;color:inherit"><div class="action-icon">${icon}</div><div><h3>${esc(title)}</h3><p>${esc(desc)}</p></div></button>`;
-}
-
 function renderRemittance(parsed=null){
-    const s=APP.session||{};
-    const countries=getCountries();
-    const currentCountry=String(s.destination_country||parsed?.destination_country||"").toUpperCase();
-    const destinations=countries.map(c=>{
-        const code=String(c.code||"").toUpperCase();
-        const raw=c.name;
-        const name=typeof raw==="object"?(raw[APP.lang]||raw.es||raw.en||code):raw;
-        return `<option value="${esc(code)}" ${currentCountry===code?"selected":""}>${esc(name||code)}</option>`;
-    }).join("");
-    const amount=s.amount??parsed?.amount??"";
-    const priority=s.priority||parsed?.priority||"";
-    const urgency=s.urgency??parsed?.urgency??false;
-    const frequency=s.frequency||parsed?.frequency||"one_time";
-    const delivery=s.delivery_method||parsed?.delivery_method||"";
-    const payment=s.payment_method||parsed?.payment_method||"";
-    render(`
+const s=APP.session||{};
+const countries=getCountries();
+const destinations=countries.map(c=>{
+const code=esc(c.code);
+const label=typeof c.name==="object"?(c.name[APP.lang]||c.name.es||c.name.en||c.code):c.name;
+const selected=String(s.destination_country||parsed?.destination_country||"").toUpperCase()===c.code;
+return`<option value="${code}" ${selected?"selected":""}>${esc(label)}</option>`;
+}).join("");
+const selectedDelivery=s.delivery_method||parsed?.delivery_method||"";
+const selectedPayment=s.payment_method||parsed?.payment_method||"";
+const deliveryOptions=getDeliveryMethods().map(x=>`<option value="${esc(x.id)}" ${selectedDelivery===x.id?"selected":""}>${esc(typeof x.label==="object"?(x.label[APP.lang]||x.label.es||x.label.en||x.id):x.label||x.id)}</option>`).join("");
+const paymentOptions=getPaymentMethods().map(x=>`<option value="${esc(x.id)}" ${selectedPayment===x.id?"selected":""}>${esc(typeof x.label==="object"?(x.label[APP.lang]||x.label.es||x.label.en||x.id):x.label||x.id)}</option>`).join("");
+const amount=s.amount||parsed?.amount||"";
+const priority=s.priority||parsed?.priority||"";
+const frequency=s.frequency||parsed?.frequency||"one_time";
+render(`
 <section class="section">
-<div class="section-title"><div><h2>${esc(t("Preparar una remesa","Prepare a remittance"))}</h2><p>${esc(t("Solo pedimos lo necesario para revisar opciones.","We only ask for what is needed to review options."))}</p></div></div>
-<div class="card form-card">
-<div class="notice info">${esc(t("REMESAS no mueve tu dinero. Antes de enviar una transacción, siempre debes revisar las condiciones actuales directamente con el proveedor oficial.","REMESAS does not move your money. Before sending a transaction, always review current conditions directly with the official provider."))}</div>
-<div class="form-row">
-<div class="field"><label for="remAmount">${esc(t("¿Cuánto quieres enviar?","How much do you want to send?"))}</label><input id="remAmount" type="number" min=".01" max="1000000" step=".01" value="${esc(amount)}" placeholder="100"></div>
-<div class="field"><label for="remCountry">${esc(t("¿A qué país?","Which country?"))}</label><select id="remCountry"><option value="">${esc(t("Selecciona","Select"))}</option>${destinations}</select></div>
+<div class="section-title">
+<div><h1>${esc(t("Preparar una remesa","Prepare a remittance"))}</h1><p>${esc(t("Solo preguntamos lo que puede cambiar el siguiente paso.","We only ask for information that can change the next step."))}</p></div>
+<button class="btn secondary small" onclick="renderHome()">${esc(t("Inicio","Home"))}</button>
 </div>
-<div class="field"><label>${esc(t("¿Qué te importa más?","What matters most?"))}</label><div class="choice-grid">
-${choice("priority","save",t("Ahorrar / menor costo","Save / lower cost"),priority)}
-${choice("priority","fastest",t("Rapidez","Speed"),priority)}
-${choice("priority","recipient_gets_more",t("Más para quien recibe","More for recipient"),priority)}
-${choice("priority","balanced",t("Equilibrio","Balance"),priority)}
-</div></div>
-<div class="check-row"><input id="remUrgency" type="checkbox" ${urgency?"checked":""}><label for="remUrgency">${esc(t("Es urgente o necesitas hacerlo hoy","It is urgent or you need it today"))}</label></div>
-<div class="form-row">
-<div class="field"><label for="remFrequency">${esc(t("Frecuencia","Frequency"))}</label><select id="remFrequency">
+<div class="card">
+<label>${esc(t("¿Cuánto quieres enviar?","How much do you want to send?"))}</label>
+<input id="rem-amount" type="number" min="0.01" step="0.01" value="${esc(amount)}" placeholder="100">
+<div class="form-grid">
+<div>
+<label>${esc(t("¿A qué país?","Where to?"))}</label>
+<select id="rem-country"><option value="">${esc(t("Selecciona","Select"))}</option>${destinations}</select>
+</div>
+<div>
+<label>${esc(t("¿Qué es más importante?","What matters most?"))}</label>
+<select id="rem-priority">
+<option value="">${esc(t("Selecciona","Select"))}</option>
+<option value="recipient_gets_more" ${priority==="recipient_gets_more"?"selected":""}>${esc(t("Que reciba más","Recipient gets more"))}</option>
+<option value="fastest" ${priority==="fastest"?"selected":""}>${esc(t("Que llegue rápido","Arrive fast"))}</option>
+<option value="save" ${priority==="save"?"selected":""}>${esc(t("Ahorrar","Save"))}</option>
+<option value="balanced" ${priority==="balanced"?"selected":""}>${esc(t("Equilibrio","Balanced"))}</option>
+<option value="compare_all" ${priority==="compare_all"?"selected":""}>${esc(t("Comparar opciones","Compare options"))}</option>
+</select>
+</div>
+<div>
+<label>${esc(t("Frecuencia","Frequency"))}</label>
+<select id="rem-frequency">
 <option value="one_time" ${frequency==="one_time"?"selected":""}>${esc(t("Una vez","One time"))}</option>
 <option value="weekly" ${frequency==="weekly"?"selected":""}>${esc(t("Semanal","Weekly"))}</option>
-<option value="biweekly" ${frequency==="biweekly"?"selected":""}>${esc(t("Quincenal","Biweekly"))}</option>
+<option value="biweekly" ${frequency==="biweekly"?"selected":""}>${esc(t("Cada dos semanas","Biweekly"))}</option>
 <option value="monthly" ${frequency==="monthly"?"selected":""}>${esc(t("Mensual","Monthly"))}</option>
-</select></div>
-<div class="field"><label for="remDelivery">${esc(t("Cómo recibe","How recipient receives"))}</label><select id="remDelivery">
-<option value="">${esc(t("Selecciona","Select"))}</option>
-<option value="cash_pickup" ${delivery==="cash_pickup"?"selected":""}>${esc(t("Efectivo / recoger","Cash pickup"))}</option>
-<option value="bank_account" ${delivery==="bank_account"?"selected":""}>${esc(t("Cuenta bancaria","Bank account"))}</option>
-<option value="debit_card" ${delivery==="debit_card"?"selected":""}>${esc(t("Tarjeta de débito","Debit card"))}</option>
-<option value="mobile_wallet" ${delivery==="mobile_wallet"?"selected":""}>${esc(t("Billetera móvil","Mobile wallet"))}</option>
-<option value="home_delivery" ${delivery==="home_delivery"?"selected":""}>${esc(t("Entrega a domicilio","Home delivery"))}</option>
-</select></div>
+</select>
 </div>
-<div class="field"><label for="remPayment">${esc(t("Cómo pagas","How you pay"))}</label><select id="remPayment">
+<div>
+<label>${esc(t("Urgencia","Urgency"))}</label>
+<select id="rem-urgency">
 <option value="">${esc(t("Selecciona","Select"))}</option>
-<option value="bank_account" ${payment==="bank_account"?"selected":""}>${esc(t("Cuenta bancaria","Bank account"))}</option>
-<option value="debit_card" ${payment==="debit_card"?"selected":""}>${esc(t("Tarjeta de débito","Debit card"))}</option>
-<option value="credit_card" ${payment==="credit_card"?"selected":""}>${esc(t("Tarjeta de crédito","Credit card"))}</option>
-<option value="cash" ${payment==="cash"?"selected":""}>${esc(t("Efectivo","Cash"))}</option>
-<option value="other" ${payment==="other"?"selected":""}>${esc(t("Otro","Other"))}</option>
-</select></div>
-<div class="actions"><button class="btn" onclick="compareRemittance()">${esc(t("Revisar opciones","Review options"))}</button><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div>
+<option value="normal">${esc(t("Normal","Normal"))}</option>
+<option value="urgent">${esc(t("Urgente","Urgent"))}</option>
+</select>
 </div>
+<div>
+<label>${esc(t("Forma de entrega","Delivery method"))}</label>
+<select id="rem-delivery"><option value="">${esc(t("Selecciona","Select"))}</option>${deliveryOptions}</select>
+</div>
+<div>
+<label>${esc(t("Forma de pago","Payment method"))}</label>
+<select id="rem-payment"><option value="">${esc(t("Selecciona","Select"))}</option>${paymentOptions}</select>
+</div>
+</div>
+<label>${esc(t("¿Algo más que debamos saber? Opcional","Anything else? Optional"))}</label>
+<textarea id="rem-special" maxlength="500" placeholder="${esc(t("Escribe solo lo necesario.","Write only what is necessary."))}">${esc(s.special_need||"")}</textarea>
+<button class="btn" onclick="compareRemittance()">${esc(t("Revisar opciones","Review options"))}</button>
+</div>
+<div id="rem-status"></div>
 </section>`);
-}
-
-function choice(name,value,label,current){
-    const id=`${name}_${value}`;
-    return `<div class="choice"><input id="${esc(id)}" name="${esc(name)}" type="radio" value="${esc(value)}" ${current===value?"checked":""}><label for="${esc(id)}">${esc(label)}</label></div>`;
 }
 
 async function compareRemittance(){
-    const amount=Number($("remAmount")?.value||0);
-    const country=String($("remCountry")?.value||"").toUpperCase();
-    if(!Number.isFinite(amount)||amount<=0||amount>1000000)return toast(t("Introduce un monto válido.","Enter a valid amount."));
-    if(!country)return toast(t("Selecciona el país.","Select the country."));
-    if(!APP.session)await startSession();
-    const priority=document.querySelector('input[name="priority"]:checked')?.value||null;
-    const payload={session_id:APP.session.session_id,language:APP.lang,need_type:"remittance",amount,destination_country:country,priority,urgency:Boolean($("remUrgency")?.checked),frequency:$("remFrequency")?.value||null,delivery_method:$("remDelivery")?.value||null,payment_method:$("remPayment")?.value||null};
-    try{
-        render(loading(t("Preparando la revisión...","Preparing the review...")));
-        const need=await api("/api/need",{method:"POST",body:JSON.stringify(payload)});
-        APP.session=need.session||APP.session;
-        const result=await api(`/api/session/${encodeURIComponent(APP.session.session_id)}/compare`,{method:"POST"});
-        APP.comparison=result;
-        renderComparison(result);
-    }catch(e){
-        render(`<section class="section">${errorBox(e.message)}<div class="actions"><button class="btn" onclick="renderRemittance()">${esc(t("Intentar de nuevo","Try again"))}</button></div></section>`);
-    }
+const amount=Number($("rem-amount")?.value||0);
+const country=String($("rem-country")?.value||"").toUpperCase();
+const priority=$("rem-priority")?.value||null;
+const frequency=$("rem-frequency")?.value||"one_time";
+const urgency=$("rem-urgency")?.value||null;
+const delivery=$("rem-delivery")?.value||null;
+const payment=$("rem-payment")?.value||null;
+const special=$("rem-special")?.value?.trim()||null;
+if(!Number.isFinite(amount)||amount<=0){toast(t("Indica un monto válido.","Enter a valid amount."));return}
+if(!country){toast(t("Selecciona el país de destino.","Select the destination country."));return}
+const known=getCountries().some(x=>x.code===country);
+if(!known){toast(t("Ese país no está disponible en el catálogo actual.","That country is not available in the current catalog."));return}
+const status=$("rem-status");
+if(status)status.innerHTML=loading(t("Revisando opciones...","Reviewing options..."));
+try{
+if(!APP.session)await startSession();
+const need=await api("/api/need",{method:"POST",body:JSON.stringify({session_id:APP.session?.session_id,language:APP.lang,amount,destination_country:country,priority,urgency:urgency==="urgent",frequency,delivery_method:delivery,payment_method:payment,special_need:special,need_type:"remittance"})});
+APP.session=need.session||APP.session;
+const result=await api(`/api/session/${APP.session.session_id}/compare`,{method:"POST",body:JSON.stringify({session_id:APP.session.session_id,amount,destination_country:country,send_currency:"USD",priority,delivery_method:delivery,payment_method:payment,language:APP.lang})});
+APP.comparison=result;
+renderComparison(result);
+}catch(e){
+if(status)status.innerHTML=errorBox(e.message);
+}
+}
+
+function providerLabel(p){
+return p?.provider_name||p?.name||p?.provider_id||"Provider";
+}
+
+function providerCard(p){
+const verified=p?.commercial_verified||p?.commercial_status==="verified";
+const url=p?.continue_url||p?.official_site||"";
+const methods=[];
+if(Array.isArray(p?.delivery_methods))methods.push(`${t("Entrega","Delivery")}: ${p.delivery_methods.join(", ")}`);
+if(Array.isArray(p?.payment_methods))methods.push(`${t("Pago","Payment")}: ${p.payment_methods.join(", ")}`);
+return`<div class="card provider-card">
+<h3>${esc(providerLabel(p))}</h3>
+<div class="status">${esc(verified?t("Datos verificados","Verified data"):t("Revisar en sitio oficial","Review official site"))}</div>
+${p?.fee!=null?`<p><strong>${esc(t("Comisión","Fee"))}:</strong> ${esc(p.fee)}</p>`:""}
+${p?.exchange_rate!=null?`<p><strong>${esc(t("Tasa","Rate"))}:</strong> ${esc(p.exchange_rate)}</p>`:""}
+${p?.recipient_amount!=null?`<p><strong>${esc(t("Recibe","Receives"))}:</strong> ${esc(p.recipient_amount)}</p>`:""}
+${p?.delivery_time!=null?`<p><strong>${esc(t("Tiempo","Timing"))}:</strong> ${esc(p.delivery_time)}</p>`:""}
+${methods.map(x=>`<p>${esc(x)}</p>`).join("")}
+<button class="btn" onclick="selectProvider('${esc(p.provider_id)}')">${esc(t("Revisar esta opción","Review this option"))}</button>
+${url?`<button class="btn secondary" onclick="openOfficial('${esc(url)}')">${esc(t("Sitio oficial","Official site"))}</button>`:""}
+</div>`;
 }
 
 function renderComparison(data){
-    const options=data.available_providers||[];
-    const results=data.results||[];
-    const verified=new Map(results.map(x=>[x.provider_id,x]));
-    APP.comparison=data;
-    const cards=options.length?options.map(p=>providerCard(p,verified.get(p.provider_id))).join(""):`<div class="empty">${esc(t("No hay proveedores candidatos en el catálogo actual para este destino.","There are no candidate providers in the current catalog for this destination."))}</div>`;
-    render(`
+const available=Array.isArray(data?.available_providers)?data.available_providers:[];
+const results=Array.isArray(data?.results)?data.results:[];
+const merged=available.length?available:results;
+render(`
 <section class="section">
-<div class="section-title"><div><h2>${esc(t("Opciones para tu remesa","Options for your remittance"))}</h2><p>${esc(data.destination_name||data.destination_country||"")}</p></div></div>
-${data.explanation?`<div class="notice info">${esc(data.explanation)}</div>`:""}
-${!data.results_available?`<div class="notice warning" style="margin-top:12px">${esc(t("No hay tarifas, tasas, tiempos o disponibilidad actuales verificadas por REMESAS. Por eso no se presenta ningún proveedor como más barato, más rápido o mejor. Revisa cada opción en su sitio oficial.","REMESAS has no currently verified fees, rates, delivery times, or availability. Therefore no provider is presented as cheaper, faster, or better. Review each option on its official site."))}</div>`:""}
-<div class="result-list" style="margin-top:14px">${cards}</div>
-${data.precautions?.length?`<div class="card" style="margin-top:14px"><h3>${esc(t("Antes de continuar","Before continuing"))}</h3><ul class="list">${data.precautions.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:""}
-<div class="actions"><button class="btn secondary" onclick="renderRemittance()">${esc(t("Cambiar datos","Change details"))}</button><button class="btn secondary" onclick="renderHome()">${esc(t("Inicio","Home"))}</button></div>
+<div class="section-title"><div><h1>${esc(t("Opciones para revisar","Options to review"))}</h1><p>${esc(data?.destination_name||countryName(data?.destination_country||""))} · ${money(data?.amount||0)}</p></div></div>
+<div class="notice">${esc(data?.message||t("Revisa las opciones y confirma los datos finales en el sitio oficial.","Review the options and confirm final details on the official site."))}</div>
+${data?.explanation?`<div class="card"><p>${esc(data.explanation)}</p></div>`:""}
+<div class="grid">${merged.map(providerCard).join("")||`<div class="card">${esc(t("No hay proveedores disponibles para mostrar.","No providers are available to display."))}</div>`}</div>
+<div class="actions"><button class="btn secondary" onclick="renderRemittance()">${esc(t("Modificar remesa","Modify remittance"))}</button><button class="btn secondary" onclick="renderHome()">${esc(t("Inicio","Home"))}</button></div>
 </section>`);
-}
-
-function providerCard(p,result){
-    const verified=Boolean(result);
-    const commercial=[];
-    if(verified){
-        if(result.fee!=null)commercial.push(`<div class="metric"><span>${esc(t("Tarifa verificada","Verified fee"))}</span><strong>${money(result.fee)}</strong></div>`);
-        if(result.exchange_rate!=null)commercial.push(`<div class="metric"><span>${esc(t("Tasa verificada","Verified rate"))}</span><strong>${esc(result.exchange_rate)}</strong></div>`);
-        if(result.recipient_amount!=null)commercial.push(`<div class="metric"><span>${esc(t("Recibe","Recipient gets"))}</span><strong>${money(result.recipient_amount,result.recipient_currency||"USD")}</strong></div>`);
-        if(result.estimated_delivery!=null)commercial.push(`<div class="metric"><span>${esc(t("Entrega","Delivery"))}</span><strong>${esc(result.estimated_delivery)}</strong></div>`);
-        if(result.availability!=null)commercial.push(`<div class="metric"><span>${esc(t("Disponibilidad","Availability"))}</span><strong>${result.availability?esc(t("Disponible","Available")):esc(t("No disponible","Unavailable"))}</strong></div>`);
-    }
-    const methods=p.delivery_methods?.length?p.delivery_methods.map(x=>esc(typeof x==="object"?(x.name||x.id||JSON.stringify(x)):x)).join(", "):t("No especificados","Not specified");
-    const providerId=JSON.stringify(String(p.provider_id||""));
-    const official=p.continue_url?`<button class="btn secondary" onclick="openOfficial(${JSON.stringify(String(p.continue_url))})">${esc(t("Sitio oficial","Official site"))}</button>`:"";
-    return `<article class="provider-card">
-<div class="provider-head"><div><h3>${esc(p.provider_name||"")}</h3><p>${esc(t("Proveedor del catálogo oficial","Official catalog provider"))}</p></div><span class="provider-status ${verified?"verified":""}">${verified?esc(t("Datos verificados","Verified data")):esc(t("Revisar sitio oficial","Review official site"))}</span></div>
-${commercial.length?`<div class="provider-data">${commercial.join("")}</div>`:`<div class="notice warning" style="margin-top:13px">${esc(t("No hay datos comerciales actuales verificados para mostrar aquí.","There is no currently verified commercial data to display here."))}</div>`}
-<div class="notice" style="margin-top:12px"><strong>${esc(t("Métodos declarados","Declared methods"))}:</strong> ${methods}<br><small>${esc(t("Estos métodos requieren confirmación en el sitio oficial y no representan disponibilidad actual.","These methods require confirmation on the official site and do not represent current availability."))}</small></div>
-<div class="actions"><button class="btn" onclick="selectProvider(${providerId})">${esc(t("Revisar esta opción","Review this option"))}</button>${official}</div>
-</article>`;
 }
 
 async function selectProvider(providerId){
-    if(!APP.session?.session_id)return toast(t("La sesión no está disponible.","The session is unavailable."));
-    try{
-        const data=await api(`/api/session/${encodeURIComponent(APP.session.session_id)}/select/${encodeURIComponent(providerId)}`,{method:"POST"});
-        APP.session=data.session||APP.session;
-        renderSelectedProvider(data.selected_option||APP.session.selected_option);
-    }catch(e){toast(e.message)}
+if(!APP.session?.session_id){toast(t("La sesión terminó. Empieza de nuevo.","The session ended. Start again."));renderRemittance();return}
+try{
+const option=await api(`/api/session/${APP.session.session_id}/select/${encodeURIComponent(providerId)}`,{method:"POST"});
+APP.session.selected_option=option;
+renderFinalCheck(option);
+}catch(e){render(`<section class="section">${errorBox(e.message)}<button class="btn secondary" onclick="renderRemittance()">${esc(t("Intentar de nuevo","Try again"))}</button></section>`)}
 }
 
-function renderSelectedProvider(option){
-    const name=option?.provider_name||"";
-    render(`
+function renderFinalCheck(option){
+const country=APP.session?.destination_country||"";
+const amount=Number(APP.session?.amount||0);
+const delivery=APP.session?.delivery_method||"";
+render(`
 <section class="section">
-<div class="card form-card">
-<div class="section-title"><div><h2>${esc(t("Has elegido revisar esta opción","You chose to review this option"))}</h2><p>${esc(name)}</p></div></div>
-<div class="notice warning">${esc(t("Elegir una opción aquí no inicia una transferencia. REMESAS no procesa el dinero.","Selecting an option here does not start a transfer. REMESAS does not process the money."))}</div>
-<div class="actions">
-<button class="btn" onclick="finalCheck()">${esc(t("Hacer revisión final","Run final check"))}</button>
-${option?.continue_url?`<button class="btn secondary" onclick="openOfficial(${JSON.stringify(String(option.continue_url))})">${esc(t("Abrir sitio oficial","Open official site"))}</button>`:""}
-<button class="btn secondary" onclick="renderComparison(APP.comparison||{})">${esc(t("Volver a opciones","Back to options"))}</button>
-</div>
+<div class="section-title"><div><h1>${esc(t("Última revisión","Final review"))}</h1><p>${esc(providerLabel(option))}</p></div></div>
+<div class="card">
+<p><strong>${esc(t("País","Country"))}:</strong> ${esc(countryName(country))}</p>
+<p><strong>${esc(t("Monto","Amount"))}:</strong> ${money(amount)}</p>
+<p><strong>${esc(t("Entrega","Delivery"))}:</strong> ${esc(delivery||t("Revisar","Review"))}</p>
+<p>${esc(t("Antes de continuar, confirma la información final directamente con el proveedor.","Before continuing, confirm the final information directly with the provider."))}</p>
+<ul>
+<li>${esc(t("Comisión final","Final fee"))}: ${esc(option?.fee??t("No verificada","Not verified"))}</li>
+<li>${esc(t("Tasa de cambio","Exchange rate"))}: ${esc(option?.exchange_rate??t("No verificada","Not verified"))}</li>
+<li>${esc(t("Cantidad recibida","Recipient amount"))}: ${esc(option?.recipient_amount??t("No verificada","Not verified"))}</li>
+</ul>
+<button class="btn" onclick="runFinalCheck()">${esc(t("Confirmar revisión","Confirm review"))}</button>
+<button class="btn secondary" onclick="renderComparison(APP.comparison)">${esc(t("Volver a opciones","Back to options"))}</button>
 </div>
 </section>`);
 }
 
-async function finalCheck(){
-    if(!APP.session?.session_id)return toast(t("La sesión no está disponible.","The session is unavailable."));
-    render(loading(t("Revisando datos básicos...","Checking basic details...")));
-    try{
-        const data=await api(`/api/session/${encodeURIComponent(APP.session.session_id)}/final-check`,{method:"POST"});
-        APP.session.final_check=data;
-        renderFinalResult(data,APP.session.selected_option);
-    }catch(e){
-        render(`<section class="section">${errorBox(e.message)}<div class="actions"><button class="btn" onclick="renderHome()">${esc(t("Inicio","Home"))}</button></div></section>`);
-    }
+async function runFinalCheck(){
+const s=APP.session||{};
+try{
+const data=await api("/api/final-check",{method:"POST",body:JSON.stringify({session_id:s.session_id,provider_id:s.selected_option?.provider_id||"",destination_country:s.destination_country,amount:Number(s.amount||0),send_currency:"USD",delivery_method:s.delivery_method||null,payment_method:s.payment_method||null,recipient_information:null,fee:s.selected_option?.fee??null,exchange_rate:s.selected_option?.exchange_rate??null,recipient_amount:s.selected_option?.recipient_amount??null,language:APP.lang})});
+renderFinalResult(data,s.selected_option);
+}catch(e){toast(e.message)}
 }
 
 function renderFinalResult(data,option){
-    const checks=(data.checks||[]).map(c=>`<div class="notice ${c.ok?"success":"danger"}" style="margin-bottom:8px"><strong>${esc(c.label)}</strong><br>${esc(c.message)}</div>`).join("");
-    render(`
+const url=option?.continue_url||option?.official_site||"";
+render(`
 <section class="section">
-<div class="card form-card">
-<div class="section-title"><div><h2>${esc(t("Revisión final","Final review"))}</h2><p>${esc(option?.provider_name||"")}</p></div></div>
-${checks}
-<div class="notice info">${esc(data.message||"")}</div>
-<div class="card" style="margin-top:14px;box-shadow:none"><strong>${esc(t("Recuerda antes de enviar","Before submitting"))}</strong><ul class="list">
-<li>${esc(t("Confirma la tarifa final y la tasa de cambio en el sitio oficial.","Confirm the final fee and exchange rate on the official site."))}</li>
-<li>${esc(t("Confirma disponibilidad y tiempo de entrega actuales.","Confirm current availability and delivery timing."))}</li>
-<li>${esc(t("Revisa cuidadosamente los datos del destinatario.","Carefully review recipient information."))}</li>
-<li>${esc(t("Nunca introduzcas contraseñas, CVV o credenciales bancarias en REMESAS.","Never enter passwords, CVV, or bank credentials into REMESAS."))}</li>
-</ul></div>
-<div class="actions">
-${option?.continue_url?`<button class="btn" onclick="openOfficial(${JSON.stringify(String(option.continue_url))})">${esc(t("Continuar al sitio oficial","Continue to official site"))}</button>`:""}
+<div class="card">
+<h1>${esc(t("Revisión terminada","Review completed"))}</h1>
+<p>${esc(data?.message||t("Revisa los datos finales en el sitio oficial.","Review the final details on the official site."))}</p>
+${Array.isArray(data?.checks)?`<div class="checks">${data.checks.map(c=>`<div class="check"><span>${c.complete?"✓":"!"}</span><strong>${esc(c.label)}</strong><span>${esc(c.value)}</span></div>`).join("")}</div>`:""}
+<div class="notice">${esc(t("REMESAS no completa el envío. El siguiente paso ocurre en el sitio oficial del proveedor.","REMESAS does not complete the transfer. The next step occurs on the provider's official site."))}</div>
+${url?`<button class="btn" onclick="openOfficial('${esc(url)}')">${esc(t("Continuar en sitio oficial","Continue on official site"))}</button>`:""}
 <button class="btn secondary" onclick="renderHome()">${esc(t("Terminar","Finish"))}</button>
-</div>
 </div>
 </section>`);
 }
 
 function openOfficial(url){
-    if(!url||!/^https:\/\//i.test(String(url)))return toast(t("Enlace oficial no disponible.","Official link unavailable."));
-    window.open(String(url),"_blank","noopener,noreferrer");
+if(!/^https:\/\//i.test(url)){toast(t("Solo se permiten enlaces HTTPS.","Only HTTPS links are allowed."));return}
+window.open(url,"_blank","noopener,noreferrer");
 }
 
 async function changeLanguage(){
-    APP.lang=APP.lang==="es"?"en":"es";
-    localStorage.setItem(APP.keys.lang,APP.lang);
-    localStorage.setItem("remesas_lang",APP.lang);
-    try{await loadConfig()}catch{}
-    if(APP.session?.session_id){
-        try{
-            const data=await api("/api/need",{method:"POST",body:JSON.stringify({session_id:APP.session.session_id,language:APP.lang})});
-            APP.session=data.session||APP.session;
-        }catch{}
-    }
-    renderHome();
+APP.lang=APP.lang==="es"?"en":"es";
+localStorage.setItem(APP.keys.lang,APP.lang);
+localStorage.setItem("remesas_lang",APP.lang);
+try{
+await loadConfig();
+if(APP.session)APP.session.language=APP.lang;
+renderHome();
+}catch(e){toast(e.message)}
 }
 
 function renderMoney(){
-    const data=getJSON(APP.keys.money,{});
-    render(`
+const d=getJSON(APP.keys.money,{});
+render(`
 <section class="section">
-<div class="section-title"><div><h2>${esc(t("Mi dinero","My money"))}</h2><p>${esc(t("Calcula una referencia con tus propios datos.","Calculate a reference using your own data."))}</p></div></div>
-<div class="card form-card">
-<div class="form-row">
-<div class="field"><label>${esc(t("Ingreso principal","Main income"))}</label><input id="income" type="number" min="0" max="1000000" step=".01" value="${esc(data.income??"")}"></div>
-<div class="field"><label>${esc(t("Frecuencia","Frequency"))}</label><select id="incomeFreq">
-<option value="monthly" ${data.frequency==="monthly"?"selected":""}>${esc(t("Mensual","Monthly"))}</option>
-<option value="weekly" ${data.frequency==="weekly"?"selected":""}>${esc(t("Semanal","Weekly"))}</option>
-<option value="biweekly" ${data.frequency==="biweekly"?"selected":""}>${esc(t("Quincenal","Biweekly"))}</option>
-</select></div>
+<div class="section-title"><div><h1>${esc(t("Mi dinero","My money"))}</h1><p>${esc(t("Registra lo que tienes y calcula lo disponible.","Record what you have and calculate what remains."))}</p></div></div>
+<div class="card">
+<label>${esc(t("Ingresos disponibles","Available income"))}</label>
+<input id="money-income" type="number" min="0" step="0.01" value="${esc(d.income||"")}">
+<label>${esc(t("Dinero inicial adicional","Additional starting money"))}</label>
+<input id="money-start" type="number" min="0" step="0.01" value="${esc(d.start||"")}">
+<button class="btn" onclick="saveMoney()">${esc(t("Calcular","Calculate"))}</button>
 </div>
-<div class="form-row">
-<div class="field"><label>${esc(t("Otros ingresos mensuales","Other monthly income"))}</label><input id="otherIncome" type="number" min="0" max="1000000" step=".01" value="${esc(data.otherIncome??"")}"></div>
-<div class="field"><label>${esc(t("Remesa mensual","Monthly remittance"))}</label><input id="moneyRemittance" type="number" min="0" max="1000000" step=".01" value="${esc(data.remittance??"")}"></div>
-</div>
-<div class="form-row">
-<div class="field"><label>${esc(t("Gastos esenciales mensuales","Monthly essential expenses"))}</label><input id="essential" type="number" min="0" max="1000000" step=".01" value="${esc(data.essential??"")}"></div>
-<div class="field"><label>${esc(t("Gastos flexibles mensuales","Monthly flexible expenses"))}</label><input id="flexible" type="number" min="0" max="1000000" step=".01" value="${esc(data.flexible??"")}"></div>
-</div>
-<div class="field"><label>${esc(t("Ahorro mensual","Monthly savings"))}</label><input id="moneySavings" type="number" min="0" max="1000000" step=".01" value="${esc(data.savings??"")}"></div>
-<div class="actions"><button class="btn" onclick="calculateMoney()">${esc(t("Calcular","Calculate"))}</button><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div>
-<div id="moneyResult"></div>
+<div id="money-result" class="card">
+<strong>${esc(t("Disponible calculado","Calculated available"))}: ${money(calculateLocalAvailable())}</strong>
 </div>
 </section>`);
 }
 
-function frequencyFactor(freq){
-    if(freq==="weekly")return 52/12;
-    if(freq==="biweekly")return 26/12;
-    return 1;
-}
-
-function calculateMoney(){
-    const data={income:Number($("income")?.value||0),frequency:$("incomeFreq")?.value||"monthly",otherIncome:Number($("otherIncome")?.value||0),remittance:Number($("moneyRemittance")?.value||0),essential:Number($("essential")?.value||0),flexible:Number($("flexible")?.value||0),savings:Number($("moneySavings")?.value||0)};
-    setJSON(APP.keys.money,data);
-    const monthlyIncome=data.income*frequencyFactor(data.frequency)+data.otherIncome;
-    const available=monthlyIncome-data.essential-data.flexible-data.remittance-data.savings;
-    $("moneyResult").innerHTML=`<div class="balance-grid" style="margin-top:15px"><div class="balance"><span>${esc(t("Ingreso mensual estimado","Estimated monthly income"))}</span><strong>${money(monthlyIncome)}</strong></div><div class="balance ${available>=0?"positive":"negative"}"><span>${esc(t("Disponible","Available"))}</span><strong>${money(available)}</strong></div></div><div class="notice ${available>=0?"success":"warning"}" style="margin-top:12px">${esc(available>=0?t("Según los datos introducidos, el cálculo queda positivo. Esto es una referencia, no asesoría financiera.","Based on the entered data, the calculation is positive. This is a reference, not financial advice."):t("Según los datos introducidos, el cálculo queda negativo. Revisa los montos antes de decidir una remesa o compra.","Based on the entered data, the calculation is negative. Review the amounts before deciding on a remittance or purchase."))}</div>`;
-}
-
-function calculateLocalAvailable(){
-    const d=getJSON(APP.keys.money,{});
-    const income=Number(d.income||0)*frequencyFactor(d.frequency||"monthly")+Number(d.otherIncome||0);
-    const expenses=getJSON(APP.keys.expenses,[]);
-    const expenseTotal=expenses.reduce((a,x)=>a+Number(x.amount||0)*frequencyFactor(x.frequency||"monthly"),0);
-    return income-expenseTotal-Number(d.remittance||0)-Number(d.savings||0);
+function saveMoney(){
+const income=Number($("money-income")?.value||0);
+const start=Number($("money-start")?.value||0);
+if(income<0||start<0){toast(t("Usa cantidades válidas.","Use valid amounts."));return}
+setJSON(APP.keys.money,{income,start});
+toast(t("Guardado en este dispositivo.","Saved on this device."));
+renderMoney();
 }
 
 function renderWeek(){
-    const d=getJSON(APP.keys.money,{});
-    const monthly=Number(d.income||0)*frequencyFactor(d.frequency||"monthly")+Number(d.otherIncome||0);
-    const weekly=monthly*12/52;
-    render(`<section class="section"><div class="card form-card"><div class="section-title"><h2>${esc(t("Mi semana","My week"))}</h2></div><div class="balance-grid"><div class="balance"><span>${esc(t("Ingreso mensual estimado","Estimated monthly income"))}</span><strong>${money(monthly)}</strong></div><div class="balance positive"><span>${esc(t("Referencia semanal","Weekly reference"))}</span><strong>${money(weekly)}</strong></div></div><div class="notice info" style="margin-top:14px">${esc(t("Es una conversión matemática para ayudarte a organizarte; no es una recomendación financiera.","This is a mathematical conversion to help you organize; it is not financial advice."))}</div><div class="actions"><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div></div></section>`);
+const d=getJSON(APP.keys.money,{});
+const income=Number(d.income||0);
+render(`
+<section class="section"><div class="card">
+<h1>${esc(t("Mi semana","My week"))}</h1>
+<p>${esc(t("Una referencia sencilla a partir de tus ingresos registrados.","A simple reference based on your recorded income."))}</p>
+<h2>${money(income/4.345)}</h2>
+<p>${esc(t("Referencia semanal aproximada.","Approximate weekly reference."))}</p>
+<button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button>
+</div></section>`);
 }
 
 function renderExpenses(){
-    const expenses=getJSON(APP.keys.expenses,[]);
-    const list=expenses.length?expenses.map((x,i)=>`<div class="notice" style="margin-bottom:8px"><strong>${esc(x.description)}</strong> · ${money(x.amount)}<br><small>${esc(x.category||"")} · ${esc(x.frequency||"monthly")}</small><button class="btn danger small" style="float:right" onclick="deleteExpense(${i})">${esc(t("Borrar","Delete"))}</button></div>`).join(""):`<div class="empty">${esc(t("Todavía no hay gastos registrados.","No expenses have been recorded yet."))}</div>`;
-    render(`<section class="section"><div class="section-title"><div><h2>${esc(t("Mis gastos","My expenses"))}</h2><p>${esc(t("Los registros permanecen en este dispositivo.","Records remain on this device."))}</p></div></div><div class="card form-card"><div class="form-row"><div class="field"><label>${esc(t("Descripción","Description"))}</label><input id="expDesc" maxlength="120"></div><div class="field"><label>${esc(t("Monto","Amount"))}</label><input id="expAmount" type="number" min=".01" max="1000000" step=".01"></div></div><div class="form-row"><div class="field"><label>${esc(t("Categoría","Category"))}</label><input id="expCat" maxlength="60"></div><div class="field"><label>${esc(t("Frecuencia","Frequency"))}</label><select id="expFreq"><option value="monthly">${esc(t("Mensual","Monthly"))}</option><option value="weekly">${esc(t("Semanal","Weekly"))}</option><option value="biweekly">${esc(t("Quincenal","Biweekly"))}</option></select></div></div><button class="btn" onclick="addExpense()">${esc(t("Guardar gasto local","Save local expense"))}</button><div style="margin-top:15px">${list}</div><div class="actions"><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div></div></section>`);
+const items=getJSON(APP.keys.expenses,[]);
+render(`
+<section class="section">
+<div class="section-title"><div><h1>${esc(t("Mis gastos","My expenses"))}</h1><p>${esc(t("Los registros permanecen en este dispositivo.","Records stay on this device."))}</p></div></div>
+<div class="card">
+<label>${esc(t("Concepto","Description"))}</label><input id="exp-name" maxlength="100">
+<label>${esc(t("Cantidad","Amount"))}</label><input id="exp-amount" type="number" min="0.01" step="0.01">
+<label>${esc(t("Frecuencia","Frequency"))}</label>
+<select id="exp-frequency"><option value="monthly">${esc(t("Mensual","Monthly"))}</option><option value="weekly">${esc(t("Semanal","Weekly"))}</option><option value="biweekly">${esc(t("Cada dos semanas","Biweekly"))}</option><option value="one_time">${esc(t("Una vez","One time"))}</option></select>
+<button class="btn" onclick="addExpense()">${esc(t("Agregar gasto","Add expense"))}</button>
+</div>
+<div class="card">${items.length?items.map((x,i)=>`<div class="list-row"><span>${esc(x.name)}</span><strong>${money(x.amount)}</strong><button class="btn danger small" onclick="removeExpense(${i})">${esc(t("Borrar","Delete"))}</button></div>`).join(""):`<p>${esc(t("Todavía no hay gastos registrados.","No expenses recorded yet."))}</p>`}</div>
+<button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button>
+</section>`);
 }
 
 function addExpense(){
-    const description=$("expDesc")?.value.trim(),amount=Number($("expAmount")?.value||0);
-    if(!description||!Number.isFinite(amount)||amount<=0||amount>1000000)return toast(t("Introduce descripción y monto válidos.","Enter a valid description and amount."));
-    const expenses=getJSON(APP.keys.expenses,[]);
-    expenses.push({description,amount,category:$("expCat")?.value.trim()||"",frequency:$("expFreq")?.value||"monthly",created_at:new Date().toISOString()});
-    setJSON(APP.keys.expenses,expenses);
-    renderExpenses();
+const name=$("exp-name")?.value.trim();
+const amount=Number($("exp-amount")?.value||0);
+const frequency=$("exp-frequency")?.value||"monthly";
+if(!name||amount<=0){toast(t("Completa concepto y cantidad.","Enter a description and amount."));return}
+const items=getJSON(APP.keys.expenses,[]);
+items.push({name,amount,frequency,created_at:new Date().toISOString()});
+setJSON(APP.keys.expenses,items);
+toast(t("Gasto guardado.","Expense saved."));
+renderExpenses();
 }
 
-function deleteExpense(i){
-    const expenses=getJSON(APP.keys.expenses,[]);
-    if(i<0||i>=expenses.length)return;
-    expenses.splice(i,1);
-    setJSON(APP.keys.expenses,expenses);
-    renderExpenses();
+function removeExpense(i){
+const items=getJSON(APP.keys.expenses,[]);
+items.splice(i,1);
+setJSON(APP.keys.expenses,items);
+renderExpenses();
 }
 
 function renderFamily(){
-    const family=getJSON(APP.keys.family,[]);
-    const list=family.length?family.map((x,i)=>`<div class="notice" style="margin-bottom:8px"><strong>${esc(x.name)}</strong> · ${esc(x.country||"")} · ${money(x.amount||0)}<button class="btn danger small" style="float:right" onclick="deleteFamily(${i})">${esc(t("Borrar","Delete"))}</button></div>`).join(""):`<div class="empty">${esc(t("No hay referencias familiares guardadas.","No family references saved."))}</div>`;
-    render(`<section class="section"><div class="section-title"><div><h2>${esc(t("Familia","Family"))}</h2><p>${esc(t("Referencias guardadas solo en este dispositivo.","References saved only on this device."))}</p></div></div><div class="card form-card"><div class="form-row"><div class="field"><label>${esc(t("Nombre o apodo","Name or nickname"))}</label><input id="famName" maxlength="80"></div><div class="field"><label>${esc(t("País","Country"))}</label><input id="famCountry" maxlength="60"></div></div><div class="field"><label>${esc(t("Monto habitual","Usual amount"))}</label><input id="famAmount" type="number" min="0" max="1000000" step=".01"></div><button class="btn" onclick="addFamily()">${esc(t("Guardar referencia","Save reference"))}</button><div style="margin-top:15px">${list}</div><div class="actions"><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div></div></section>`);
+const items=getJSON(APP.keys.family,[]);
+render(`
+<section class="section"><div class="card">
+<h1>${esc(t("Familia","Family"))}</h1>
+<p>${esc(t("Guarda referencias locales para no repetir información.","Store local references so you do not repeat information."))}</p>
+<label>${esc(t("Nombre","Name"))}</label><input id="fam-name" maxlength="100">
+<label>${esc(t("País","Country"))}</label>
+<select id="fam-country"><option value="">${esc(t("Selecciona","Select"))}</option>${getCountries().map(c=>`<option value="${c.code}">${esc(typeof c.name==="object"?(c.name[APP.lang]||c.name.es||c.name.en||c.code):c.name)}</option>`).join("")}</select>
+<button class="btn" onclick="addFamily()">${esc(t("Guardar referencia","Save reference"))}</button>
+</div>
+<div class="card">${items.length?items.map((x,i)=>`<div class="list-row"><span>${esc(x.name)} · ${esc(countryName(x.country))}</span><button class="btn danger small" onclick="removeFamily(${i})">${esc(t("Borrar","Delete"))}</button></div>`).join(""):`<p>${esc(t("No hay referencias guardadas.","No saved references."))}</p>`}</div>
+<button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button>
+</section>`);
 }
 
 function addFamily(){
-    const name=$("famName")?.value.trim(),country=$("famCountry")?.value.trim(),amount=Number($("famAmount")?.value||0);
-    if(!name)return toast(t("Introduce un nombre o apodo.","Enter a name or nickname."));
-    if(!Number.isFinite(amount)||amount<0||amount>1000000)return toast(t("Monto inválido.","Invalid amount."));
-    const family=getJSON(APP.keys.family,[]);
-    family.push({name,country,amount,created_at:new Date().toISOString()});
-    setJSON(APP.keys.family,family);
-    renderFamily();
+const name=$("fam-name")?.value.trim();
+const country=$("fam-country")?.value||"";
+if(!name||!country){toast(t("Completa nombre y país.","Enter name and country."));return}
+const items=getJSON(APP.keys.family,[]);
+items.push({name,country});
+setJSON(APP.keys.family,items);
+renderFamily();
 }
 
-function deleteFamily(i){
-    const family=getJSON(APP.keys.family,[]);
-    if(i<0||i>=family.length)return;
-    family.splice(i,1);
-    setJSON(APP.keys.family,family);
-    renderFamily();
+function removeFamily(i){
+const items=getJSON(APP.keys.family,[]);
+items.splice(i,1);
+setJSON(APP.keys.family,items);
+renderFamily();
 }
 
 function renderSavings(){
-    const savings=getJSON(APP.keys.savings,[]);
-    const list=savings.length?savings.map((x,i)=>`<div class="notice" style="margin-bottom:8px"><strong>${money(x.amount)}</strong> · ${esc(x.type||"general")}<button class="btn danger small" style="float:right" onclick="deleteSavings(${i})">${esc(t("Borrar","Delete"))}</button></div>`).join(""):`<div class="empty">${esc(t("No hay registros de ahorro.","No savings records."))}</div>`;
-    render(`<section class="section"><div class="section-title"><div><h2>${esc(t("Ahorro","Savings"))}</h2><p>${esc(t("Registra una cantidad y su objetivo localmente.","Record an amount and its goal locally."))}</p></div></div><div class="card form-card"><div class="form-row"><div class="field"><label>${esc(t("Cantidad","Amount"))}</label><input id="savAmount" type="number" min=".01" max="1000000" step=".01"></div><div class="field"><label>${esc(t("Objetivo","Goal"))}</label><input id="savType" maxlength="60" placeholder="${esc(t("Ej. emergencia","E.g. emergency"))}"></div></div><button class="btn" onclick="addSavings()">${esc(t("Guardar ahorro","Save savings"))}</button><div style="margin-top:15px">${list}</div><div class="actions"><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div></div></section>`);
+const d=getJSON(APP.keys.savings,{});
+render(`
+<section class="section"><div class="card">
+<h1>${esc(t("Ahorro","Savings"))}</h1>
+<p>${esc(t("Registra cuánto quieres separar y observa el efecto en tu disponible.","Record how much you want to set aside and see its effect on available money."))}</p>
+<label>${esc(t("Cantidad de ahorro","Savings amount"))}</label>
+<input id="saving-amount" type="number" min="0" step="0.01" value="${esc(d.amount||"")}">
+<button class="btn" onclick="saveSavings()">${esc(t("Guardar ahorro","Save savings"))}</button>
+<p>${esc(t("Disponible después del ahorro","Available after savings"))}: <strong>${money(calculateLocalAvailable())}</strong></p>
+<button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button>
+</div></section>`);
 }
 
-function addSavings(){
-    const amount=Number($("savAmount")?.value||0);
-    if(!Number.isFinite(amount)||amount<=0||amount>1000000)return toast(t("Cantidad inválida.","Invalid amount."));
-    const savings=getJSON(APP.keys.savings,[]);
-    savings.push({amount,type:$("savType")?.value.trim()||"general",created_at:new Date().toISOString()});
-    setJSON(APP.keys.savings,savings);
-    renderSavings();
-}
-
-function deleteSavings(i){
-    const savings=getJSON(APP.keys.savings,[]);
-    if(i<0||i>=savings.length)return;
-    savings.splice(i,1);
-    setJSON(APP.keys.savings,savings);
-    renderSavings();
+function saveSavings(){
+const amount=Number($("saving-amount")?.value||0);
+if(amount<0){toast(t("Cantidad inválida.","Invalid amount."));return}
+setJSON(APP.keys.savings,{amount});
+toast(t("Ahorro guardado.","Savings saved."));
+renderSavings();
 }
 
 function renderPurchase(){
-    const available=calculateLocalAvailable();
-    render(`<section class="section"><div class="card form-card"><div class="section-title"><div><h2>${esc(t("Quiero comprar","I want to buy"))}</h2><p>${esc(t("Comprueba el efecto matemático de una compra sobre tu cálculo local.","Check the mathematical effect of a purchase on your local calculation."))}</p></div></div><div class="notice info">${esc(t("Disponible calculado actualmente:","Currently calculated available:"))} <strong>${money(available)}</strong></div><div class="form-row" style="margin-top:14px"><div class="field"><label>${esc(t("Precio","Price"))}</label><input id="purchaseAmount" type="number" min=".01" max="1000000" step=".01"></div><div class="field"><label>${esc(t("Categoría","Category"))}</label><input id="purchaseCat" maxlength="60"></div></div><button class="btn" onclick="calculatePurchase()">${esc(t("Comprobar","Check"))}</button><div id="purchaseResult"></div><div class="actions"><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div></div></section>`);
+render(`
+<section class="section"><div class="card">
+<h1>${esc(t("Planear una compra","Plan a purchase"))}</h1>
+<p>${esc(t("Comprueba cómo una compra cambia tu dinero disponible antes de hacerla.","See how a purchase changes your available money before buying."))}</p>
+<label>${esc(t("Precio de la compra","Purchase price"))}</label>
+<input id="purchase-amount" type="number" min="0.01" step="0.01">
+<button class="btn" onclick="calculatePurchase()">${esc(t("Calcular efecto","Calculate effect"))}</button>
+<div id="purchase-result"></div>
+<button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button>
+</div></section>`);
 }
 
 function calculatePurchase(){
-    const amount=Number($("purchaseAmount")?.value||0);
-    if(!Number.isFinite(amount)||amount<=0||amount>1000000)return toast(t("Introduce un precio válido.","Enter a valid price."));
-    const after=calculateLocalAvailable()-amount;
-    $("purchaseResult").innerHTML=`<div class="balance ${after>=0?"positive":"negative"}" style="margin-top:14px"><span>${esc(t("Disponible después de la compra","Available after purchase"))}</span><strong>${money(after)}</strong></div><div class="notice ${after>=0?"success":"warning"}" style="margin-top:10px">${esc(after>=0?t("El cálculo sigue siendo positivo con los datos introducidos.","The calculation remains positive with the entered data."):t("El cálculo queda negativo con los datos introducidos; revisa tus números antes de tomar una decisión.","The calculation becomes negative with the entered data; review your numbers before making a decision."))}</div>`;
+const amount=Number($("purchase-amount")?.value||0);
+if(amount<=0){toast(t("Indica una cantidad válida.","Enter a valid amount."));return}
+const available=calculateLocalAvailable();
+const result=available-amount;
+$("purchase-result").innerHTML=`<div class="notice"><strong>${esc(t("Después de la compra","After purchase"))}:</strong> ${money(result)}</div>`;
 }
 
 function renderHelp(){
-    const topics=getHelpTopics();
-    const topicList=topics.length?topics.map(x=>`<button class="card action-card" style="width:100%;margin-bottom:9px;min-height:auto;text-align:left" onclick="showHelpTopic(${JSON.stringify(String(x.id))})"><h3>${esc(x.title)}</h3><p>${esc(t("Ver explicación","View explanation"))}</p></button>`).join(""):`<div class="empty">${esc(t("No hay temas de ayuda configurados.","No help topics are configured."))}</div>`;
-    render(`<section class="section"><div class="section-title"><div><h2>${esc(t("Ayuda","Help"))}</h2><p>${esc(t("También puedes escribir tu situación con tus propias palabras.","You can also describe your situation in your own words."))}</p></div></div><div class="card form-card"><div class="assistant"><textarea id="assistantText" maxlength="2000" placeholder="${esc(t("Ej.: quiero enviar $200 a México esta semana...","E.g.: I want to send $200 to Mexico this week..."))}"></textarea><button class="btn" onclick="askAssistant()">${esc(t("Ayúdame","Help me"))}</button><div id="assistantResult"></div></div><div style="margin-top:18px">${topicList}</div><div class="actions"><button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button></div></div></section>`);
+const topics=APP.config?.help_topics||[];
+render(`
+<section class="section">
+<div class="card">
+<h1>${esc(t("Ayuda","Help"))}</h1>
+<p>${esc(t("Elige una pregunta para obtener una respuesta funcional.","Choose a question to get a useful answer."))}</p>
+${topics.length?topics.map(x=>`<button class="card" style="width:100%;text-align:left;margin-top:10px" onclick="showHelpTopic(${JSON.stringify(x.answer||"").replace(/"/g,"&quot;")})"><strong>${esc(x.label||"")}</strong></button>`).join(""):`<p>${esc(t("La ayuda básica está disponible desde las preguntas de la aplicación.","Basic help is available through the app questions."))}</p>`}
+<button class="btn secondary" onclick="renderHome()">${esc(t("Volver","Back"))}</button>
+</div></section>`);
 }
 
-async function askAssistant(){
-    const text=$("assistantText")?.value.trim();
-    if(!text)return toast(t("Escribe lo que necesitas.","Describe what you need."));
-    $("assistantResult").innerHTML=loading(t("Revisando tu mensaje...","Reviewing your message..."));
-    try{
-        const data=await api("/api/assistant",{method:"POST",body:JSON.stringify({text,language:APP.lang})});
-        APP.pendingParsed=data.parsed||{};
-        const canRemit=data.parsed?.need_type==="remittance";
-        $("assistantResult").innerHTML=`<div class="assistant-box" style="margin-top:12px"><strong>${esc(t("Respuesta","Response"))}</strong><div>${esc(data.assistant||"")}</div>${canRemit?`<div class="actions"><button class="btn" onclick="beginParsedRemittance()">${esc(t("Preparar esta remesa","Prepare this remittance"))}</button></div>`:""}</div>`;
-    }catch(e){$("assistantResult").innerHTML=errorBox(e.message)}
+function showHelpTopic(answer){
+const text=typeof answer==="object"?(answer[APP.lang]||answer.es||answer.en||""):answer;
+toast(text);
 }
 
-function beginParsedRemittance(){
-    const p=APP.pendingParsed||{};
-    if(!APP.session)startSession().then(()=>renderRemittance(p)).catch(()=>renderRemittance(p));
-    else renderRemittance(p);
+async function askAssistant(text){
+try{
+const data=await api("/api/assistant",{method:"POST",body:JSON.stringify({need_type:"other",language:APP.lang,text})});
+toast(data.message||t("Respuesta recibida.","Response received."));
+}catch(e){toast(e.message)}
 }
 
-function showHelpTopic(id){
-    const topic=getHelpTopics().find(x=>String(x.id)===String(id));
-    if(!topic)return;
-    const modal=document.createElement("div");
-    modal.className="modal-backdrop";
-    modal.innerHTML=`<div class="modal"><div class="modal-head"><h2>${esc(topic.title)}</h2><button class="close" onclick="this.closest('.modal-backdrop').remove()">×</button></div><div class="notice info" style="margin-top:15px">${esc(topic.answer)}</div><div class="actions"><button class="btn" onclick="this.closest('.modal-backdrop').remove()">${esc(t("Cerrar","Close"))}</button></div></div>`;
-    document.body.appendChild(modal);
-}
-
-async function deleteLocalData(){
-    const ok=confirm(t("Esto borrará los registros locales de REMESAS de este dispositivo. ¿Continuar?","This will delete REMESAS local records from this device. Continue?"));
-    if(!ok)return;
-    Object.values(APP.keys).forEach(k=>localStorage.removeItem(k));
-    localStorage.removeItem("remesas_lang");
-    if(APP.session?.session_id){
-        try{await api(`/api/session/${encodeURIComponent(APP.session.session_id)}`,{method:"DELETE"})}catch{}
-    }
-    APP.session=null;
-    APP.comparison=null;
-    APP.pendingParsed=null;
-    toast(t("Datos locales borrados.","Local data deleted."));
-    setTimeout(()=>location.reload(),500);
+function deleteLocalData(){
+const ok=confirm(t("¿Borrar todos los registros locales de REMESAS?","Delete all REMESAS local records?"));
+if(!ok)return;
+Object.values(APP.keys).forEach(k=>localStorage.removeItem(k));
+localStorage.removeItem("remesas_lang");
+APP.lang="es";
+toast(t("Datos locales borrados.","Local data deleted."));
+renderHome();
 }
 
 async function boot(){
-    try{
-        await loadConfig();
-        await startSession();
-        renderHome();
-    }catch(e){
-        const app=$("app");
-        if(app)app.innerHTML=`<div class="app-shell"><section class="section"><div class="card">${errorBox(t("No se pudo cargar REMESAS. Revisa que el servidor y los archivos JSON estén disponibles y sean válidos.","REMESAS could not be loaded. Check that the server and JSON files are available and valid."))}<div class="legal" style="margin-top:10px">${esc(e.message)}</div><div class="actions"><button class="btn" onclick="location.reload()">${esc(t("Intentar nuevamente","Try again"))}</button></div></div></section></div>`;
-    }
+try{
+await loadConfig();
+await startSession();
+renderHome();
+}catch(e){
+const app=$("app");
+if(app)app.innerHTML=`<section class="section"><div class="card">${errorBox(e.message)}<button class="btn" onclick="location.reload()">${esc(t("Intentar de nuevo","Try again"))}</button></div></section>`;
 }
-
-document.addEventListener("DOMContentLoaded",boot);
+}
 
 window.renderHome=renderHome;
 window.renderRemittance=renderRemittance;
 window.compareRemittance=compareRemittance;
-window.renderComparison=renderComparison;
 window.selectProvider=selectProvider;
-window.finalCheck=finalCheck;
-window.openOfficial=openOfficial;
-window.changeLanguage=changeLanguage;
+window.runFinalCheck=runFinalCheck;
 window.renderMoney=renderMoney;
-window.calculateMoney=calculateMoney;
 window.renderWeek=renderWeek;
 window.renderExpenses=renderExpenses;
 window.addExpense=addExpense;
-window.deleteExpense=deleteExpense;
+window.removeExpense=removeExpense;
 window.renderFamily=renderFamily;
 window.addFamily=addFamily;
-window.deleteFamily=deleteFamily;
+window.removeFamily=removeFamily;
 window.renderSavings=renderSavings;
-window.addSavings=addSavings;
-window.deleteSavings=deleteSavings;
+window.saveSavings=saveSavings;
 window.renderPurchase=renderPurchase;
 window.calculatePurchase=calculatePurchase;
 window.renderHelp=renderHelp;
-window.askAssistant=askAssistant;
-window.beginParsedRemittance=beginParsedRemittance;
 window.showHelpTopic=showHelpTopic;
+window.changeLanguage=changeLanguage;
 window.deleteLocalData=deleteLocalData;
+window.openOfficial=openOfficial;
+
+document.addEventListener("DOMContentLoaded",boot);
