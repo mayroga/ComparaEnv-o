@@ -1,20 +1,18 @@
-import os,secrets,io,json
+import os,secrets
 from pathlib import Path
-from typing import Optional
+from typing import Any,Dict,Optional
 import stripe
-from fastapi import FastAPI,HTTPException,Request,UploadFile,File
-from fastapi.responses import FileResponse,JSONResponse,StreamingResponse
+from fastapi import FastAPI,HTTPException,Request
+from fastapi.responses import FileResponse,JSONResponse
 from fastapi.staticfiles import StaticFiles
 from remittance_engine import engine
 from schemas import ComparisonRequest,ComparisonResponse,DeleteLocalDataResponse,FinalCheckRequest,FinalCheckResponse,ParseNeedRequest,SessionResponse,UserNeedRequest
 
 APP_NAME="REMESAS"
-APP_VERSION="4.0.0"
+APP_VERSION="3.0.0"
 BASE_DIR=Path(__file__).resolve().parent
 STATIC_DIR=BASE_DIR/"static"
-DATA_DIR=BASE_DIR/"data"
-
-app=FastAPI(title=APP_NAME,version=APP_VERSION,description="Organización sencilla del dinero y orientación para remesas.",docs_url="/docs",redoc_url="/redoc")
+app=FastAPI(title=APP_NAME,version=APP_VERSION,description="Asistencia sencilla para remesas y organización personal del dinero.",docs_url="/docs",redoc_url="/redoc")
 
 if STATIC_DIR.exists():app.mount("/static",StaticFiles(directory=str(STATIC_DIR)),name="static")
 
@@ -31,16 +29,11 @@ if STRIPE_SECRET_KEY:stripe.api_key=STRIPE_SECRET_KEY
 ALLOWED_LANGUAGES={"es","en"}
 MAX_BODY_SIZE=1024*1024
 MAX_SESSION_ID_LENGTH=128
-MAX_PDF_SIZE=5*1024*1024
 
 @app.on_event("startup")
 async def startup_event():
-    try:
-        engine.load_brain()
-        engine.providers_data=engine.load_providers()
-    except Exception:
-        engine.brain={}
-        engine.providers_data={}
+    engine.load_brain()
+    engine.providers_data=engine.load_providers()
 
 @app.get("/",include_in_schema=False)
 async def root():
@@ -50,20 +43,17 @@ async def root():
 
 @app.get("/health")
 async def health():
-    registry=engine.get_provider_registry()
-    return {"status":"ok","app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"brain_version":engine.brain.get("app",{}).get("version"),"providers_loaded":bool(engine.providers_data),"provider_count":len(registry),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)}
+    return {"status":"ok","app":APP_NAME,"version":APP_VERSION,"brain_loaded":bool(engine.brain),"brain_version":engine.brain.get("app",{}).get("version"),"providers_loaded":bool(engine.providers_data),"provider_count":len(engine.get_provider_registry()),"stripe_configured":bool(STRIPE_SECRET_KEY and STRIPE_PRICE_ID1)}
 
 @app.get("/ping",include_in_schema=False)
-async def ping():
-    return {"status":"ok"}
+async def ping():return {"status":"ok"}
 
 @app.get("/api/config")
 async def public_configuration(language:str="es"):
     language=normalize_language(language)
     config=engine.public_config(language)
     config["stripe"]={"enabled":bool(STRIPE_PUBLISHABLE_KEY and STRIPE_PRICE_ID1),"publishable_key":STRIPE_PUBLISHABLE_KEY,"price":15.99,"currency":"USD","period":"1_month"}
-    config["privacy"]={"local_data_only":True,"server_persistence":False,"never_collect":["passwords","CVV","security_codes","bank_login","provider_credentials","full_card_numbers"]}
-    config["report"]={"pdf_enabled":True,"local_only":True,"app_generated_import_only":True}
+    config["privacy"]={"local_data_only":True,"server_persistence":False,"never_collect":["passwords","CVV","security_codes","bank_login","provider_credentials"]}
     return config
 
 @app.get("/api/brain/version")
@@ -110,9 +100,10 @@ async def apply_need(request:Request):
 
 @app.post("/api/need/parse")
 async def parse_need(request:ParseNeedRequest):
-    request.language=normalize_language(request.language)
+    language=normalize_language(request.language)
+    request.language=language
     parsed=engine.parse_need(request)
-    return {"success":True,"parsed":parsed,"assistant":engine.assistant_response(parsed.get("need_type","other"),request.language,request.text)}
+    return {"success":True,"parsed":parsed,"assistant":engine.assistant_response(parsed.get("need_type","other"),language,request.text)}
 
 @app.post("/api/session/{session_id}/need/parse")
 async def parse_need_into_session(session_id:str,request:ParseNeedRequest):
@@ -154,7 +145,6 @@ async def providers(language:str="es"):
 @app.get("/api/provider/{provider_id}")
 async def provider(provider_id:str,language:str="es",country:str=""):
     language=normalize_language(language)
-    country=(country or "").upper().strip()
     item=engine.provider_public_option(provider_id,country,language)
     if not item:raise HTTPException(404,"Provider not found.")
     item["requirements"]=engine.provider_requirements(provider_id,language)
@@ -164,7 +154,6 @@ async def provider(provider_id:str,language:str="es",country:str=""):
 async def compare(request:ComparisonRequest):
     request.language=normalize_language(request.language)
     request.destination_country=request.destination_country.upper().strip()
-    if request.amount>1000000:raise HTTPException(400,"Amount is above the supported planning limit.")
     return engine.compare(request)
 
 @app.post("/api/session/{session_id}/compare",response_model=ComparisonResponse)
@@ -174,7 +163,6 @@ async def compare_session(session_id:str):
     if session is None:raise HTTPException(404,"Session not found.")
     if not session.get("amount"):raise HTTPException(422,"Amount is required.")
     if not session.get("destination_country"):raise HTTPException(422,"Destination country is required.")
-    if float(session.get("amount") or 0)>1000000:raise HTTPException(400,"Amount is above the supported planning limit.")
     return engine.compare_session(session_id)
 
 @app.post("/api/session/{session_id}/select/{provider_id}")
@@ -220,37 +208,7 @@ async def reset_session(session_id:str):
 
 @app.delete("/api/local-data",response_model=DeleteLocalDataResponse)
 async def local_data_info():
-    return DeleteLocalDataResponse(success=True,message="Los datos personales se almacenan y borran en este dispositivo. El servidor no guarda tu información financiera personal.")
-
-@app.post("/api/report/validate")
-async def validate_app_report(file:UploadFile=File(...)):
-    data=await file.read()
-    if len(data)>MAX_PDF_SIZE:raise HTTPException(413,"PDF too large.")
-    if not data.startswith(b"%PDF"):raise HTTPException(400,"Only a PDF generated by REMESAS can be reviewed.")
-    try:
-        from pypdf import PdfReader
-        reader=PdfReader(io.BytesIO(data))
-        text="\n".join((page.extract_text() or "") for page in reader.pages)
-    except Exception as exc:
-        raise HTTPException(400,"The PDF could not be read.") from exc
-    if "REMESAS" not in text or "May Roga LLC" not in text:
-        raise HTTPException(400,"This report does not appear to be a REMESAS report.")
-    return {"success":True,"app":APP_NAME,"report_detected":True,"text_available":bool(text.strip()),"message":"Informe generado por REMESAS reconocido. Los datos deben compararse antes de incorporarse."}
-
-@app.post("/api/report/compare")
-async def compare_app_report(file:UploadFile=File(...)):
-    data=await file.read()
-    if len(data)>MAX_PDF_SIZE:raise HTTPException(413,"PDF too large.")
-    if not data.startswith(b"%PDF"):raise HTTPException(400,"Invalid PDF.")
-    try:
-        from pypdf import PdfReader
-        reader=PdfReader(io.BytesIO(data))
-        text="\n".join((page.extract_text() or "") for page in reader.pages)
-    except Exception as exc:
-        raise HTTPException(400,"The PDF could not be read.") from exc
-    if "REMESAS" not in text or "May Roga LLC" not in text:
-        raise HTTPException(400,"Only a REMESAS-generated report can be compared.")
-    return {"success":True,"source":"REMESAS","requires_local_confirmation":True,"merge_allowed":False,"message":"Informe reconocido. La comparación debe realizarse contra los datos actuales del dispositivo antes de cualquier actualización.","report_text":text[:50000]}
+    return DeleteLocalDataResponse(success=True,message="Los datos personales de dinero se almacenan y borran en este dispositivo. El servidor no los guarda.")
 
 @app.get("/api/subscription/status")
 async def subscription_status():
