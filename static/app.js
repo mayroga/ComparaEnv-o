@@ -572,3 +572,4 @@ window.askAssistant=askAssistant;
 window.beginParsedRemittance=beginParsedRemittance;
 window.showHelpTopic=showHelpTopic;
 window.deleteLocalData=deleteLocalData;
+)
