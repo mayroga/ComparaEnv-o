@@ -1,78 +1,110 @@
-# schemas.py — REMESAS | May Roga LLC
 from typing import Any,Dict,List,Optional
-from pydantic import BaseModel,Field,ConfigDict
+from pydantic import BaseModel,Field,ConfigDict,field_validator
+
+MAX_AMOUNT=1000000.0
+MAX_TEXT=2000
 
 class UserNeedRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
     language:str="es"
     need_type:Optional[str]=None
-    amount:Optional[float]=None
+    amount:Optional[float]=Field(None,gt=0,le=MAX_AMOUNT)
     destination_country:Optional[str]=None
     destination_region:Optional[str]=None
     priority:Optional[str]=None
     urgency:Optional[bool]=None
     delivery_method:Optional[str]=None
     payment_method:Optional[str]=None
-    recipient_amount_target:Optional[float]=None
-    special_need:Optional[str]=None
-    free_text:Optional[str]=None
+    recipient_amount_target:Optional[float]=Field(None,gt=0,le=MAX_AMOUNT)
+    special_need:Optional[str]=Field(None,max_length=500)
+    free_text:Optional[str]=Field(None,max_length=MAX_TEXT)
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
+
+    @field_validator("destination_country")
+    @classmethod
+    def clean_country(cls,v):
+        return v.upper().strip() if v else v
 
 class ParseNeedRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
-    text:str=""
+    text:str=Field("",max_length=MAX_TEXT)
     language:str="es"
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
 
 class IncomeRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
     language:str="es"
-    amount:float=Field(...,gt=0)
+    amount:float=Field(...,gt=0,le=MAX_AMOUNT)
     frequency:str=Field(...,min_length=3,max_length=20)
-    other_income:Optional[float]=Field(None,ge=0)
+    other_income:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
 
 class ExpenseItem(BaseModel):
     model_config=ConfigDict(extra="ignore")
     description:str=Field(...,min_length=1,max_length=120)
-    amount:float=Field(...,gt=0)
-    category:Optional[str]=None
-    frequency:Optional[str]="monthly"
+    amount:float=Field(...,gt=0,le=MAX_AMOUNT)
+    category:Optional[str]=Field(None,max_length=60)
+    frequency:Optional[str]=Field("monthly",min_length=3,max_length=20)
 
 class SavingsRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
     language:str="es"
-    amount:float=Field(...,ge=0)
-    savings_type:Optional[str]="general"
+    amount:float=Field(...,ge=0,le=MAX_AMOUNT)
+    savings_type:Optional[str]=Field("general",max_length=60)
 
 class PurchaseRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
     language:str="es"
-    purchase_amount:float=Field(...,gt=0)
-    purchase_category:Optional[str]=None
+    purchase_amount:float=Field(...,gt=0,le=MAX_AMOUNT)
+    purchase_category:Optional[str]=Field(None,max_length=60)
 
 class MoneyPlanRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
     language:str="es"
-    income_amount:Optional[float]=Field(None,ge=0)
-    income_frequency:Optional[str]=None
-    other_income:Optional[float]=Field(None,ge=0)
+    income_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    income_frequency:Optional[str]=Field(None,max_length=20)
+    other_income:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
     essential_expenses:List[ExpenseItem]=Field(default_factory=list)
     flexible_expenses:List[ExpenseItem]=Field(default_factory=list)
-    remittance_amount:Optional[float]=Field(None,ge=0)
-    remittance_frequency:Optional[str]=None
-    savings_amount:Optional[float]=Field(None,ge=0)
-    period:Optional[str]="monthly"
+    remittance_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    remittance_frequency:Optional[str]=Field(None,max_length=20)
+    savings_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    period:Optional[str]=Field("monthly",max_length=20)
 
 class ComparisonRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
-    amount:float=Field(...,gt=0)
+    amount:float=Field(...,gt=0,le=MAX_AMOUNT)
     destination_country:str=Field(...,min_length=2,max_length=3)
-    priority:Optional[str]=None
+    priority:Optional[str]=Field(None,max_length=40)
     urgency:Optional[bool]=None
-    delivery_method:Optional[str]=None
-    payment_method:Optional[str]=None
+    delivery_method:Optional[str]=Field(None,max_length=60)
+    payment_method:Optional[str]=Field(None,max_length=60)
     language:str="es"
-    send_currency:str="USD"
-    recipient_amount_target:Optional[float]=None
-    special_need:Optional[str]=None
+    send_currency:str=Field("USD",min_length=3,max_length=3)
+    recipient_amount_target:Optional[float]=Field(None,gt=0,le=MAX_AMOUNT)
+    special_need:Optional[str]=Field(None,max_length=500)
+
+    @field_validator("destination_country")
+    @classmethod
+    def clean_country(cls,v):
+        return v.upper().strip()
+
+    @field_validator("send_currency")
+    @classmethod
+    def clean_currency(cls,v):
+        return (v or "USD").upper().strip()
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
 
 class ComparisonResult(BaseModel):
     model_config=ConfigDict(extra="ignore")
@@ -117,15 +149,30 @@ class ComparisonResponse(BaseModel):
 class FinalCheckRequest(BaseModel):
     model_config=ConfigDict(extra="ignore")
     language:str="es"
-    provider_id:str
-    amount:float=Field(...,gt=0)
-    send_currency:str="USD"
+    provider_id:str=Field(...,min_length=2,max_length=100)
+    amount:float=Field(...,gt=0,le=MAX_AMOUNT)
+    send_currency:str=Field("USD",min_length=3,max_length=3)
     destination_country:str=Field(...,min_length=2,max_length=3)
-    delivery_method:Optional[str]=None
-    payment_method:Optional[str]=None
-    recipient_amount:Optional[float]=None
-    fee:Optional[float]=None
-    exchange_rate:Optional[float]=None
+    delivery_method:Optional[str]=Field(None,max_length=60)
+    payment_method:Optional[str]=Field(None,max_length=60)
+    recipient_amount:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    fee:Optional[float]=Field(None,ge=0,le=MAX_AMOUNT)
+    exchange_rate:Optional[float]=Field(None,gt=0)
+
+    @field_validator("destination_country")
+    @classmethod
+    def clean_country(cls,v):
+        return v.upper().strip()
+
+    @field_validator("send_currency")
+    @classmethod
+    def clean_currency(cls,v):
+        return (v or "USD").upper().strip()
+
+    @field_validator("language")
+    @classmethod
+    def clean_language(cls,v):
+        return (v or "es").lower().strip()
 
 class FinalCheckResponse(BaseModel):
     model_config=ConfigDict(extra="ignore")
