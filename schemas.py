@@ -13,6 +13,7 @@ class UserNeedRequest(BaseModel):
     destination_region:Optional[str]=None
     priority:Optional[str]=None
     urgency:Optional[bool]=None
+    frequency:Optional[str]=None
     delivery_method:Optional[str]=None
     payment_method:Optional[str]=None
     recipient_amount_target:Optional[float]=Field(None,gt=0,le=MAX_AMOUNT)
@@ -84,6 +85,7 @@ class ComparisonRequest(BaseModel):
     destination_country:str=Field(...,min_length=2,max_length=3)
     priority:Optional[str]=Field(None,max_length=40)
     urgency:Optional[bool]=None
+    frequency:Optional[str]=Field(None,max_length=30)
     delivery_method:Optional[str]=Field(None,max_length=60)
     payment_method:Optional[str]=Field(None,max_length=60)
     language:str="es"
@@ -141,6 +143,8 @@ class ComparisonResponse(BaseModel):
     amount:Optional[float]=None
     send_currency:str="USD"
     priority:Optional[str]=None
+    urgency:Optional[bool]=None
+    frequency:Optional[str]=None
     language:str="es"
     explanation:Optional[str]=None
     differences:List[Dict[str,Any]]=Field(default_factory=list)
