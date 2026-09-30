@@ -1,37 +1,466 @@
 {
-"app":{"name":"REMESAS","brand":"May Roga LLC","version":"4.0.0","schema_version":"4.0","environment":"production","default_language":"es","supported_languages":["es","en"],"origin_country":"US","target_region":"LATAM","purpose":"Ayudar al usuario a entender, organizar y planificar su dinero y sus remesas mediante preguntas sencillas, cálculos transparentes, acciones verificables y memoria local controlada por el usuario.","not_a_financial_institution":true,"not_a_bank":true,"not_a_payment_processor":true},
-"product_promise":{"es":"Entender lo que necesitas, ordenar tus números y ayudarte a encontrar el siguiente paso sin llenarte de información innecesaria.","en":"Understand what you need, organize your numbers and help you find the next useful step without overwhelming you.","principles":["Nada inventado.","Nada innecesariamente complicado.","Cada pregunta debe producir una utilidad.","Cada botón debe producir una reacción.","Cada respuesta debe terminar en una acción cuando sea posible.","Si la app no puede verificar un dato, debe decirlo y llevar al usuario a la fuente adecuada.","El usuario conserva el control de sus datos.","La app orienta; el usuario decide."]},
-"experience":{"design":"mobile_first","reading_level":"very_simple","target_users":["personas con poca experiencia financiera","adultos mayores","personas con poca alfabetización financiera","usuarios que necesitan respuestas rápidas","usuarios que desean organizar su dinero sin lenguaje técnico"],"rules":["Una pregunta cada vez cuando sea necesario.","Mostrar solamente lo que ayuda a resolver la necesidad actual.","Evitar tablas complejas cuando una frase sencilla resuelve la duda.","No obligar al usuario a conocer términos financieros.","Explicar antes de pedir información que pueda parecer confusa.","Mostrar resultado después de cada acción importante.","Nunca dejar un botón sin efecto visible.","Nunca acumular automáticamente un número nuevo sin saber qué representa.","Permitir corregir cualquier dato.","Permitir borrar todos los datos locales.","Permitir comenzar de cero."]},
-"opening":{"title":{"es":"TU DINERO, MÁS CLARO","en":"YOUR MONEY, CLEARER"},"question":{"es":"¿Qué necesitas resolver hoy?","en":"What do you need to solve today?"},"explanation":{"es":"Primero entendemos lo que necesitas. Después mostramos solamente lo que puede ayudarte.","en":"First we understand what you need. Then we show only what can help you."},"privacy":{"es":"Tus datos personales de dinero se guardan solamente en este dispositivo.","en":"Your personal money information stays on this device."}},
-"core_logic":{"cycle":["TENGO","GANO","GASTO","AHORRO","REMITO","QUIERO","PUEDO","HAGO","REVISO"],"rule":"Cada dato nuevo debe ser identificado antes de modificar un valor existente.","new_number_rule":{"never_add_without_context":true,"required_process":["identificar qué representa","identificar fecha o periodo","identificar si reemplaza o agrega","identificar categoría","identificar si es ingreso,gasto,ahorro,remesa,compra o reserva","confirmar cuando exista ambigüedad"],"examples":["Si el usuario escribe 500 y ya existe un ingreso mensual de 500, no sumar automáticamente 500+500.","Preguntar si son 500 nuevos, una corrección del valor anterior o dinero recibido en otro periodo.","Si un gasto aparece nuevamente, preguntar si es otro gasto o una corrección."]}},
-"question_action_response":{"rule":"PREGUNTA -> RAZÓN -> RESPUESTA -> CÁLCULO/VERIFICACIÓN -> ACCIÓN -> RESULTADO","required_for_interactive_elements":true,"no_empty_interactions":true,"meaning":{"es":"Toda pregunta existe para cambiar algo útil. Toda respuesta debe producir una reacción visible o explicar claramente por qué todavía falta información.","en":"Every question exists to change something useful. Every answer must produce a visible reaction or clearly explain why more information is needed."}},
-"navigation":{"cross_window_logic":true,"rule":"El usuario puede comenzar en cualquier ventana y la app debe detectar qué información ya existe, reutilizarla correctamente y llevarlo al siguiente paso útil sin obligarlo a empezar desde cero.","examples":{"es":["Desde Mi semana puede ir a Mis gastos.","Desde Mis gastos puede recalcular Mi dinero.","Desde Mi dinero puede planear una compra.","Desde Ahorrar puede revisar Mi semana.","Desde Enviar dinero puede comprobar si la remesa cabe en el dinero disponible.","Desde Familia puede preparar un envío frecuente.","Desde No entiendo puede abrir la fuente oficial correspondiente."],"en":["From My week the user can go to Expenses.","From Expenses the app can recalculate My money.","From My money the user can plan a purchase.","From Savings the user can review My week.","From Send money the app can check whether the remittance fits available money.","From Family the user can prepare a frequent transfer.","From I don't understand the app can open the relevant official source."]}},
-"data_model":{"local_only":true,"storage":"localStorage","server_persistence":false,"user_controls":["save","edit","replace","delete","start_over","export_pdf","import_app_pdf"],"data_categories":["income","expenses","savings","remittances","purchases","family","weekly_plan","daily_available","goals","reports"],"never_collect":["passwords","CVV","security_codes","bank_login","full_card_numbers","provider_credentials"]},
-"daily_control":{"purpose":{"es":"Convertir lo que el usuario gana, gasta, ahorra y remesa en una cantidad sencilla que pueda entender para hoy.","en":"Turn what the user earns, spends, saves and sends into a simple amount they can understand for today."},"periods":["daily","weekly","biweekly","monthly"],"calculation_rules":{"income":"normalize_to_monthly_then_period","expenses":"normalize_frequency_then_period","savings":"subtract_planned_savings","remittances":"subtract_planned_remittances","reserved_money":"subtract_reserved_amount","available":"income-minus-committed-money","daily_available":"available_for_period_divided_by_days_remaining","must_show_as_estimate":true,"never_claim_bank_balance":true},"labels":{"es":{"daily":"Puedes gastar aproximadamente hoy","weekly":"Disponible aproximadamente esta semana","biweekly":"Disponible aproximadamente en 15 días","monthly":"Disponible aproximadamente este mes"},"en":{"daily":"You can spend approximately today","weekly":"Approximately available this week","biweekly":"Approximately available for 15 days","monthly":"Approximately available this month"}},"safety":{"negative_available":"Mostrar que falta dinero y explicar cuánto.","zero_available":"Indicar que el dinero registrado ya está comprometido.","large_change":"Preguntar antes de modificar un dato existente.","unknown_period":"Pedir periodo antes de calcular.","missing_income":"No presentar capacidad de gasto como conocida."}},
-"money_questions":{"income":{"es":"¿Cuánto recibes?","en":"How much do you receive?"},"frequency":{"es":"¿Cada cuánto recibes ese dinero?","en":"How often do you receive that money?"},"essential":{"es":"¿Cuánto necesitas para lo básico?","en":"How much do you need for essentials?"},"flexible":{"es":"¿Cuánto sueles gastar en otras cosas?","en":"How much do you usually spend on other things?"},"savings":{"es":"¿Cuánto quieres separar para ahorrar?","en":"How much do you want to set aside?"},"remittance":{"es":"¿Cuánto quieres enviar?","en":"How much do you want to send?"},"purchase":{"es":"¿Cuánto cuesta lo que quieres comprar?","en":"How much does what you want to buy cost?"}},
-"money_planner":{"title":{"es":"Organiza tu dinero","en":"Organize your money"},"goal":{"es":"Saber qué dinero está libre, qué dinero ya tiene destino y qué cantidad puedes usar sin perder de vista tus compromisos.","en":"Know what money is free, what already has a purpose and what you can use without losing sight of your commitments."},"outputs":["income_period","essential_expenses","flexible_expenses","savings","remittances","reserved_money","available","daily_available","weekly_available","biweekly_available","monthly_available"],"reaction":{"es":"Después de calcular, la app muestra cuánto queda y qué parte está comprometida. También permite ir directamente a registrar un gasto, ahorrar, planear una compra o revisar la semana.","en":"After calculating, the app shows what remains and what is committed. It also lets the user go directly to record an expense, save, plan a purchase or review the week."}},
-"weekly_money":{"title":{"es":"Tu semana en una vista","en":"Your week at a glance"},"purpose":{"es":"Convertir los datos registrados en una fotografía sencilla de la semana: qué entra, qué sale y qué queda.","en":"Turn recorded data into a simple picture of the week: what comes in, what goes out and what remains."},"outputs":["weekly_income","weekly_registered_outflow","weekly_available","daily_available","upcoming_commitments"],"message":{"es":"Es una organización orientativa basada en lo que has registrado. No representa el saldo de una cuenta bancaria.","en":"This is an estimate based on what you have recorded. It is not a bank account balance."},"actions":[{"id":"review_expenses","es":"Revisar mis gastos","en":"Review my expenses"},{"id":"adjust_savings","es":"Cambiar ahorro","en":"Adjust savings"},{"id":"review_remittance","es":"Revisar remesa","en":"Review remittance"},{"id":"plan_purchase","es":"Planear una compra","en":"Plan a purchase"}]},
-"expenses":{"title":{"es":"Anota un gasto","en":"Record an expense"},"purpose":{"es":"Registrar un gasto y mostrar inmediatamente cómo cambia el dinero disponible.","en":"Record an expense and immediately show how it changes available money."},"categories":["essential","flexible","other"],"frequency_options":["one_time","daily","weekly","biweekly","monthly"],"reaction":{"es":"Al guardar, el gasto entra en el periodo correcto, actualiza el disponible y puede cambiar la cantidad diaria, semanal, quincenal y mensual.","en":"When saved, the expense enters the correct period, updates available money and can change daily, weekly, biweekly and monthly amounts."},"duplicate_rule":{"ask_before_add":true,"message":{"es":"Ya tienes un gasto parecido. ¿Es un gasto nuevo o quieres corregir el anterior?","en":"You already have a similar expense. Is this a new expense or do you want to correct the previous one?"}}},
-"savings":{"title":{"es":"Registrar ahorro","en":"Record savings"},"purpose":{"es":"Separar una cantidad que el usuario decide guardar y demostrar qué efecto tiene sobre su dinero disponible.","en":"Set aside an amount the user chooses and show its effect on available money."},"rule":"Saving is recorded as a planned allocation, not as an investment return.","outputs":["saved_amount","available_after_saving","daily_effect","weekly_effect","monthly_effect"],"message":{"es":"Aquí solo organizamos una cantidad que tú decides separar. No prometemos rendimientos.","en":"Here we only organize an amount you choose to set aside. We do not promise returns."},"actions":[{"id":"save","es":"Guardar ahorro","en":"Save savings"},{"id":"see_effect","es":"Ver efecto","en":"See effect"},{"id":"review_week","es":"Ver mi semana","en":"See my week"}]},
-"purchase_planner":{"title":{"es":"¿Cómo afectaría esta compra?","en":"How would this purchase affect your money?"},"purpose":{"es":"Antes de gastar, mostrar si la compra cabe en el dinero disponible registrado y qué cantidad quedaría.","en":"Before spending, show whether the purchase fits within recorded available money and what would remain."},"states":["safe","warning","insufficient","unknown"],"rule":"Never tell the user what they must buy or not buy. Show the numerical effect and let the user decide.","outputs":["purchase_amount","available_before","available_after","gap","daily_effect","weekly_effect"],"actions":[{"id":"review","es":"Revisar efecto","en":"Review effect"},{"id":"record","es":"Registrar compra","en":"Record purchase"},{"id":"adjust","es":"Ajustar ahorro o gasto","en":"Adjust savings or spending"}]},
-"family":{"title":{"es":"Personas frecuentes","en":"Frequent people"},"purpose":{"es":"Guardar localmente nombres o referencias que faciliten repetir una remesa sin guardar credenciales.","en":"Store names or references locally to make a future remittance easier without storing credentials."},"fields":["name","country","usual_amount","receive_method","note"],"security":"Never store passwords, provider credentials, card numbers, CVV or security codes.","actions":[{"id":"save","es":"Guardar localmente","en":"Save locally"},{"id":"use","es":"Usar para preparar envío","en":"Use to prepare a transfer"},{"id":"edit","es":"Editar","en":"Edit"},{"id":"delete","es":"Borrar","en":"Delete"}],"confirmation_rule":{"repeat_transfer":true}},
-"remittance_flow":{"title":{"es":"Primero entendamos tu envío","en":"Let's understand your transfer first"},"purpose":{"es":"Preguntar solamente lo que puede cambiar las opciones de envío.","en":"Ask only what can change the transfer options."},"required":["amount","destination_country"],"optional":["urgency","priority","delivery_method","payment_method","recipient_amount_target","special_need"],"question_reasons":{"amount":{"es":"Necesitamos saber cuánto quieres enviar para comprobar el efecto sobre tu dinero y buscar información aplicable.","en":"We need the amount to check its effect on your money and find applicable information."},"destination_country":{"es":"Las formas de recibir, pagar, requisitos, tarifas y disponibilidad pueden cambiar según el país.","en":"Receive methods, payment methods, requirements, fees and availability can vary by country."},"urgency":{"es":"La rapidez puede cambiar las opciones que debes revisar.","en":"Urgency can change the options you need to review."},"priority":{"es":"Esto evita mostrarte información que no te interesa.","en":"This prevents us from showing information you do not care about."},"delivery_method":{"es":"La forma de recibir puede cambiar disponibilidad y condiciones.","en":"The receive method can change availability and conditions."},"payment_method":{"es":"La forma de pagar puede cambiar las condiciones del envío.","en":"The payment method can change transfer conditions."}},"required_response":["show_understood_need","show_money_effect_if_known","show_four_providers","show_verified_facts_only","show_unknown_facts_as_unknown","give_official_next_action"],"provider_rule":"Always keep the four configured providers visible as options, but never imply that all four are currently available for every destination or method.","ranking_rule":"No provider ranking or winner unless comparable current verified data supports a neutral comparison.","handoff":{"es":"Cuando falte una tarifa, tasa, tiempo o disponibilidad actual, la acción correcta es abrir la fuente oficial del proveedor para comprobarlo.","en":"When a current fee, rate, delivery time or availability is missing, the correct action is to open the provider's official source to check it."}},
-"provider_comparison":{"title":{"es":"Opciones disponibles","en":"Available options"},"display":["provider_name","current_verified_data","what_is_known","what_must_be_checked","official_source","next_action"],"never_display_as_fact":["unverified_fee","unverified_exchange_rate","unverified_delivery_time","unverified_availability"],"four_provider_rule":true,"action_rule":{"es":"Cada proveedor debe tener una acción real: revisar información oficial o continuar cuando los datos actuales estén suficientemente verificados.","en":"Every provider must have a real action: review official information or continue when current data is sufficiently verified."}},
-"provider_guidance":{"source_policy":"official_only","commercial_data":{"status":"unavailable_until_verified","do_not_invent_fees":true,"do_not_invent_exchange_rates":true,"do_not_invent_delivery_times":true,"do_not_invent_availability":true},"source_labels":{"es":"Fuente oficial","en":"Official source"},"unknown_labels":{"es":"Hay que comprobarlo","en":"Needs verification"},"verified_labels":{"es":"Dato verificado","en":"Verified data"}},
-"help_center":{"title":{"es":"Explicaciones sencillas","en":"Simple explanations"},"topics":[{"id":"exchange_rate","title":{"es":"¿Qué es la tasa de cambio?","en":"What is an exchange rate?"},"body":{"es":"Es la relación entre la moneda que envías y la moneda que recibe la otra persona.","en":"It is the relationship between the currency you send and the currency the other person receives."}},{"id":"fee","title":{"es":"¿Qué es una comisión?","en":"What is a fee?"},"body":{"es":"Es un costo que puede cobrarse por realizar una transferencia. El monto depende de los detalles del envío y debe comprobarse antes de confirmar.","en":"It is a cost that may be charged for a transfer. The amount depends on the transfer details and should be checked before confirming."}},{"id":"delivery_time","title":{"es":"¿Cuánto tarda?","en":"How long does it take?"},"body":{"es":"El tiempo puede cambiar según país, método, proveedor y verificación. Si REMESAS no tiene un dato actual verificado, te lleva a la fuente oficial.","en":"Timing can vary by country, method, provider and verification. If REMESAS does not have a current verified value, it takes you to the official source."}},{"id":"requirements","title":{"es":"¿Qué necesito?","en":"What do I need?"},"body":{"es":"Los requisitos dependen del envío. La app te muestra lo que conoce y te dirige al proveedor cuando necesitas confirmar requisitos actuales.","en":"Requirements depend on the transfer. The app shows what it knows and directs you to the provider when current requirements must be confirmed."}},{"id":"available_money","title":{"es":"¿Cuánto puedo gastar?","en":"How much can I spend?"},"body":{"es":"La app calcula una cantidad orientativa a partir de tus ingresos y compromisos registrados. No representa el saldo de tu banco.","en":"The app calculates an estimate from your recorded income and commitments. It is not your bank balance."}},{"id":"saving","title":{"es":"¿Por qué ahorrar?","en":"Why save?"},"body":{"es":"Separar una cantidad antes de gastarla puede ayudarte a crear una reserva para necesidades futuras. La app muestra el efecto de esa decisión sobre tu dinero disponible.","en":"Setting aside money before spending can help create a reserve for future needs. The app shows the effect of that decision on available money."}},{"id":"daily_budget","title":{"es":"¿Qué puedo gastar hoy?","en":"What can I spend today?"},"body":{"es":"La app divide el dinero disponible registrado entre los días del periodo que quedan. Es una guía, no una orden.","en":"The app divides recorded available money across the remaining days of the period. It is a guide, not an order."}}],"action_rule":"Every topic must provide either an explanation, a calculation, or an official source link when current facts are required."},
-"memory":{"purpose":{"es":"Permitir que el usuario vuelva otro día y continúe sin perder la organización que decidió guardar.","en":"Allow the user to return another day and continue without losing the organization they chose to save."},"local_only":true,"source_of_truth":"client_device","import_policy":{"only_accept_app_generated_pdf":true,"external_statement_not_required":true,"verify_before_merge":true,"never_merge_numbers_blindly":true},"merge_process":["leer informe","identificar fecha del informe","identificar periodo","identificar cada dato por categoría","comparar con datos actuales","detectar cambios","preguntar si existe conflicto","aplicar solamente datos confirmados"],"conflict_message":{"es":"Encontré un número anterior y uno nuevo. Antes de cambiarlo necesito saber cuál representa tu situación actual.","en":"I found an older number and a new one. Before changing it, I need to know which one represents your current situation."}},
-"pdf_report":{"enabled":true,"purpose":{"es":"Crear un resumen sencillo que el usuario pueda guardar en su propio dispositivo y utilizar para recordar su evolución.","en":"Create a simple summary the user can save on their own device and use to remember their progress."},"frequency":["on_demand","daily","weekly","biweekly","monthly"],"suggest_on_entry":true,"suggestion":{"es":"Si quieres, puedes descargar tu resumen de hoy. Así tendrás una copia sencilla de lo que tenías, lo que registraste y lo que quedó.","en":"If you want, you can download today's summary. This gives you a simple copy of what you had, what you recorded and what remained."},"content":["app_name","date","time","period","income","essential_expenses","other_expenses","savings","remittances","reserved_money","available","daily_available","weekly_available","biweekly_available","monthly_available","planned_purchases","simple_changes","next_action"],"maximum_complexity":"low","do_not_include":["bank_statement_style_tables","unnecessary_transaction_details","passwords","credentials","CVV","security_codes"],"header":{"es":"Resumen sencillo de tu dinero","en":"Simple money summary"},"footer":{"es":"Organización orientativa. No es un estado de cuenta bancaria.","en":"Planning information only. This is not a bank statement."},"filename_pattern":"REMESAS_resumen_YYYY-MM-DD_HH-mm.pdf"},
-"pdf_memory_cycle":{"cycle":["TUVO","TIENE","TENDRÁ","CAMBIÓ","SIGUIENTE PASO"],"purpose":{"es":"Permitir comparar informes generados por la propia app y observar evolución sin convertirlos en estados bancarios.","en":"Compare reports generated by the app and observe progress without turning them into bank statements."},"comparison":["income_change","expense_change","savings_change","remittance_change","available_change","daily_available_change","goal_progress"],"result":{"es":"Mostrar pocos cambios importantes y una acción sencilla.","en":"Show only important changes and one simple action."}},
-"future_protection":{"purpose":{"es":"Ayudar a crear margen para que un problema futuro tenga una respuesta posible mediante dinero disponible, ahorro o reducción de compromisos.","en":"Help create room so a future problem can have a possible response through available money, savings or reduced commitments."},"rules":["No prometer seguridad financiera.","No garantizar resultados.","Mostrar consecuencias numéricas de las decisiones.","Mostrar cuánto aumenta o disminuye el margen.","Permitir crear una reserva.","Permitir revisar gastos.","Permitir comparar una compra antes de hacerla.","Permitir revisar el impacto de una remesa."]},
-"validation":{"amount":{"min":0.01,"max":1000000,"ask_before_extreme":true},"income":{"ask_before_replacing_existing":true},"expense":{"ask_before_duplicate":true},"savings":{"must_reduce_available":true},"remittance":{"must_show_effect_on_available_when_money_data_exists":true},"purchase":{"must_show_effect_before_recording":true},"country":{"must_be_supported_or_explain":true}},
-"security":{"never_request":["password","cvv","security_code","bank_login","provider_password","full_card_number"],"never_store_server_side":true,"never_execute_transfer":true,"never_claim_transaction_completed":true},
-"local_storage":{"keys":["remesas_money_v4","remesas_expenses_v4","remesas_family_v4","remesas_prefs_v4","remesas_history_v4","remesas_reports_v4"],"clear_all_action":true,"migration":{"preserve_old_data_when_safe":true,"do_not_duplicate_numbers":true}},
-"quality_rules":{"every_window_has_purpose":true,"every_question_has_reason":true,"every_button_has_action":true,"every_action_has_result":true,"every_number_has_context":true,"no_silent_accumulation":true,"no_fake_data":true,"no_fake_verification":true,"no_empty_buttons":true,"no_dead_ends":true,"always_offer_next_step":true,"always_offer_reset":true},
-"messages":{"es":{"unknown":"No tengo ese dato confirmado ahora. Te llevo a la fuente donde puedes comprobarlo.","saved":"Guardado en este dispositivo.","updated":"Actualizado.","deleted":"Borrado de este dispositivo.","nothing_to_calculate":"Necesito un dato más para hacer el cálculo.","insufficient":"Con los datos registrados, esta cantidad supera el dinero disponible aproximado.","safe":"Con los datos registrados, la cantidad cabe dentro del dinero disponible aproximado.","warning":"La cantidad cabe, pero deja poco margen según lo que has registrado.","start_over":"Puedes borrar los datos de este dispositivo y empezar de cero."},"en":{"unknown":"I do not have that fact verified right now. I will take you to the source where you can check it.","saved":"Saved on this device.","updated":"Updated.","deleted":"Deleted from this device.","nothing_to_calculate":"I need one more piece of information to calculate it.","insufficient":"Based on the recorded information, this amount exceeds your approximate available money.","safe":"Based on the recorded information, this amount fits within your approximate available money.","warning":"The amount fits, but it leaves little room based on what you recorded.","start_over":"You can delete the data on this device and start over."}},
-"countries":{"supported":[{"code":"AR","name":{"es":"Argentina","en":"Argentina"}},{"code":"BO","name":{"es":"Bolivia","en":"Bolivia"}},{"code":"BR","name":{"es":"Brasil","en":"Brazil"}},{"code":"CL","name":{"es":"Chile","en":"Chile"}},{"code":"CO","name":{"es":"Colombia","en":"Colombia"}},{"code":"CR","name":{"es":"Costa Rica","en":"Costa Rica"}},{"code":"CU","name":{"es":"Cuba","en":"Cuba"}},{"code":"DO","name":{"es":"República Dominicana","en":"Dominican Republic"}},{"code":"EC","name":{"es":"Ecuador","en":"Ecuador"}},{"code":"SV","name":{"es":"El Salvador","en":"El Salvador"}},{"code":"GT","name":{"es":"Guatemala","en":"Guatemala"}},{"code":"HN","name":{"es":"Honduras","en":"Honduras"}},{"code":"HT","name":{"es":"Haití","en":"Haiti"}},{"code":"MX","name":{"es":"México","en":"Mexico"}},{"code":"NI","name":{"es":"Nicaragua","en":"Nicaragua"}},{"code":"PA","name":{"es":"Panamá","en":"Panama"}},{"code":"PY","name":{"es":"Paraguay","en":"Paraguay"}},{"code":"PE","name":{"es":"Perú","en":"Peru"}},{"code":"UY","name":{"es":"Uruguay","en":"Uruguay"}},{"code":"VE","name":{"es":"Venezuela","en":"Venezuela"}}]},
-"delivery_methods":{"show_available_options":true,"options":[{"id":"cash_pickup","label":{"es":"Recibir en efectivo","en":"Cash pickup"}},{"id":"bank_account","label":{"es":"Depósito bancario","en":"Bank account"}},{"id":"mobile_wallet","label":{"es":"Billetera móvil","en":"Mobile wallet"}},{"id":"home_delivery","label":{"es":"Entrega a domicilio","en":"Home delivery"}}]},
-"payment_methods":{"show_available_options":true,"options":[{"id":"bank_account","label":{"es":"Cuenta bancaria","en":"Bank account"}},{"id":"debit_card","label":{"es":"Tarjeta de débito","en":"Debit card"}},{"id":"credit_card","label":{"es":"Tarjeta de crédito","en":"Credit card"}},{"id":"cash","label":{"es":"Efectivo","en":"Cash"}}]},
-"provider_handoff":{"rule":"REMESAS never sends the transfer itself.","states":["information_only","needs_verification","ready_to_review","external_provider"],"external_action":{"es":"Revisar en el sitio oficial","en":"Review on official site"},"success_definition":{"es":"La app ayudó al usuario a entender, calcular, verificar y llegar al siguiente lugar correcto.","en":"The app helped the user understand, calculate, verify and reach the correct next place."}},
-"compliance":{"commercial_data_policy":"Do not invent commercial values.","official_sources_only":true,"user_decision_control":true,"financial_advice":"general_educational_and_organizational_only","no_transaction_execution":true},
-"languages":{"default":"es","available":["es","en"],"toggle":true}
+"app":{"name":"REMESAS","brand":"May Roga LLC","version":"3.0.0","schema_version":"3.0","environment":"production","default_language":"es","supported_languages":["es","en"],"origin_country":"US","target_region":"LATAM","purpose":"Ayudar al usuario a entender, organizar y planificar su dinero, preparar y revisar remesas, comparar proveedores y evitar errores antes de continuar con un proveedor externo.","role":"asistente_practico","not_a_bank":true,"does_not_execute_transfers":true,"does_not_hold_funds":true},
+"product_promise":{"es":"Ayudarte a entender qué pasa con tu dinero, cuánto puedes reservar o gastar aproximadamente, cómo una remesa afecta tu presupuesto y qué debes revisar antes de continuar con un proveedor.","en":"Help you understand what happens to your money, approximately how much you can reserve or spend, how a remittance affects your budget, and what to review before continuing with a provider.","rules":["No prometer resultados financieros.","No presentar cálculos orientativos como garantías.","No ejecutar ni procesar dinero.","No decidir por el usuario.","No inventar tarifas, tasas, tiempos, disponibilidad o requisitos.","Explicar siempre el motivo de las preguntas cuando sea útil.","Mostrar únicamente la información necesaria para la decisión actual."]},
+"experience":{"principles":["simple","clara","humana","directa","calmada","practica","no_abrumar","explicar_antes_de_pedir","preguntar_solo_lo_que_cambia_el_resultado","dar_contexto","preservar_control_del_usuario"],"core_flow":["entender_necesidad","pedir_dato_necesario","explicar_para_que_sirve","calcular_o_organizar","mostrar_ayuda_relevante","mostrar_opciones_si_corresponde","explicar_diferencias","mostrar_precauciones","revisar","dejar_decidir_al_usuario"],"language_rule":"Usar palabras cotidianas y frases cortas. Evitar lenguaje técnico innecesario. Si aparece un término financiero, explicarlo en lenguaje sencillo.","low_literacy_rule":"La persona debe poder entender qué está haciendo, para qué sirve cada dato y qué problema intenta resolver la aplicación sin conocimientos financieros previos.","no_overload_rule":"No mostrar simultáneamente todas las funciones, reglas, proveedores, requisitos o cálculos. Mostrar primero lo necesario y permitir profundizar cuando el usuario lo necesite."},
+"opening":{"es":{"title":"REMESAS","subtitle":"Entiende tu dinero antes de enviar.","welcome":"Vamos paso a paso. Te ayudaremos a organizar tu remesa, revisar lo importante y comparar opciones.","start":"Comenzar","language":"English"},"en":{"title":"REMITTANCES","subtitle":"Understand your money before sending.","welcome":"Step by step. We will help you organize your remittance, review what matters and compare options.","start":"Start","language":"Español"}},
+"conversation_logic":{"order":["need","amount","destination","frequency","urgency","priority","comparison","review"],"ask_only_when_needed":true,"explain_before_question":true,"never_repeat_answered_questions":true,"preserve_user_control":true,"allow_skip_optional":true},
+"money_questions":{"es":{"need":"¿Qué necesitas hacer con tu dinero?","amount":"¿Cuánto dinero quieres enviar?","destination":"¿A qué país lo enviarás?","frequency":"¿Es algo puntual o lo haces con frecuencia?","urgency":"¿Qué tan rápido necesitas que llegue?","priority":"¿Qué te importa más: rapidez, costo, ahorro o facilidad?","review":"Revisa los datos antes de continuar."},"en":{"need":"What do you need to do with your money?","amount":"How much do you want to send?","destination":"Which country are you sending to?","frequency":"Is this one-time or something you do regularly?","urgency":"How quickly do you need it to arrive?","priority":"What matters most: speed, cost, savings, or convenience?","review":"Review the information before continuing."}},
+"remittance_flow":{"steps":["destination","amount","urgency","priority","comparison","review","handoff"],"required":["destination","amount"],"optional":["urgency","priority","frequency"],"default_currency":"USD","send_currency":"USD"},
+"money_planner":{"enabled":true,"local_only":true,"purpose":"Organizar ingresos, gastos, ahorro y dinero disponible antes de preparar una remesa.","no_bank_connection":true,"no_account_access":true},
+"income":{"enabled":true,"fields":["amount","frequency"],"frequencies":["weekly","biweekly","monthly","other"]},
+"spending_planner":{"enabled":true,"categories":["essential","flexible","savings","remittance","other"]},
+"essential_needs":{"enabled":true,"examples":["housing","food","utilities","transportation","health","family"]},
+"flexible_spending":{"enabled":true,"examples":["shopping","entertainment","restaurants","personal","other"]},
+"savings":{"enabled":true,"purpose":"Ayudar a separar una cantidad orientativa para ahorro sin presentarla como consejo financiero.","local_only":true},
+"remittance_budget":{"enabled":true,"purpose":"Mostrar cuánto dinero podría quedar disponible después de una remesa según los datos introducidos por el usuario.","calculation_type":"informational","guarantee":false},
+"purchase_planner":{"enabled":true,"purpose":"Organizar una compra futura y observar su efecto aproximado sobre el dinero disponible.","guarantee":false},
+"weekly_money":{"enabled":true,"purpose":"Organizar dinero semanal de forma sencilla.","local_only":true},
+"expenses":{"enabled":true,"local_only":true,"storage":"localStorage"},
+"family":{"enabled":true,"purpose":"Permitir organizar cantidades destinadas a familiares sin guardar información personal en el servidor.","local_only":true},
+"money_assistant":{"enabled":true,"scope":["planning","organization","remittance_preparation","provider_comparison","review"],"excluded":["banking","investment_management","money_transfer_execution","credit_decisions"]},
+"provider_comparison":{"enabled":true,"provider_order":["western_union","moneygram","remitly","xoom"],"order_note":"El orden es fijo para mantener una interfaz consistente y no implica recomendación, clasificación ni preferencia.","comparison_fields":["provider","availability","official_site","delivery_methods","payment_methods","commercial_status"],"never_assume_availability":true,"never_assume_price":true,"never_assume_exchange_rate":true,"never_assume_delivery_time":true},
+"provider_guidance":{"enabled":true,"rule":"Mostrar únicamente datos verificables disponibles en providers.json. Cuando un dato comercial no esté verificado, indicarlo claramente.","commercial_data_policy":"unavailable_until_verified","official_handoff":true,"declared_methods_are_not_current_availability":true},
+"help_center":{"enabled":true,"topics":["how_remittances_work","fees","exchange_rate","delivery_methods","payment_methods","recipient_information","fraud_awareness","provider_handoff","privacy","mistake_prevention"]},
+"personal_information":{"minimize":true,"never_store_on_server":true,"do_not_request":["password","bank_password","card_number","security_code","full_account_credentials","provider_credentials"],"only_request_what_is_needed":true},
+"data_privacy":{"server_storage":"none_for_personal_money_data","browser_storage":"localStorage","sensitive_credentials":"never_requested","provider_credentials":"never_requested","user_control":"user_can_clear_local_data"},
+"kernel":{"name":"REMESAS_KERNEL","version":"3.0.0","mode":"rules_first","brain_file":"data/app_brain.json","provider_file":"data/providers.json","commercial_data_requires_verification":true,"calculation_policy":"transparent_and_informational","decision_policy":"support_user_decision_without_deciding_for_user"},
+"money_kernel":{"enabled":true,"rules":["income_minus_essential_minus_flexible_minus_savings_minus_remittance","never_allow_negative_planned_balance_without_warning","never_present_estimate_as_guarantee","show_currency_with_amount","use_two_decimal_places_for_money","do_not_use_reserved_money_as_free_money"],"local_only":true},
+"decision_support":{"enabled":true,"questions":["destination","amount","urgency","priority"],"outputs":["organized_request","provider_comparison","review_checklist","official_handoff"],"no_recommendation_without_user_context":true},
+"messages":{"es":{"loading":"Preparando tu información...","error":"No pudimos completar esta operación. Revisa los datos e inténtalo nuevamente.","no_results":"No hay información comercial verificada para mostrar en este momento.","review":"Revisa antes de continuar.","official":"Continuar en el sitio oficial","local_data":"Tus datos de planificación permanecen en este dispositivo.","results_ready":"Hay información comercial verificada disponible. Revísala antes de continuar."},"en":{"loading":"Preparing your information...","error":"We could not complete this operation. Check your information and try again.","no_results":"There is no verified commercial information available to display right now.","review":"Review before continuing.","official":"Continue on the official site","local_data":"Your planning data stays on this device.","results_ready":"Verified commercial information is available. Review it before continuing."}},
+"countries":{"default_currency":"USD","supported":[{"code":"AR","name":{"es":"Argentina","en":"Argentina"}},{"code":"BO","name":{"es":"Bolivia","en":"Bolivia"}},{"code":"BR","name":{"es":"Brasil","en":"Brazil"}},{"code":"CL","name":{"es":"Chile","en":"Chile"}},{"code":"CO","name":{"es":"Colombia","en":"Colombia"}},{"code":"CR","name":{"es":"Costa Rica","en":"Costa Rica"}},{"code":"CU","name":{"es":"Cuba","en":"Cuba"}},{"code":"DO","name":{"es":"República Dominicana","en":"Dominican Republic"}},{"code":"EC","name":{"es":"Ecuador","en":"Ecuador"}},{"code":"SV","name":{"es":"El Salvador","en":"El Salvador"}},{"code":"GT","name":{"es":"Guatemala","en":"Guatemala"}},{"code":"HN","name":{"es":"Honduras","en":"Honduras"}},{"code":"HT","name":{"es":"Haití","en":"Haiti"}},{"code":"MX","name":{"es":"México","en":"Mexico"}},{"code":"NI","name":{"es":"Nicaragua","en":"Nicaragua"}},{"code":"PA","name":{"es":"Panamá","en":"Panama"}},{"code":"PY","name":{"es":"Paraguay","en":"Paraguay"}},{"code":"PE","name":{"es":"Perú","en":"Peru"}},{"code":"UY","name":{"es":"Uruguay","en":"Uruguay"}},{"code":"VE","name":{"es":"Venezuela","en":"Venezuela"}}]},
+"providers":[{"id":"western_union","name":"Western Union","enabled":true,"official_url":"https://www.westernunion.com","official_urls":{"home":"https://www.westernunion.com","us_es":"https://www.westernunion.com/us/es/home.html","us_send_es":"https://www.westernunion.com/us/es/web/send-money/start","us_en":"https://www.westernunion.com/us/en/home.html","us_send":"https://www.westernunion.com/us/en/web/send-money/start"}},{"id":"moneygram","name":"MoneyGram","enabled":true,"official_url":"https://www.moneygram.com","official_urls":{"home":"https://www.moneygram.com","us_es":"https://www.moneygram.com/us/es/","us_send_es":"https://www.moneygram.com/us/es/send-money","us_en":"https://www.moneygram.com/us/en/","us_send":"https://www.moneygram.com/us/en/send-money"}},{"id":"remitly","name":"Remitly","enabled":true,"official_url":"https://www.remitly.com","official_urls":{"home":"https://www.remitly.com","us_es":"https://www.remitly.com/us/es/home","us_send_es":"https://www.remitly.com/us/es/money-transfer","us_en":"https://www.remitly.com/us/en/home","us_send":"https://www.remitly.com/us/en/money-transfer"}},{"id":"xoom","name":"Xoom","enabled":true,"official_url":"https://www.xoom.com","official_urls":{"home":"https://www.xoom.com","us_es":"https://www.xoom.com","us_send_es":"https://www.xoom.com/money-transfer","us_en":"https://www.xoom.com","us_send":"https://www.xoom.com/money-transfer"}}],
+"delivery_methods":{"cash_pickup":{"es":"Recibir en efectivo","en":"Cash pickup"},"bank_deposit":{"es":"Depósito bancario","en":"Bank deposit"},"mobile_wallet":{"es":"Billetera móvil","en":"Mobile wallet"},"home_delivery":{"es":"Entrega a domicilio","en":"Home delivery"},"availability_must_be_verified":true},
+"payment_methods":{"bank_account":{"es":"Cuenta bancaria","en":"Bank account"},"debit_card":{"es":"Tarjeta de débito","en":"Debit card"},"credit_card":{"es":"Tarjeta de crédito","en":"Credit card"},"cash":{"es":"Efectivo","en":"Cash"},"availability_must_be_verified":true},
+"comparison":{"enabled":true,"providers":["western_union","moneygram","remitly","xoom"],"compare_only_verified_data":true,"never_assume_fee":true,"never_assume_rate":true,"never_assume_delivery_time":true,"never_assume_method_availability":true,"show_unknown_as_unknown":true,"declared_methods_not_current_availability":true},
+"validation":{"required":["amount","destination_country"],"amount_minimum":0.01,"destination_length_min":2,"destination_length_max":3,"currency":"USD","checks":["amount_positive","destination_supported","language_supported","provider_enabled","commercial_data_status"],"warn_on_unusually_high_amount":true,"warn_when_amount_exceeds_available_money":true,"warn_when_reserved_money_is_used":true},
+"provider_handoff":{"enabled":true,"official_only":true,"show_warning_before_exit":true,"does_not_execute_transfer":true,"does_not_collect_provider_credentials":true,"provider_urls_source":"providers.json","provider_site_is_final_authority":true},
+"security":{"no_server_personal_financial_storage":true,"no_credentials":true,"no_card_data":true,"no_bank_data":true,"no_provider_login":true,"local_storage_only_for_planning":true,"external_provider_handoff":true,"never_request_passwords":true,"never_request_cvv":true,"never_request_security_codes":true},
+"local_storage":{"enabled":true,"purpose":"guardar temporalmente preferencias y datos de planificación en el dispositivo del usuario","server_sync":false,"clearable":true,"sensitive_credentials":false,"keys":["remesas_money_v3","remesas_expenses_v3","remesas_family_v3","remesas_prefs_v3"]},
+"compliance":{"not_a_bank":true,"not_a_money_transmitter":true,"not_a_financial_institution":true,"does_not_execute_transfers":true,"does_not_hold_funds":true,"does_not_guarantee_provider_terms":true,"provider_information_must_be_verified":true},
+"quality_rules":{"json_data_must_be_valid":true,"provider_ids_must_be_unique":true,"only_four_primary_providers":true,"no_invented_commercial_data":true,"no_guaranteed_results":true,"no_hidden_provider_ranking":true,"preserve_user_choice":true,"spanish_default":true,"english_available":true,"official_urls_only":true,"declared_provider_methods_are_not_availability":true},
+"languages":{"default":"es","supported":["es","en"],"fallback":"es","provider_names_same_in_both_languages":true}
+  "app":{
+    "name":"REMESAS",
+    "brand":"May Roga LLC",
+    "version":"4.0.0",
+    "schema_version":"4.0",
+    "environment":"production",
+    "default_language":"es",
+    "supported_languages":["es","en"],
+    "origin_country":"US",
+    "target_region":"LATAM",
+    "purpose":"Ayudar al usuario a entender, organizar y planificar su dinero de forma sencilla, incluyendo ingresos, gastos, ahorro, compras, remesas, dinero disponible y evolución registrada.",
+    "positioning":"Herramienta de organización y orientación. No es banco, remesadora, asesor financiero, institución financiera ni autoridad.",
+    "core_promise":"Cada pregunta, botón y dato debe producir una reacción útil, un cálculo, una explicación, una decisión, una alternativa o una dirección hacia una fuente oficial.",
+    "user_principle":"El usuario no debe tener que saber de dinero para poder utilizar la aplicación.",
+    "simplicity_principle":"Mostrar solo la información necesaria para resolver la necesidad actual y evitar saturación.",
+    "privacy_principle":"Los datos personales y financieros de organización permanecen en el dispositivo del usuario salvo que el usuario decida exportarlos mediante un resumen.",
+    "memory_principle":"La continuidad puede mantenerse mediante datos locales y resúmenes PDF generados por la propia aplicación."
+  },
+  "experience":{
+    "design_goal":"Reducir miedo, confusión y carga mental y convertir cada necesidad en una acción sencilla.",
+    "language_style":"Claro, corto, directo, humano y comprensible para personas con poca experiencia financiera.",
+    "avoid":["lenguaje bancario complejo","terminología financiera innecesaria","pantallas saturadas","listas interminables","preguntas que no cambian ninguna decisión","promesas financieras","diagnósticos profesionales","datos comerciales inventados"],
+    "preferred_pattern":"pregunta -> entender -> actuar -> mostrar resultado -> ofrecer siguiente acción",
+    "one_primary_action":true,
+    "show_only_relevant_information":true,
+    "progressive_disclosure":true,
+    "never_leave_user_without_next_step":true
+  },
+  "opening":{
+    "es":{
+      "title":"REMESAS",
+      "subtitle":"Entiende tu dinero. Organízalo. Decide con más claridad.",
+      "welcome":"No necesitas saber de finanzas. Dime qué necesitas y te ayudaremos paso a paso.",
+      "start":"Comenzar",
+      "language":"English"
+    },
+    "en":{
+      "title":"REMITTANCES",
+      "subtitle":"Understand your money. Organize it. Decide with more clarity.",
+      "welcome":"You do not need to know finance. Tell us what you need and we will guide you step by step.",
+      "start":"Start",
+      "language":"Español"
+    },
+    "recommended_actions":["send_money","organize_money","track_expenses","save_money","plan_purchase","family","help","resume"],
+    "pdf_reminder":{
+      "enabled":true,
+      "purpose":"Permitir al usuario conservar una copia sencilla de su estado actual y utilizarla posteriormente para recuperar y comparar información.",
+      "never_force":true
+    }
+  },
+  "core_rules":{
+    "every_question_must_have_reason":true,
+    "every_question_must_have_reaction":true,
+    "every_button_must_have_action":true,
+    "every_action_must_have_result":true,
+    "every_result_must_explain_meaning":true,
+    "every_result_should_offer_next_action":true,
+    "never_fake_capability":true,
+    "never_invent_commercial_data":true,
+    "never_add_new_numbers_without_classification":true,
+    "never_merge_periods_without_confirmation":true,
+    "never_replace_existing_data_without_confirmation":true,
+    "never_claim_bank_balance":true,
+    "never_execute_remittance":true,
+    "provider_handoff_when_needed":true
+  },
+  "conversation_logic":{
+    "entry_point_independent":true,
+    "goal":"Cualquier punto de entrada debe poder conducir al usuario hacia una respuesta útil y, cuando corresponda, hacia otra función.",
+    "unknown_input":{
+      "action":"classify",
+      "if_unclear":"ask_one_simple_clarifying_question",
+      "never_dead_end":true
+    },
+    "context":{
+      "reuse_local_context":true,
+      "show_only_relevant_context":true,
+      "never_assume_new_number_is_addition":true
+    },
+    "question_rules":[
+      {
+        "rule":"ask_only_if_answer_changes_action",
+        "meaning":"Si una respuesta no cambia un cálculo, filtro, clasificación, explicación o siguiente paso, no hacer la pregunta."
+      },
+      {
+        "rule":"ask_minimum_information",
+        "meaning":"Preguntar primero lo indispensable y dejar detalles secundarios para después."
+      },
+      {
+        "rule":"confirm_ambiguous_numbers",
+        "meaning":"Cuando un número pueda reemplazar, agregar, corregir o pertenecer a otro periodo, preguntar antes de modificar el estado."
+      }
+    ]
+  },
+  "kernel":{
+    "name":"REMESAS DECISION KERNEL",
+    "version":"4.0.0",
+    "principle":"El motor transforma datos del usuario en acciones y resultados comprensibles.",
+    "input_types":["question","number","choice","expense","saving","income","remittance","purchase","family_record","pdf_summary"],
+    "output_types":["calculation","classification","comparison","explanation","warning","correction_request","official_handoff","local_save","pdf_summary","evolution"],
+    "decision_order":[
+      "identify_need",
+      "identify_period",
+      "identify_category",
+      "validate_value",
+      "detect_conflict",
+      "ask_if_ambiguous",
+      "update_local_state",
+      "calculate_effect",
+      "show_simple_result",
+      "offer_next_action"
+    ],
+    "number_policy":{
+      "new_number_is_not_automatically_added":true,
+      "possible_actions":["replace","add","subtract","correct","new_period","new_category","cancel"],
+      "confirmation_required_when_ambiguous":true
+    },
+    "periods":{
+      "supported":["daily","weekly","biweekly","monthly"],
+      "daily":"Día",
+      "weekly":"Semana",
+      "biweekly":"15 días",
+      "monthly":"Mes",
+      "conversion_is_estimate":true,
+      "never_present_estimate_as_bank_balance":true
+    }
+  },
+  "remittance_flow":{
+    "goal":"Preparar al usuario para comparar opciones de envío sin obligarlo a entender la complejidad del mercado.",
+    "minimum_required":["amount","destination_country"],
+    "optional_decision_factors":["urgency","priority","delivery_method","payment_method","frequency","special_need"],
+    "questions":{
+      "amount":{
+        "reason":"Determinar el tamaño del envío.",
+        "reaction":"Usar la cantidad para filtrar y contextualizar opciones.",
+        "missing_action":"ask_amount"
+      },
+      "destination":{
+        "reason":"Determinar el corredor y proveedores aplicables.",
+        "reaction":"Seleccionar proveedores disponibles para ese destino.",
+        "missing_action":"ask_destination"
+      },
+      "urgency":{
+        "reason":"Saber si el usuario prioriza rapidez.",
+        "reaction":"Priorizar información de velocidad cuando esté verificada; si no, dirigir al sitio oficial.",
+        "options":["unknown","urgent","can_wait"]
+      },
+      "priority":{
+        "reason":"Saber qué resultado valora más el usuario.",
+        "reaction":"Ordenar la presentación según la prioridad cuando existan datos suficientes.",
+        "options":["compare_all","fastest","save","recipient_gets_more","balanced"]
+      },
+      "delivery_method":{
+        "reason":"La forma de recibir puede cambiar las opciones disponibles.",
+        "reaction":"Mostrar solo métodos compatibles cuando exista información verificable.",
+        "options":["cash","bank_deposit","mobile_wallet","home_delivery","show_available"]
+      },
+      "payment_method":{
+        "reason":"La forma de pagar puede cambiar disponibilidad o costo.",
+        "reaction":"Mostrar métodos compatibles cuando exista información verificable.",
+        "options":["bank_account","debit_card","credit_card","cash","show_available"]
+      }
+    },
+    "result_policy":{
+      "verified_data_only":true,
+      "if_no_verified_commercial_data":"show_provider_options_and_official_handoff",
+      "never_invent_fee":true,
+      "never_invent_exchange_rate":true,
+      "never_invent_delivery_time":true,
+      "never_invent_availability":true,
+      "never_execute_transfer":true
+    }
+  },
+  "money_organization":{
+    "goal":"Ayudar al usuario a entender cuánto dinero entra, cuánto sale, cuánto separa y cuánto queda.",
+    "categories":["income","essential","flexible","savings","remittance","purchase","other"],
+    "calculation":{
+      "available":"income-essential-flexible-savings-remittance-purchase-other",
+      "negative_warning":true,
+      "currency":"USD",
+      "informational_only":true
+    },
+    "views":{
+      "daily":"Mostrar referencia aproximada de gasto disponible por día.",
+      "weekly":"Mostrar referencia aproximada por semana.",
+      "biweekly":"Mostrar referencia aproximada por 15 días.",
+      "monthly":"Mostrar referencia aproximada por mes."
+    },
+    "explanation":"El disponible es una estimación basada únicamente en los datos registrados por el usuario y no representa el saldo de una cuenta bancaria."
+  },
+  "expense_logic":{
+    "goal":"Registrar gastos sin duplicarlos ni mezclar periodos.",
+    "before_save":["identify_category","identify_period","identify_amount","detect_possible_duplicate"],
+    "possible_duplicate_action":"ask_add_or_correct",
+    "categories":["essential","flexible","other"],
+    "after_save":["recalculate_available","recalculate_period_views","show_effect"]
+  },
+  "saving_logic":{
+    "goal":"Permitir separar una cantidad y mostrar su efecto sobre el dinero disponible.",
+    "after_save":["recalculate_available","update_savings_total","show_effect","offer_next_action"],
+    "message_principle":"Separar dinero reduce el disponible orientativo pero aumenta el ahorro registrado."
+  },
+  "purchase_logic":{
+    "goal":"Mostrar cómo una compra afectaría el dinero registrado.",
+    "before_commit":"simulate_first",
+    "result":["purchase_amount","available_before","available_after","warning_if_negative"],
+    "never_force_purchase":true
+  },
+  "family_logic":{
+    "goal":"Permitir organizar personas frecuentes sin guardar contraseñas ni credenciales.",
+    "local_only":true,
+    "fields":["nickname","country","optional_note"],
+    "sensitive_data_forbidden":true,
+    "action_after_save":"offer_prepare_remittance"
+  },
+  "help_center":{
+    "goal":"Explicar conceptos de forma sencilla y conducir a una acción cuando corresponda.",
+    "topics":[
+      "exchange_rate",
+      "fee",
+      "recipient_amount",
+      "identification",
+      "mistake",
+      "security"
+    ],
+    "style":"one_simple_explanation_then_one_useful_action"
+  },
+  "pdf_memory":{
+    "enabled":true,
+    "name":"Mi Resumen REMESAS",
+    "purpose":"Crear una memoria portátil, sencilla y legible del estado registrado por el usuario.",
+    "user_control":{
+      "optional":true,
+      "never_force":true,
+      "can_create_any_time":true,
+      "can_delete_local_data":true
+    },
+    "recommended_entry_message":{
+      "es":"Si quieres conservar una copia sencilla de cómo están tus números hoy, puedes guardar tu resumen.",
+      "en":"If you want to keep a simple copy of your numbers today, you can save your summary."
+    },
+    "content_principle":"Poco contenido, separado claramente y solo lo necesario.",
+    "sections":[
+      "date_time",
+      "period",
+      "income",
+      "outgoing",
+      "savings",
+      "remittances",
+      "available",
+      "daily_reference",
+      "weekly_reference",
+      "next_action"
+    ],
+    "exclude":["passwords","cvv","login_credentials","security_codes","unnecessary_personal_data","full_provider_account_numbers"],
+    "document_metadata":{
+      "generated_by":"REMESAS",
+      "schema_version":"4.0",
+      "generated_at":true,
+      "document_id":true
+    },
+    "recovery":{
+      "allowed":true,
+      "source":"REMESAS generated PDF",
+      "never_trust_unknown_pdf_as_authoritative":true,
+      "validate_document_structure":true,
+      "show_conflicts_before_import":true,
+      "never_merge_conflicting_numbers_automatically":true
+    },
+    "evolution":{
+      "allowed":true,
+      "comparison_periods":["daily","weekly","biweekly","monthly"],
+      "compare_only_data_present_in_documents":true,
+      "show_facts_not_professional_diagnoses":true,
+      "preferred_language":"Qué muestran tus datos",
+      "avoid_language":["diagnóstico financiero","garantía","predicción segura","recomendación profesional"]
+    }
+  },
+  "countries":{
+    "origin":"US",
+    "default_currency":"USD",
+    "supported":[
+      {"code":"AR","name":{"es":"Argentina","en":"Argentina"}},
+      {"code":"BO","name":{"es":"Bolivia","en":"Bolivia"}},
+      {"code":"BR","name":{"es":"Brasil","en":"Brazil"}},
+      {"code":"CL","name":{"es":"Chile","en":"Chile"}},
+      {"code":"CO","name":{"es":"Colombia","en":"Colombia"}},
+      {"code":"CR","name":{"es":"Costa Rica","en":"Costa Rica"}},
+      {"code":"CU","name":{"es":"Cuba","en":"Cuba"}},
+      {"code":"DO","name":{"es":"República Dominicana","en":"Dominican Republic"}},
+      {"code":"EC","name":{"es":"Ecuador","en":"Ecuador"}},
+      {"code":"SV","name":{"es":"El Salvador","en":"El Salvador"}},
+      {"code":"GT","name":{"es":"Guatemala","en":"Guatemala"}},
+      {"code":"HT","name":{"es":"Haití","en":"Haiti"}},
+      {"code":"HN","name":{"es":"Honduras","en":"Honduras"}},
+      {"code":"MX","name":{"es":"México","en":"Mexico"}},
+      {"code":"NI","name":{"es":"Nicaragua","en":"Nicaragua"}},
+      {"code":"PA","name":{"es":"Panamá","en":"Panama"}},
+      {"code":"PY","name":{"es":"Paraguay","en":"Paraguay"}},
+      {"code":"PE","name":{"es":"Perú","en":"Peru"}},
+      {"code":"UY","name":{"es":"Uruguay","en":"Uruguay"}},
+      {"code":"VE","name":{"es":"Venezuela","en":"Venezuela"}}
+    ]
+  },
+  "providers":{
+    "source":"providers.json",
+    "authority":"provider_registry",
+    "commercial_data_authority":"verified_provider_data_only"
+  },
+  "provider_comparison":{
+    "goal":"Ayudar a distinguir opciones sin saturar al usuario.",
+    "show_only_relevant_fields":true,
+    "preferred_fields":["provider_name","fee","exchange_rate","recipient_amount","delivery_time","delivery_method","payment_method"],
+    "if_missing":"say_not_verified",
+    "official_handoff":true
+  },
+  "comparison":{
+    "verified_only":true,
+    "dimensions":["fee","exchange_rate","recipient_amount","delivery_time","delivery_method","payment_method","requirements"],
+    "ranking":{
+      "allowed_only_when_supported_by_verified_data":true,
+      "never_claim_best_without_basis":true
+    }
+  },
+  "provider_handoff":{
+    "goal":"Nunca dejar al usuario sin salida cuando REMESAS no pueda verificar un dato.",
+    "rules":[
+      "use_official_provider_url_only",
+      "tell_user_what_to_check",
+      "do_not_claim_current_fact_without_verification",
+      "do_not_execute_transfer_inside_app"
+    ]
+  },
+  "delivery_methods":[
+    {"id":"cash","label":{"es":"Recibir en efectivo","en":"Cash pickup"}},
+    {"id":"bank_deposit","label":{"es":"Depósito bancario","en":"Bank deposit"}},
+    {"id":"mobile_wallet","label":{"es":"Billetera móvil","en":"Mobile wallet"}},
+    {"id":"home_delivery","label":{"es":"Entrega a domicilio","en":"Home delivery"}},
+    {"id":"show_available","label":{"es":"Mostrar opciones disponibles","en":"Show available options"}}
+  ],
+  "payment_methods":[
+    {"id":"bank_account","label":{"es":"Cuenta bancaria","en":"Bank account"}},
+    {"id":"debit_card","label":{"es":"Tarjeta de débito","en":"Debit card"}},
+    {"id":"credit_card","label":{"es":"Tarjeta de crédito","en":"Credit card"}},
+    {"id":"cash","label":{"es":"Efectivo","en":"Cash"}},
+    {"id":"show_available","label":{"es":"Mostrar opciones disponibles","en":"Show available options"}}
+  ],
+  "money_planner":{
+    "enabled":true,
+    "local_only":true,
+    "periods":["daily","weekly","biweekly","monthly"],
+    "inputs":["income","essential","flexible","savings","remittance","purchase","other"],
+    "outputs":["available","daily_reference","weekly_reference","biweekly_reference","monthly_reference","negative_warning"],
+    "explanation_required":true
+  },
+  "security":{
+    "never_collect":["password","cvv","security_code","provider_password","bank_login","full_authentication_credentials"],
+    "provider_credentials_entered_only_on_provider_site":true,
+    "never_store_provider_credentials":true,
+    "local_data_user_control":true,
+    "clear_all_option":true
+  },
+  "data_privacy":{
+    "local_storage":true,
+    "server_persistence_of_user_financial_state":false,
+    "user_can_clear_local_data":true,
+    "pdf_export_user_controlled":true,
+    "pdf_import_user_controlled":true,
+    "sensitive_credentials_forbidden":true
+  },
+  "messages":{
+    "results_ready":{
+      "es":"Encontramos opciones con datos comerciales verificados. Revísalas antes de continuar.",
+      "en":"We found options with verified commercial data. Review them before continuing."
+    },
+    "no_results":{
+      "es":"No tenemos datos comerciales actuales verificados para mostrar como hechos. Puedes revisar las opciones oficiales y comprobar el dato directamente.",
+      "en":"We do not have current verified commercial data to present as facts. You can review the official options and verify the information directly."
+    },
+    "not_verified":{
+      "es":"Este dato no está verificado actualmente.",
+      "en":"This data is not currently verified."
+    },
+    "data_saved":{
+      "es":"Guardado en este dispositivo.",
+      "en":"Saved on this device."
+    },
+    "data_cleared":{
+      "es":"Los datos locales fueron eliminados. Puedes comenzar de cero.",
+      "en":"Local data was deleted. You can start again."
+    },
+    "pdf_ready":{
+      "es":"Tu resumen está listo para guardarlo en tu dispositivo.",
+      "en":"Your summary is ready to save on your device."
+    },
+    "pdf_import_ready":{
+      "es":"Encontramos información de un resumen de REMESAS. La revisaremos antes de incorporarla.",
+      "en":"We found information from a REMESAS summary. We will review it before importing it."
+    },
+    "conflict_found":{
+      "es":"Encontramos datos diferentes. Antes de cambiar tus números, necesitamos saber cuál representa lo que quieres registrar ahora.",
+      "en":"We found different data. Before changing your numbers, we need to know which one represents what you want to record now."
+    },
+    "calculation_only":{
+      "es":"Este resultado es una estimación basada en los datos que registraste.",
+      "en":"This result is an estimate based on the data you entered."
+    }
+  },
+  "validation":{
+    "required_for_remittance":["amount","destination_country"],
+    "amount_min":0.01,
+    "currency":"USD",
+    "commercial_verification_required":true,
+    "pdf_validation_required":true
+  },
+  "languages":{
+    "default":"es",
+    "supported":["es","en"]
+  },
+  "versioning":{
+    "brain_version":"4.0.0",
+    "data_schema":"4.0",
+    "compatible_engine":"4.x"
+  }
 }
