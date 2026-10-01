@@ -131,7 +131,7 @@ async def access_admin(request:Request):
     except Exception:body={}
     user=str(body.get("username") or "").strip()
     password=str(body.get("password") or "")
-    if not ADMIN_USER or not ADMIN_PASSWORD or user!=ADMIN_USER or password!=ADMIN_PASSWORD:
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD or user!=ADMIN_USERNAME or password!=ADMIN_PASSWORD:
         raise HTTPException(status_code=401,detail="Invalid admin credentials")
     token=ADMIN_TOKEN or secrets.token_urlsafe(32)
     ADMIN_SESSIONS[token]=now()+86400
