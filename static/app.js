@@ -10,7 +10,7 @@ const $=s=>document.querySelector(s),app=$("#app");
 const esc=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 const money=(v,c="USD")=>{let n=Number(v||0);return n.toLocaleString(APP.lang==="es"?"es-US":"en-US",{style:"currency",currency:c})};
 const now=()=>new Date();
-const dateTime=()=>now().toLocaleString(APP.lang==="es"?"es-US":"en-US",{dateStyle:"short",timeStyle:"short});
+const dateTime=()=>now().toLocaleString(APP.lang==="es"?"es-US":"en-US",{dateStyle:"short",timeStyle:"short"});
 const day=()=>now().toLocaleDateString(APP.lang==="es"?"es-US":"en-US",{weekday:"long"});
 const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
 const load=(k,d=[])=>{try{return JSON.parse(localStorage.getItem(k)||JSON.stringify(d))}catch(e){return d}};
