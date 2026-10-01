@@ -1,6 +1,6 @@
-# schemas.py — REMESAS | May Roga LLC
+# schemas.py — REMESAS | May Roga LLC | v4.3.0
 from typing import Any,Dict,List,Literal,Optional
-from pydantic import BaseModel,ConfigDict,Field,field_validator
+from pydantic import BaseModel,ConfigDict,Field,AliasChoices,field_validator
 
 Language=Literal["es","en"]
 Priority=Literal["fastest","save","recipient_gets_more","urgent","balanced","compare_all","other"]
@@ -9,273 +9,250 @@ PaymentMethod=Literal["bank_account","debit_card","credit_card","cash","digital_
 DataStatus=Literal["verified","stale","unavailable","restricted","not_applicable"]
 
 class StrictModel(BaseModel):
-    model_config=ConfigDict(extra="ignore",str_strip_whitespace=True,validate_assignment=True)
+    model_config=ConfigDict(extra="ignore",str_strip_whitespace=True,validate_assignment=True,populate_by_name=True)
 
 class MoneyValue(StrictModel):
-    amount:float=Field(ge=0)
-    currency:str=Field(min_length=3,max_length=3)
-    @field_validator("currency")
-    @classmethod
-    def normalize_currency(cls,v:str)->str:return v.upper()
+    amount:Optional[float]=None
+    currency:str="USD"
 
 class VerificationData(StrictModel):
+    status:DataStatus="unavailable"
     source:Optional[str]=None
     verified_at:Optional[str]=None
-    status:DataStatus="unavailable"
+    expires_at:Optional[str]=None
+    notes:Optional[str]=None
 
 class ProviderCommercialData(StrictModel):
-    fee:Optional[float]=Field(default=None,ge=0)
-    exchange_rate:Optional[float]=Field(default=None,gt=0)
-    delivery_time:Optional[str]=None
-    recipient_amount:Optional[float]=Field(default=None,ge=0)
-    currency:Optional[str]=None
-    delivery_method:Optional[Any]=None
-    payment_method:Optional[Any]=None
-    availability:Optional[bool]=None
-    important_condition:Optional[str]=None
-    requirements:List[Any]=Field(default_factory=list)
-    source:Optional[str]=None
-    verified_at:Optional[str]=None
     status:DataStatus="unavailable"
-    @field_validator("currency")
-    @classmethod
-    def normalize_currency(cls,v:Optional[str])->Optional[str]:return v.upper() if v else None
-
-class ProviderSchema(StrictModel):
-    id:str=Field(min_length=1,max_length=100)
-    name:str=Field(min_length=1,max_length=150)
-    enabled:bool=True
-    category:str="remittance_provider"
-    official_site:Optional[str]=None
-    official_urls:Dict[str,str]=Field(default_factory=dict)
-    supports_online:bool=True
-    supports_agent:bool=False
-    supports_multiple_delivery_methods:bool=True
-    coverage_must_be_verified_by_corridor:bool=True
-    payment_methods:List[Any]=Field(default_factory=list)
-    delivery_methods:List[Any]=Field(default_factory=list)
-    requirements:List[Any]=Field(default_factory=list)
-    commercial_data:ProviderCommercialData=Field(default_factory=ProviderCommercialData)
-
-class CountrySchema(StrictModel):
-    code:str=Field(min_length=2,max_length=3)
-    name_es:str=""
-    name_en:str=""
-    currency:str=Field(default="USD",min_length=3,max_length=3)
-    aliases:List[str]=Field(default_factory=list)
-    @field_validator("code")
-    @classmethod
-    def normalize_code(cls,v:str)->str:return v.upper()
-    @field_validator("currency")
-    @classmethod
-    def normalize_currency(cls,v:str)->str:return v.upper()
-
-class UserNeedRequest(StrictModel):
-    language:Language="es"
-    amount:Optional[float]=Field(default=None,ge=0,le=1_000_000)
-    send_currency:str=Field(default="USD",min_length=3,max_length=3)
-    destination_country:Optional[str]=Field(default=None,min_length=2,max_length=3)
-    priority:Optional[Priority]=None
-    urgency:Optional[str]=Field(default=None,max_length=100)
-    delivery_method:Optional[DeliveryMethod]=None
-    payment_method:Optional[PaymentMethod]=None
-    recipient_amount_target:Optional[float]=Field(default=None,ge=0)
-    frequency:Optional[str]=Field(default=None,max_length=50)
-    special_need:Optional[str]=Field(default=None,max_length=1000)
-    free_text:Optional[str]=Field(default=None,max_length=2000)
-    need_type:Optional[str]=Field(default=None,max_length=100)
-    @field_validator("send_currency")
-    @classmethod
-    def normalize_send_currency(cls,v:str)->str:return v.upper()
-    @field_validator("destination_country")
-    @classmethod
-    def normalize_destination(cls,v:Optional[str])->Optional[str]:return v.upper() if v else None
-
-class ParseNeedRequest(StrictModel):
-    language:Language="es"
-    text:str=Field(min_length=1,max_length=2000)
-    current_amount:Optional[float]=Field(default=None,ge=0)
-    current_destination_country:Optional[str]=Field(default=None,min_length=2,max_length=3)
-    @field_validator("current_destination_country")
-    @classmethod
-    def normalize_current_country(cls,v:Optional[str])->Optional[str]:return v.upper() if v else None
-
-class ParsedNeed(StrictModel):
-    need_type:str="other"
-    amount:Optional[float]=Field(default=None,ge=0)
-    send_currency:str="USD"
-    destination_country:Optional[str]=None
-    priority:Optional[Priority]=None
-    urgency:Optional[str]=None
-    delivery_method:Optional[DeliveryMethod]=None
-    payment_method:Optional[PaymentMethod]=None
-    recipient_amount_target:Optional[float]=Field(default=None,ge=0)
-    frequency:Optional[str]=None
-    special_need:Optional[str]=None
-    original_text:Optional[str]=None
-    raw_text:Optional[str]=None
-    missing_information:List[str]=Field(default_factory=list)
-    confidence:Optional[float]=Field(default=None,ge=0,le=1)
-    @field_validator("send_currency")
-    @classmethod
-    def normalize_currency(cls,v:str)->str:return v.upper()
-    @field_validator("destination_country")
-    @classmethod
-    def normalize_country(cls,v:Optional[str])->Optional[str]:return v.upper() if v else None
-
-class ComparisonRequest(StrictModel):
-    language:Language="es"
-    amount:float=Field(gt=0,le=1_000_000)
-    send_currency:str=Field(default="USD",min_length=3,max_length=3)
-    destination_country:str=Field(min_length=2,max_length=3)
-    priority:Optional[Priority]=None
-    urgency:Optional[str]=Field(default=None,max_length=100)
-    delivery_method:Optional[DeliveryMethod]=None
-    payment_method:Optional[PaymentMethod]=None
-    recipient_amount_target:Optional[float]=Field(default=None,ge=0)
-    frequency:Optional[str]=Field(default=None,max_length=50)
-    special_need:Optional[str]=Field(default=None,max_length=1000)
-    provider_ids:List[str]=Field(default_factory=list,max_length=50)
-    @field_validator("send_currency")
-    @classmethod
-    def normalize_currency(cls,v:str)->str:return v.upper()
-    @field_validator("destination_country")
-    @classmethod
-    def normalize_country(cls,v:str)->str:return v.upper()
-
-class ProviderOption(StrictModel):
-    provider_id:str
-    provider_name:str
-    amount_sent:Optional[float]=Field(default=None,ge=0)
-    send_currency:Optional[str]=None
-    fee:Optional[float]=Field(default=None,ge=0)
-    exchange_rate:Optional[float]=Field(default=None,gt=0)
-    recipient_amount:Optional[float]=Field(default=None,ge=0)
-    recipient_currency:Optional[str]=None
-    delivery_method:Optional[Any]=None
-    payment_method:Optional[Any]=None
-    estimated_delivery:Optional[str]=None
-    availability:Optional[bool]=None
-    important_condition:Optional[str]=None
-    requirements:List[Any]=Field(default_factory=list)
-    source:Optional[str]=None
-    verified_at:Optional[str]=None
-    status:DataStatus="unavailable"
-    official_url:Optional[str]=None
-    commercial_verified:bool=False
-    @field_validator("send_currency","recipient_currency")
-    @classmethod
-    def normalize_currency(cls,v:Optional[str])->Optional[str]:return v.upper() if v else None
-
-class ComparisonResult(StrictModel):
-    provider_id:str
-    provider_name:str
-    amount_sent:Optional[float]=None
-    send_currency:str="USD"
     fee:Optional[float]=None
     exchange_rate:Optional[float]=None
     recipient_amount:Optional[float]=None
     recipient_currency:Optional[str]=None
-    delivery_method:Optional[Any]=None
-    payment_method:Optional[Any]=None
     estimated_delivery:Optional[str]=None
-    availability:Optional[bool]=None
-    important_condition:Optional[str]=None
-    requirements:List[Any]=Field(default_factory=list)
+    delivery_time:Optional[str]=None
     source:Optional[str]=None
     verified_at:Optional[str]=None
-    status:DataStatus="unavailable"
-    relevance_reason:Optional[str]=None
-    continue_url:Optional[str]=None
-    @field_validator("send_currency","recipient_currency")
-    @classmethod
-    def normalize_currency(cls,v:Optional[str])->Optional[str]:return v.upper() if v else None
+    currency:str="USD"
+    notes:Optional[str]=None
 
-class ComparisonResponse(StrictModel):
-    success:bool=True
-    language:Language="es"
-    destination_country:Optional[str]=None
-    destination_name:Optional[str]=None
-    amount:Optional[float]=None
-    send_currency:str="USD"
-    priority:Optional[Priority]=None
-    results:List[ComparisonResult]=Field(default_factory=list)
-    available_providers:List[Dict[str,Any]]=Field(default_factory=list)
-    provider_count:int=0
-    verified_count:int=0
-    results_available:bool=False
-    message:Optional[str]=None
-    explanation:Optional[str]=None
-    differences:List[Dict[str,Any]]=Field(default_factory=list)
-    precautions:List[str]=Field(default_factory=list)
-    data_timestamp:Optional[str]=None
-    warning:Optional[str]=None
-    @field_validator("destination_country")
-    @classmethod
-    def normalize_country(cls,v:Optional[str])->Optional[str]:return v.upper() if v else None
-
-class FinalCheckItem(StrictModel):
+class ProviderSchema(StrictModel):
     id:str
-    label:str
-    value:Optional[str]=None
-    status:Literal["ok","review","unavailable","not_required"]="review"
-    complete:bool=False
+    name:Any
+    aliases:List[str]=Field(default_factory=list)
+    countries:List[str]=Field(default_factory=list)
+    payment_methods:List[Any]=Field(default_factory=list)
+    delivery_methods:List[Any]=Field(default_factory=list)
+    official_site:Optional[str]=None
+    official_urls:Dict[str,Any]=Field(default_factory=dict)
+    commercial:Optional[ProviderCommercialData]=None
+    commercial_data:Optional[ProviderCommercialData]=None
+    verification:Optional[VerificationData]=None
+    commercial_status:Optional[DataStatus]=None
+    commercial_verified:bool=False
 
-class FinalCheckRequest(StrictModel):
-    language:Language="es"
-    provider_id:str
-    amount:float=Field(gt=0,le=1_000_000)
-    send_currency:str=Field(default="USD",min_length=3,max_length=3)
-    destination_country:str=Field(min_length=2,max_length=3)
-    delivery_method:Optional[DeliveryMethod]=None
-    payment_method:Optional[PaymentMethod]=None
-    recipient_amount:Optional[float]=Field(default=None,ge=0)
-    fee:Optional[float]=Field(default=None,ge=0)
-    exchange_rate:Optional[float]=Field(default=None,gt=0)
-    recipient_information_entered:bool=False
-    checks:Dict[str,Any]=Field(default_factory=dict)
-    @field_validator("send_currency")
-    @classmethod
-    def normalize_currency(cls,v:str)->str:return v.upper()
-    @field_validator("destination_country")
-    @classmethod
-    def normalize_country(cls,v:str)->str:return v.upper()
+class CountrySchema(StrictModel):
+    id:str
+    code:Optional[str]=None
+    name:Any
+    aliases:List[str]=Field(default_factory=list)
+    currency:Optional[str]=None
+    providers:List[str]=Field(default_factory=list)
 
-class FinalCheckResponse(StrictModel):
-    success:bool=True
-    ready_to_continue:bool=False
+class UserNeedRequest(StrictModel):
     language:Language="es"
-    provider_id:Optional[str]=None
-    checks:List[FinalCheckItem]=Field(default_factory=list)
-    message:Optional[str]=None
-    important_note:Optional[str]=None
-    precautions:List[str]=Field(default_factory=list)
-    requirements:List[str]=Field(default_factory=list)
-
-class SessionState(StrictModel):
-    session_id:str
-    language:Language="es"
-    current_step:str="opening"
     amount:Optional[float]=None
     send_currency:str="USD"
     destination_country:Optional[str]=None
     priority:Optional[Priority]=None
-    urgency:Optional[str]=None
+    urgency:Optional[bool]=None
     delivery_method:Optional[DeliveryMethod]=None
     payment_method:Optional[PaymentMethod]=None
     recipient_amount_target:Optional[float]=None
     frequency:Optional[str]=None
     special_need:Optional[str]=None
     free_text:Optional[str]=None
-    parsed_user_need:Optional[Any]=None
     need_type:Optional[str]=None
-    candidate_providers:List[str]=Field(default_factory=list)
-    available_providers:List[Dict[str,Any]]=Field(default_factory=list)
+    parsed_user_need:Optional[Dict[str,Any]]=None
+
+    @field_validator("amount","recipient_amount_target")
+    @classmethod
+    def positive_numbers(cls,v):
+        if v is not None and v<0: raise ValueError("Amount cannot be negative.")
+        return v
+
+class ParseNeedRequest(StrictModel):
+    language:Language="es"
+    text:str=""
+    current_amount:Optional[float]=None
+    current_destination_country:Optional[str]=None
+
+class ParsedNeed(StrictModel):
+    need_type:str="other"
+    amount:Optional[float]=None
+    send_currency:str="USD"
+    destination_country:Optional[str]=None
+    priority:Optional[Priority]=None
+    urgency:Optional[bool]=None
+    delivery_method:Optional[DeliveryMethod]=None
+    payment_method:Optional[PaymentMethod]=None
+    recipient_amount_target:Optional[float]=None
+    frequency:Optional[str]=None
+    special_need:Optional[str]=None
+    original_text:Optional[str]=None
+    raw_text:Optional[str]=None
+    missing_information:List[str]=Field(default_factory=list)
+    confidence:Optional[float]=None
+
+class ComparisonRequest(StrictModel):
+    language:Language="es"
+    amount:float
+    send_currency:str="USD"
+    destination_country:str
+    priority:Optional[Priority]=None
+    urgency:Optional[bool]=None
+    delivery_method:Optional[DeliveryMethod]=None
+    payment_method:Optional[PaymentMethod]=None
+    recipient_amount_target:Optional[float]=None
+    frequency:Optional[str]=None
+    special_need:Optional[str]=None
+    provider_ids:List[str]=Field(default_factory=list)
+
+    @field_validator("amount")
+    @classmethod
+    def valid_amount(cls,v):
+        if v<=0: raise ValueError("Amount must be greater than zero.")
+        return v
+
+class ProviderOption(StrictModel):
+    provider_id:str
+    provider_name:Any
+    country:str
+    amount:float
+    send_currency:str="USD"
+    recipient_currency:Optional[str]=None
+    fee:Optional[float]=None
+    exchange_rate:Optional[float]=None
+    recipient_amount:Optional[float]=None
+    estimated_delivery:Optional[str]=None
+    delivery_time:Optional[str]=None
+    delivery_method:Optional[str]=None
+    payment_method:Optional[str]=None
+    payment_methods:List[Any]=Field(default_factory=list)
+    delivery_methods:List[Any]=Field(default_factory=list)
+    commercial_status:DataStatus="unavailable"
+    commercial_verified:bool=False
+    official_site:Optional[str]=None
+    official_urls:Dict[str,Any]=Field(default_factory=dict)
+    continue_url:Optional[str]=None
+    relevance_reason:Optional[str]=None
+    status:Optional[str]=None
+    notes:Optional[str]=None
+
+class ComparisonResult(StrictModel):
+    provider_id:str
+    provider_name:Any
+    status:DataStatus="unavailable"
+    fee:Optional[float]=None
+    exchange_rate:Optional[float]=None
+    recipient_amount:Optional[float]=None
+    recipient_currency:Optional[str]=None
+    estimated_delivery:Optional[str]=None
+    delivery_time:Optional[str]=None
+    delivery_method:Optional[str]=None
+    payment_method:Optional[str]=None
+    source:Optional[str]=None
+    verified_at:Optional[str]=None
+    continue_url:Optional[str]=None
+    official_site:Optional[str]=None
+    official_urls:Dict[str,Any]=Field(default_factory=dict)
+    commercial_verified:bool=False
+    commercial_status:DataStatus="unavailable"
+    relevance_reason:Optional[str]=None
+    explanation:Optional[str]=None
+    notes:Optional[str]=None
+
+class ComparisonResponse(StrictModel):
+    success:bool=True
+    language:Language="es"
+    amount:Optional[float]=None
+    send_currency:str="USD"
+    destination_country:Optional[str]=None
+    priority:Optional[Priority]=None
+    urgency:Optional[bool]=None
+    available_providers:List[ProviderOption]=Field(default_factory=list)
+    results:List[ComparisonResult]=Field(default_factory=list)
     verified_results:List[ComparisonResult]=Field(default_factory=list)
-    selected_option:Optional[Dict[str,Any]]=None
-    final_check:Dict[str,Any]=Field(default_factory=dict)
-    created_at:Optional[str]=None
-    updated_at:Optional[str]=None
+    verified_count:int=0
+    results_available:bool=False
+    explanation:Optional[str]=None
+    message:Optional[str]=None
+
+class FinalCheckItem(StrictModel):
+    id:str
+    label:Any
+    status:Literal["ready","missing","warning","confirmed","unavailable"]="warning"
+    value:Optional[Any]=None
+    message:Optional[Any]=None
+    required:bool=False
+
+class FinalCheckRequest(StrictModel):
+    language:Language="es"
+    provider_id:Optional[str]=None
+    amount:float=0
+    send_currency:str=Field(default="USD",validation_alias=AliasChoices("send_currency","currency"))
+    destination_country:str=Field(default="",validation_alias=AliasChoices("destination_country","destination"))
+    delivery_method:Optional[DeliveryMethod]=None
+    payment_method:Optional[PaymentMethod]=None
+    recipient_information_entered:bool=False
+    recipient_amount:Optional[float]=None
+    fee:Optional[float]=None
+    exchange_rate:Optional[float]=None
+    checks:List[FinalCheckItem]=Field(default_factory=list)
+
+    @field_validator("amount")
+    @classmethod
+    def final_amount(cls,v):
+        if v<0: raise ValueError("Amount cannot be negative.")
+        return v
+
+class FinalCheckResponse(StrictModel):
+    success:bool=True
+    ready_to_continue:bool=False
+    language:Language="es"
+    provider_id:Optional[str]=None
+    items:List[FinalCheckItem]=Field(default_factory=list)
+    requirements:List[Any]=Field(default_factory=list)
+    message:Optional[str]=None
+    important_note:Optional[str]=None
+    continue_url:Optional[str]=None
+    official_site:Optional[str]=None
+
+class SessionState(StrictModel):
+    session_id:str
+    language:Language="es"
+    created_at:float
+    updated_at:float
+    current_step:str="opening"
+    amount:Optional[float]=None
+    send_currency:str="USD"
+    destination_country:Optional[str]=None
+    priority:Optional[Priority]=None
+    urgency:Optional[bool]=None
+    delivery_method:Optional[DeliveryMethod]=None
+    payment_method:Optional[PaymentMethod]=None
+    recipient_amount_target:Optional[float]=None
+    frequency:Optional[str]=None
+    special_need:Optional[str]=None
+    free_text:Optional[str]=None
+    need_type:Optional[str]=None
+    parsed_user_need:Optional[Dict[str,Any]]=None
+    candidate_providers:List[str]=Field(default_factory=list)
+    available_providers:List[ProviderOption]=Field(default_factory=list)
+    verified_results:List[ComparisonResult]=Field(default_factory=list)
+    selected_option:Optional[ProviderOption]=None
+    final_check:Optional[FinalCheckResponse]=None
+    learning_provider:Optional[str]=None
+    recipient_information_entered:bool=False
 
 class SessionResponse(StrictModel):
     success:bool=True
@@ -284,26 +261,28 @@ class SessionResponse(StrictModel):
 
 class LocalStoragePreferences(StrictModel):
     language:Language="es"
-    app_version:Optional[str]=None
-    brain_version:Optional[str]=None
-    preferences:Dict[str,Any]=Field(default_factory=dict)
+    currency:str="USD"
+    theme:Optional[str]=None
 
 class DeleteLocalDataResponse(StrictModel):
     success:bool=True
     message:str
 
 class BrainValidationResponse(StrictModel):
-    valid:bool
-    version:Optional[str]=None
-    schema_version:Optional[str]=None
-    required_sections_present:bool=False
+    success:bool=True
+    valid:bool=True
     errors:List[str]=Field(default_factory=list)
     warnings:List[str]=Field(default_factory=list)
+    version:Optional[str]=None
 
 class HealthResponse(StrictModel):
     status:str="ok"
     app:str="REMESAS"
-    version:str="4.1.0"
+    version:str="4.3.0"
+    engine_version:str="4.3.0"
     brain_loaded:bool=False
     brain_version:Optional[str]=None
     stripe_configured:bool=False
+    service_price:float=10.99
+    service_currency:str="USD"
+    service_minutes:int=20
