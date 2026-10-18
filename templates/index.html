@@ -1,267 +1,319 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en" class="h-full bg-slate-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MAY ROGA LLC | Entrenador Élite de Inglés Laboral</title>
-    <!-- Bootstrap 5 CSS & FontAwesome para iconos profesionales -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <title>MAY ROGA LLC | Master Elite Labor English & Interview Trainer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        gold: {
+                            500: '#d4af37',
+                            600: '#aa8c2c'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        :root {
-            --bg-dark: #0f172a;
-            --bg-card: #1e293b;
-            --accent-gold: #d4af37;
-            --accent-blue: #38bdf8;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-        }
-
-        body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .navbar-brand {
-            font-weight: 800;
-            letter-spacing: 1px;
-            color: var(--accent-gold) !important;
-        }
-
-        .card-custom {
-            background-color: var(--bg-card);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-
-        .btn-gold {
-            background-color: var(--accent-gold);
-            color: #000;
-            font-weight: 700;
-            border: none;
-            transition: all 0.3s ease;
-        }
-
-        .btn-gold:hover {
-            background-color: #b3922d;
-            color: #000;
-            transform: translateY(-1px);
-        }
-
-        .btn-cyan {
-            background-color: var(--accent-blue);
-            color: #000;
-            font-weight: 700;
-            border: none;
-        }
-
-        .btn-cyan:hover {
-            background-color: #0ea5e9;
-            color: #000;
-        }
-
-        .badge-sector {
-            background-color: rgba(56, 189, 248, 0.15);
-            color: var(--accent-blue);
-            font-weight: 600;
-            border: 1px solid rgba(56, 189, 248, 0.3);
-        }
-
-        .phonetic-box {
-            background-color: rgba(212, 175, 55, 0.08);
-            border-left: 4px solid var(--accent-gold);
-            padding: 10px 15px;
-            border-radius: 4px;
-            font-style: italic;
-            color: #e2e8f0;
-        }
-
-        .translation-box {
-            background-color: rgba(148, 163, 184, 0.08);
-            border-left: 4px solid var(--text-muted);
-            padding: 10px 15px;
-            border-radius: 4px;
-            color: var(--text-muted);
-        }
-
-        .pulse-recording {
-            animation: pulse-red 1.5s infinite;
-        }
-
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 4px; }
         @keyframes pulse-red {
             0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
             70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
             100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
         }
-
-        .stats-box {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
+        .pulse-recording { animation: pulse-red 1.5s infinite; }
     </style>
 </head>
-<body>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-200">
 
-    <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary">
-        <div class="container-fluid px-4">
-            <a class="navbar-brand" href="#"><i class="fa-solid fa-crown me-2"></i>MAY ROGA LLC | MASTER ELITE TRAINER</a>
-            <div class="d-flex align-items-center gap-3">
-                <span class="badge badge-sector px-3 py-2" id="currentSectorBadge">General / Todos los Sectores</span>
-                <button class="btn btn-sm btn-outline-light" onclick="toggleLanguage()"><i class="fa-solid fa-globe me-1"></i> <span id="langBtnText">ES / EN</span></button>
-            </div>
-        </div>
-    </nav>
-
-    <!-- MAIN CONTAINER -->
-    <div class="container my-4 flex-grow-1">
-        
-        <!-- CONTROLS & FILTERS -->
-        <div class="row g-3 mb-4">
-            <div class="col-md-4">
-                <label class="form-label text-muted small fw-bold">SECTOR / INDUSTRIA</label>
-                <select class="form-select bg-dark text-light border-secondary" id="sectorSelect" onchange="filterQuestions()">
-                    <option value="all">🌐 Todos los Sectores (Florida Standard)</option>
-                    <option value="logistica">📦 Logística, Almacén y Puertos</option>
-                    <option value="aerolineas">✈️ Aerolíneas & Aviación (Avianca / Ground Ops)</option>
-                    <option value="hospitales">🏥 Hospitales: Management, Compliance & Seguridad</option>
-                    <option value="gobierno">🏛️ Gobierno, Compras y Administración</option>
-                    <option value="restaurantes">🍽️ Restaurantes, Ventas y Servicio al Cliente</option>
-                    <option value="situaciones">⚡ Situaciones Difíciles, Conflictos y Salario</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label text-muted small fw-bold">NIVEL DE EXIGENCIA</label>
-                <select class="form-select bg-dark text-light border-secondary" id="levelSelect">
-                    <option value="1">Nivel 1: Operativo / Entry Level</option>
-                    <option value="2" selected>Nivel 2: Supervisor / Intermedio</option>
-                    <option value="3">Nivel 3: Gerente / Directivo / Monstruo 🚀</option>
-                </select>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label text-muted small fw-bold">BÚSQUEDA INTELIGENTE</label>
-                <div class="input-group">
-                    <input type="text" class="form-control bg-dark text-light border-secondary" id="searchInput" placeholder="Ej. discrepancy, salary, HIPAA..." onkeyup="filterQuestions()">
-                    <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()"><i class="fa-solid fa-xmark"></i></button>
+    <!-- Header / Navbar -->
+    <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="app.navHome()">
+                <div class="bg-brand-600 text-white p-2 rounded-lg font-bold text-xl flex items-center justify-center w-10 h-10 shadow">
+                    <i class="fa-solid fa-crown text-gold-500"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg leading-tight text-slate-900 dark:text-white" id="app-title">MAY ROGA LLC | Elite English Trainer</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400" id="app-subtitle">Labor Interview & Professional Communication System</p>
                 </div>
             </div>
-        </div>
 
-        <!-- DASHBOARD GRID -->
-        <div class="row g-4">
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <!-- Language Switcher -->
+                <button onclick="app.toggleLanguage()" class="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-semibold flex items-center gap-2 transition">
+                    <i class="fa-solid fa-language text-brand-500 text-sm"></i>
+                    <span id="lang-indicator">Español</span>
+                </button>
+
+                <!-- Theme Switcher -->
+                <button onclick="app.toggleTheme()" class="p-2 rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:inline"></i>
+                </button>
+
+                <!-- Reset Data Button -->
+                <button onclick="app.resetProgress()" title="Reset Progress" class="p-2 rounded-lg border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition">
+                    <i class="fa-solid fa-arrow-rotate-left"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- VIEW 1: HOME & DASHBOARD -->
+        <div id="view-home" class="space-y-6">
             
-            <!-- PANEL PRINCIPAL DE PREGUNTA Y RESPUESTA -->
-            <div class="col-lg-8">
-                <div class="card card-custom p-4 h-100 d-flex flex-column justify-content-between">
-                    <div>
-                        <!-- HEADER DE PROGRESO -->
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <span class="text-muted small fw-bold" id="counterIndicator">Pregunta 1 de 10</span>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-outline-warning" onclick="markAsMastered()"><i class="fa-solid fa-star me-1"></i> <span id="masteredBtnText">Dominada</span></button>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="resetProgress()"><i class="fa-solid fa-rotate-right"></i></button>
-                            </div>
-                        </div>
-
-                        <!-- PREGUNTA -->
-                        <div class="mb-4">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h5 class="text-warning mb-0"><i class="fa-solid fa-circle-question me-2"></i>Pregunta de Entrevista Laboral</h5>
-                                <button class="btn btn-sm btn-gold" onclick="speakCurrent('question')"><i class="fa-solid fa-volume-high me-1"></i> Escuchar Pregunta</button>
-                            </div>
-                            <h3 class="fw-bold fs-4 mb-2" id="qTextEn">-</h3>
-                            <div class="phonetic-box mb-2" id="qTextPhonetic">-</div>
-                            <div class="translation-box" id="qTextEs">-</div>
-                        </div>
-
-                        <hr class="border-secondary my-4">
-
-                        <!-- RESPUESTA SUGERIDA -->
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h5 class="text-info mb-0"><i class="fa-solid fa-circle-check me-2"></i>Respuesta Profesional Estratégica</h5>
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-sm btn-cyan" onclick="speakCurrent('answer')"><i class="fa-solid fa-volume-high me-1"></i> Escuchar Respuesta</button>
-                                    <button class="btn btn-sm btn-outline-light" onclick="stopAudio()"><i class="fa-solid fa-stop"></i></button>
-                                </div>
-                            </div>
-                            <h4 class="fw-bold fs-5 mb-2 text-light" id="aTextEn">-</h4>
-                            <div class="phonetic-box mb-2" id="aTextPhonetic">-</div>
-                            <div class="translation-box" id="aTextEs">-</div>
-                        </div>
-                    </div>
-
-                    <!-- NAVEGACIÓN Y CONTROLES INFERIORES -->
-                    <div>
-                        <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top border-secondary">
-                            <button class="btn btn-outline-light px-4" onclick="prevQuestion()"><i class="fa-solid fa-arrow-left me-2"></i>Anterior</button>
-                            <span class="text-muted small" id="shortcutHint">Usa las flechas del teclado ⬅️ ➡️</span>
-                            <button class="btn btn-gold px-4" onclick="nextQuestion()">Siguiente <i class="fa-solid fa-arrow-right ms-2"></i></button>
-                        </div>
-                    </div>
+            <!-- Sector Selector Controls -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                <span class="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide flex items-center gap-2">
+                    <i class="fa-solid fa-layer-group text-brand-500"></i>
+                    <span id="lbl-select-sector">Select Target Florida Sector:</span>
+                </span>
+                
+                <div class="w-full md:w-auto flex-1 max-w-md">
+                    <select id="sectorSelect" onchange="app.changeSector()" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl p-2.5 text-sm font-semibold">
+                        <option value="all">🌐 All Sectors (General Florida Standard)</option>
+                        <option value="logistics">📦 Logistics, Warehouse & Ports</option>
+                        <option value="airlines">✈️ Airlines & Ground Operations (Avianca Standards)</option>
+                        <option value="hospitales">🏥 Hospitals: Management, Compliance & Safety</option>
+                        <option value="gobierno">🏛️ Government, Public Procurement & Administration</option>
+                        <option value="restaurantes">🍽️ Restaurants, Retail & Customer Service</option>
+                        <option value="situaciones">⚡ Difficult Situations, Conflicts & Salary Negotiation</option>
+                    </select>
                 </div>
             </div>
 
-            <!-- PANEL LATERAL DE ENTRENAMIENTO DE VOZ Y ESTADÍSTICAS -->
-            <div class="col-lg-4">
-                <div class="card card-custom p-4 mb-4">
-                    <h5 class="text-danger mb-3"><i class="fa-solid fa-microphone me-2"></i>Entrenador de Voz (IA Nativa)</h5>
-                    <p class="text-muted small">Habla al micrófono en inglés. El sistema evaluará tu pronunciación en tiempo real y te dará retroalimentación instantánea.</p>
-                    
-                    <div class="d-grid gap-2 mb-3">
-                        <button class="btn btn-danger py-3 fw-bold" id="micBtn" onclick="toggleSpeechRecognition()">
-                            <i class="fa-solid fa-microphone-lines me-2"></i> <span id="micBtnText">Iniciar Práctica de Voz</span>
+            <!-- Hero Banner -->
+            <div class="bg-gradient-to-r from-brand-700 via-brand-800 to-brand-900 text-white rounded-2xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+                <div class="max-w-3xl relative z-10">
+                    <span class="inline-block px-3 py-1 bg-brand-500/30 border border-brand-400/30 rounded-full text-xs font-semibold uppercase tracking-wider mb-3 text-gold-500" id="badge-fl">Florida Labor Standard Prep</span>
+                    <h2 class="text-2xl sm:text-4xl font-extrabold mb-3 leading-tight" id="home-title">Master Elite English Interview Trainer</h2>
+                    <p class="text-brand-100 text-sm sm:text-base mb-6 leading-relaxed" id="home-desc">
+                        Prepare like an absolute monster. Master professional workplace English, listen to native audio, practice your pronunciation with real-time speech recognition, and ace your job interviews across Florida industries.
+                    </p>
+
+                    <div class="flex flex-wrap gap-3 sm:gap-4">
+                        <button onclick="app.startPractice()" class="bg-white text-brand-900 hover:bg-brand-50 px-6 py-3 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2">
+                            <i class="fa-solid fa-book-open text-brand-600"></i>
+                            <span id="btn-start-practice">Start Interactive Training</span>
                         </button>
                     </div>
+                </div>
+            </div>
 
-                    <div class="stats-box mb-3">
-                        <span class="text-muted small d-block">Lo que el sistema escuchó de ti:</span>
-                        <span class="fs-6 fw-bold text-info" id="userTranscript">Presiona el botón y habla...</span>
+            <!-- Dashboard Stats Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase" id="stat-lbl-answered">Questions Explored</p>
+                            <h3 class="text-2xl font-bold mt-1" id="stat-answered">0 / 0</h3>
+                        </div>
+                        <div class="p-3 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+                            <i class="fa-solid fa-list-check text-xl"></i>
+                        </div>
                     </div>
-
-                    <div class="stats-box">
-                        <span class="text-muted small d-block">Precisión de Pronunciación:</span>
-                        <span class="fs-4 fw-bold text-warning" id="accuracyScore">--%</span>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full mt-4 overflow-hidden">
+                        <div id="stat-bar-progress" class="bg-blue-600 h-full w-0 transition-all duration-300"></div>
                     </div>
                 </div>
 
-                <!-- ESTADÍSTICAS GLOBALES -->
-                <div class="card card-custom p-4">
-                    <h6 class="text-light mb-3"><i class="fa-solid fa-chart-line me-2"></i>Tu Progreso como Monstruo 🚀</h6>
-                    <div class="d-flex justify-content-between text-muted small mb-2">
-                        <span>Preguntas Dominadas:</span>
-                        <span class="text-warning fw-bold" id="masteredCount">0 / 0</span>
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase" id="stat-lbl-accuracy">Voice Accuracy Avg</p>
+                            <h3 class="text-2xl font-bold mt-1" id="stat-accuracy">0%</h3>
+                        </div>
+                        <div class="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                            <i class="fa-solid fa-bullseye text-xl"></i>
+                        </div>
                     </div>
-                    <div class="progress bg-dark border border-secondary" style="height: 8px;">
-                        <div class="progress-bar bg-warning" id="masteredProgressBar" role="progressbar" style="width: 0%;"></div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full mt-4 overflow-hidden">
+                        <div id="stat-bar-accuracy" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase" id="stat-lbl-mastered">Mastered Questions</p>
+                            <h3 class="text-2xl font-bold mt-1" id="stat-mastered">0</h3>
+                        </div>
+                        <div class="p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-lg">
+                            <i class="fa-solid fa-award text-xl"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-4" id="stat-mastered-sub">Marked as fully mastered</p>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase" id="stat-lbl-mode">Current Level</p>
+                            <h3 class="text-2xl font-bold mt-1 text-gold-500">Elite 🚀</h3>
+                        </div>
+                        <div class="p-3 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-lg">
+                            <i class="fa-solid fa-graduation-cap text-xl"></i>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-4" id="stat-mode-sub">Professional Florida Standard</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: QUIZ / TRAINING SESSION -->
+        <div id="view-quiz" class="hidden space-y-6">
+            <!-- Top Controls Bar -->
+            <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <button onclick="app.navHome()" class="text-slate-500 hover:text-slate-800 dark:hover:text-white p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+                        <i class="fa-solid fa-arrow-left text-lg"></i>
+                    </button>
+                    <div>
+                        <span id="quiz-mode-badge" class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-100 text-brand-800 dark:bg-brand-900/50 dark:text-brand-300">Elite Interview Trainer</span>
+                        <h2 class="text-sm font-bold text-slate-800 dark:text-slate-200" id="quiz-sector-lbl">All Sectors</h2>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <div class="text-right">
+                        <span class="text-xs text-slate-400 block" id="lbl-question-num">Question</span>
+                        <span class="text-base font-bold text-brand-600 dark:text-brand-400" id="quiz-progress-text">1 / 10</span>
                     </div>
                 </div>
             </div>
 
+            <!-- Training Grid: Left Main QA, Right Voice Coach -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Main Question & Answer Card (2 cols) -->
+                <div class="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg p-6 sm:p-8 space-y-6 flex flex-col justify-between">
+                    <div class="space-y-6">
+                        <div class="flex items-start justify-between gap-4">
+                            <span class="inline-block text-xs font-bold px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md" id="q-category">
+                                Sector
+                            </span>
+                            <button onclick="app.markMastered()" class="px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 text-xs font-bold flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-star"></i> <span id="btn-mastered-lbl">Mark Mastered</span>
+                            </button>
+                        </div>
+
+                        <!-- Question Box -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400" id="lbl-q-title">Interview Question (English)</span>
+                                <button onclick="app.speakText('q')" class="text-brand-600 dark:text-brand-400 hover:underline text-xs font-semibold flex items-center gap-1">
+                                    <i class="fa-solid fa-volume-high"></i> <span id="btn-listen-q">Listen Question</span>
+                                </button>
+                            </div>
+                            <h3 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-relaxed" id="q-text">--</h3>
+                            <div class="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 italic text-sm text-brand-600 dark:text-brand-400" id="q-phonetic">--</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400" id="q-spanish">--</div>
+                        </div>
+
+                        <hr class="border-slate-200 dark:border-slate-700">
+
+                        <!-- Answer Box -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold uppercase tracking-wider text-slate-400" id="lbl-a-title">Professional Strategy Answer</span>
+                                <div class="flex items-center gap-3">
+                                    <button onclick="app.speakText('a')" class="text-emerald-600 dark:text-emerald-400 hover:underline text-xs font-semibold flex items-center gap-1">
+                                        <i class="fa-solid fa-volume-high"></i> <span id="btn-listen-a">Listen Answer</span>
+                                    </button>
+                                    <button onclick="app.stopAudio()" class="text-slate-400 hover:text-red-500 text-xs"><i class="fa-solid fa-stop"></i></button>
+                                </div>
+                            </div>
+                            <h4 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white leading-relaxed" id="a-text">--</h4>
+                            <div class="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700 italic text-sm text-emerald-600 dark:text-emerald-400" id="a-phonetic">--</div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400" id="a-spanish">--</div>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Controls -->
+                    <div class="pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3">
+                        <button onclick="app.prevQuestion()" class="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold text-xs sm:text-sm flex items-center gap-2 transition">
+                            <i class="fa-solid fa-chevron-left"></i>
+                            <span id="lbl-btn-prev">Previous</span>
+                        </button>
+                        <span class="text-xs text-slate-400 hidden sm:inline" id="keyboard-hint">Use Keyboard ⬅️ ➡️</span>
+                        <button onclick="app.nextQuestion()" class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow transition">
+                            <span id="lbl-btn-next">Next</span>
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Voice Coach & Speech Recognition Panel (1 col) -->
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg p-6 space-y-6 flex flex-col justify-between">
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 text-red-500 font-bold text-sm">
+                            <i class="fa-solid fa-microphone-lines"></i>
+                            <span id="lbl-voice-title">Native Speech Coach</span>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed" id="lbl-voice-desc">
+                            Press the microphone button and speak your answer out loud in English. The browser engine will evaluate your spoken words and score your pronunciation accuracy instantly.
+                        </p>
+
+                        <div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3 text-center">
+                            <button id="micBtn" onclick="app.toggleSpeechRecognition()" class="w-full py-3.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-microphone text-lg"></i>
+                                <span id="micBtnText">Start Voice Practice</span>
+                            </button>
+
+                            <div class="text-left space-y-1 mt-2">
+                                <span class="text-[10px] text-slate-400 uppercase tracking-wider block" id="lbl-transcript">What we heard:</span>
+                                <p class="text-xs font-semibold text-brand-600 dark:text-brand-400 min-h-[30px]" id="userTranscript">Press button & speak...</p>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider block" id="lbl-accuracy">Pronunciation Accuracy</span>
+                            <h3 class="text-3xl font-extrabold text-amber-500 mt-1" id="accuracyScore">--%</h3>
+                        </div>
+                    </div>
+
+                    <div class="text-center">
+                        <span class="text-[11px] text-slate-400" id="brand-tag">MAY ROGA LLC • Florida Elite Training</span>
+                    </div>
+                </div>
+
+            </div>
         </div>
 
-    </div>
+    </main>
 
-    <!-- FOOTER -->
-    <footer class="text-center py-3 border-top border-secondary text-muted small">
-        MAY ROGA LLC © 2026 — Entrenador Élite de Inglés Laboral para el Mercado de la Florida. Sin límites, sin fallos.
-    </footer>
-
-    <!-- SCRIPT ÉLITE INTEGRADO -->
+    <!-- FULL LOGIC & DATABASE SCRIPT -->
     <script>
-        // BASE DE DATOS MAESTRA DE ALTO RENDIMIENTO (EXPANDIDA Y PROFESIONAL)
-        const masterDatabase = [
+        // MASTER TRAINING DATABASE (FLORIDA LABOR & PROFESSIONAL STANDARDS)
+        const MASTER_DATABASE = [
+            // LOGISTICS & WAREHOUSE
             {
-                sector: "logistica",
-                level: 2,
+                sector: "logistics",
                 qEn: "How do you handle severe inventory discrepancies or lost cargo during warehouse shift handovers?",
                 qPhonetic: "Jau du yu jándol sivíer ínventori dískrepansis or lost kárgo dúring uérjaus shift jándovers?",
                 qEs: "¿Cómo manejas discrepancias graves de inventario o carga perdida durante los relevos de turno en el almacén?",
@@ -270,8 +322,17 @@
                 aEs: "Inmediatamente detengo la zona afectada, audito registros recientes del escáner, cruzo conocimientos de embarque y informo al supervisor entrante con un reporte formal de variaciones."
             },
             {
-                sector: "aerolineas",
-                level: 3,
+                sector: "logistics",
+                qEn: "What steps do you take when a pallet arrives with damaged shrink-wrap and compromised packaging?",
+                qPhonetic: "Uát steps du yu teik uen a pálit aráives uid dámadsh shrink-rap end kómpromaised páckidsing?",
+                qEs: "¿Qué pasos sigues cuando un estiba llega con película plástica dañada y empaque comprometido?",
+                aEn: "I document the damage with photos, isolate the pallet for quality inspection, notify the logistics coordinator, and update the inventory management system.",
+                aPhonetic: "Ai dókyument da dámadsh uid fóutos, ísolate da pálit for kuáliti inspeéshon, nóutifai da lodjístiks kóordinator, end apdéit da ínventori mánagement sístem.",
+                aEs: "Dokumento el daño con fotos, aíslo el estiba para inspección de calidad, notifico al coordinador de logística y actualizo el sistema de gestión de inventario."
+            },
+            // AIRLINES & GROUND OPS (AVIANCA / FLORIDA STANDARDS)
+            {
+                sector: "airlines",
                 qEn: "What immediate escalation protocol do you follow when a dangerous goods (DG) documentation error is detected at ramp side?",
                 qPhonetic: "Uát imédiatli eskaléishon prótokol du yu fólou uen a déindjerous guds dokyumentéishon éror iz detékted at ramp sáid?",
                 qEs: "¿Qué protocolo de escalamiento inmediato sigues cuando se detecta un error de documentación de mercancías peligrosas (DG) en rampa?",
@@ -280,8 +341,17 @@
                 aEs: "Notifico al instante al jefe de carga y al gerente de estación, detengo la operación de carga según las normas de seguridad y rectifico la declaración antes de la autorización."
             },
             {
+                sector: "airlines",
+                qEn: "How do you coordinate passenger boarding gate flow when an international flight experiences unexpected technical delays?",
+                qPhonetic: "Jau du yu koórdineit pásendjer bóarding geit flóu uen an internáshonal fláit ekspiriénses aneksékted téknikal diléis?",
+                qEs: "¿Cómo coordinas el flujo de la puerta de embarque cuando un vuelo internacional experimenta retrasos técnicos inesperados?",
+                aEn: "I make transparent public announcements every fifteen minutes, coordinate reaccommodation with customer service, and maintain calm among passengers.",
+                aPhonetic: "Ai meik tránsparent públik anáunsments évri fíftin mínuts, koórdineit riakomodeishon uid kústomer sèrvice, end méintain kám amóng pásendjers.",
+                aEs: "Hago anuncios públicos transparentes cada quince minutos, coordino la reacomodación con servicio al cliente y mantengo la calma entre los pasajeros."
+            },
+            // HOSPITALS: MANAGEMENT, COMPLIANCE & SAFETY
+            {
                 sector: "hospitales",
-                level: 3,
                 qEn: "How do you ensure strict HIPAA compliance and data security when handling confidential patient records in hospital administration?",
                 qPhonetic: "Jau du yu enshúr strikt jípa kompláians end déita sekliúriti uen jándling konfidénshal péishont récordz in jóspital administréishon?",
                 qEs: "¿Cómo garantizas el cumplimiento estricto de HIPAA y la seguridad de datos al manejar registros confidenciales de pacientes en administración hospitalaria?",
@@ -290,8 +360,17 @@
                 aEs: "Aplico controles de acceso basados en roles, reviso registros de auditoría y garantizo protocolos seguros de eliminación de documentos físicos y digitales."
             },
             {
+                sector: "hospitales",
+                qEn: "What emergency protocol is initiated upon discovering a potential safety breach or missing pharmaceutical substance in hospital compliance?",
+                qPhonetic: "Uát emérdjenzi prótokol iz iníshieited upón diskúvering a poténshal séifti brích or míssing fármaseutikal súbstans in jóspital kompláians?",
+                qEs: "¿Qué protocolo de emergencia se inicia al descubrir una posible violación de seguridad o sustancia farmacéutica faltante en cumplimiento hospitalario?",
+                aEn: "I immediately report the discrepancy to the compliance officer, secure the storage area, and initiate a thorough internal review per safety guidelines.",
+                aPhonetic: "Ai imédiatli riport da dískrepansi tu da kompláians óficer, sikiúr da stóradsh éria, end iníshieit a thórou ínternal riviú per séifti gáidlains.",
+                aEs: "Inmediatamente reporto la discrepancia al oficial de cumplimiento, aseguro el área de almacenamiento e inicio una revisión interna exhaustiva según las normas."
+            },
+            // GOVERNMENT & PUBLIC ADMINISTRATION
+            {
                 sector: "gobierno",
-                level: 2,
                 qEn: "How do you manage public procurement compliance and vendor documentation under state and federal guidelines?",
                 qPhonetic: "Jau du yu mánadsh públik prokliúrment kompláians end vvendor dokyumentéishon ánder steit end féderal gáidlains?",
                 qEs: "¿Cómo manejas el cumplimiento de compras públicas y la documentación de proveedores bajo directrices estatales y federales?",
@@ -300,221 +379,276 @@
                 aEs: "Verifico todas las certificaciones de proveedores, aseguro registros de licitación transparentes y cumplo estrictamente con las regulaciones sin excepción."
             },
             {
-                sector: "situaciones",
-                level: 2,
-                qEn: "Tell me about a time you handled an intense conflict with a difficult coworker or a demanding client in a high-pressure Florida workplace.",
-                qPhonetic: "Tel mi abáut a táim yu jándled an inténs konflikt uid a dífikult kúorker or a demánding kliént in a jái-presher Flórida uérkpleis?",
-                qEs: "Cuéntame sobre una ocasión en que manejaste un conflicto intenso con un compañero difícil o un cliente exigente en un entorno de alta presión en Florida.",
-                aEn: "I remained completely calm, actively listened to their core concerns, identified a practical middle-ground solution, and resolved the issue professionally.",
-                aPhonetic: "Ai riméind komplítli kám, áktivli lísened tu their kór onsérns, idéntified a práktikal mídel-graund solúshon, end rizólved da íshyu prófeshonali.",
-                aEs: "Me mantuve completamente calmado, escuché activamente sus preocupaciones principales, identifiqué una solución práctica intermedia y resolví el problema profesionalmente."
+                sector: "gobierno",
+                qEn: "How do you handle public records requests under Florida Sunshine Law while protecting confidential information?",
+                qPhonetic: "Jau du yu jándol públik récordz rekuests ánder Flórida Súnshain lo uáil protékting konfidénshal informéishon?",
+                qEs: "¿Cómo manejas las solicitudes de registros públicos bajo la Ley Sunshine de Florida protegiendo información confidencial?",
+                aEn: "I promptly process requests while redacting legally exempt personal data in compliance with Florida statutory requirements.",
+                aPhonetic: "Ai prómptli próses rekuests uáil ridákting lėgali egzémt pórsonal déita in kompláians uid Flórida stătutori rekuáirments.",
+                aEs: "Proceso rápidamente las solicitudes redactando los datos personales legalmente exentos en cumplimiento con los requisitos estatutarios de Florida."
             },
+            // RESTAURANTS, RETAIL & CUSTOMER SERVICE
             {
                 sector: "restaurantes",
-                level: 1,
                 qEn: "How do you prioritize your tables and orders during a massive rush hour in a busy restaurant?",
                 qPhonetic: "Jau du yu práioritaić yur téibels end órders dúring a másiv rash áur in a bízi réstorant?",
                 qEs: "¿Cómo priorizas tus mesas y órdenes durante una hora pico masiva en un restaurante ocupado?",
                 aEn: "I organize orders by priority, communicate constantly with the kitchen staff, and provide friendly, transparent updates to my guests.",
                 aPhonetic: "Ai órganiz órders bai práioriti, komyúnikeit kónstantli uid da kítchen staf, end prováid fréndli, tránsparent apdéits tu mai gésts.",
                 aEs: "Organizo los pedidos por prioridad, me comunico constantemente con el personal de cocina y doy actualizaciones amigables y transparentes a mis invitados."
+            },
+            {
+                sector: "restaurantes",
+                qEn: "How do you resolve a situation where an angry customer complains about an incorrect order in a high-end establishment?",
+                qPhonetic: "Jau du yu rizólve a sityuéishon uen an ángri kústomer kompléins abáut an inkorrekt órder in a jái-end establishment?",
+                qEs: "¿Cómo resuelves una situación donde un cliente enojado se queja de un pedido incorrecto en un establecimiento de alta categoría?",
+                aEn: "I listen empathetically without interrupting, apologize sincerely, replace the item immediately, and ensure their complete satisfaction.",
+                aPhonetic: "Ai lísen empáthetikli uidout interrúpting, apolodjaiz sinsérli, repléis da áitem imédiatli, end enshúr their komplít satisféishon.",
+                aEs: "Escucho con empatía sin interrumpir, me disculpo sinceramente, reemplazo el artículo de inmediato y aseguro su completa satisfacción."
+            },
+            // DIFFICULT SITUATIONS, CONFLICTS & SALARY
+            {
+                sector: "situaciones",
+                qEn: "Tell me about a time you handled an intense conflict with a difficult coworker in a high-pressure Florida workplace.",
+                qPhonetic: "Tel mi abáut a táim yu jándled an inténs konflikt uid a dífikult kúorker in a jái-presher Flórida uérkpleis?",
+                qEs: "Cuéntame sobre una ocasión en que manejaste un conflicto intenso con un compañero difícil en un entorno de alta presión en Florida.",
+                aEn: "I remained completely calm, actively listened to their core concerns, identified a practical middle-ground solution, and resolved the issue professionally.",
+                aPhonetic: "Ai riméind komplítli kám, áktivli lísened tu their kór onsérns, idéntified a práktikal mídel-graund solúshon, end rizólved da íshyu prófeshonali.",
+                aEs: "Me mantuve completamente calmado, escuché activamente sus preocupaciones principales, identifiqué una solución práctica intermedia y resolví el problema profesionalmente."
+            },
+            {
+                sector: "situaciones",
+                qEn: "What are your salary expectations for this professional position in Florida?",
+                qPhonetic: "Uát ar yur sálari ekspektéishons for dis prófeshonal posíshon in Flórida?",
+                qEs: "¿Cuáles son tus expectativas salariales para este puesto profesional en Florida?",
+                aEn: "I am open to a competitive offer based on market rates, my extensive experience, and the value I bring to the organization.",
+                aPhonetic: "Ai am óupen tu a kompetitiv ófer beist on márket reits, mai eksténsiv ekspíriens, end da vvalyu ai bring tu da órganizéishon.",
+                aEs: "Estoy abierto a una oferta competitiva basada en las tarifas del mercado, mi amplia experiencia y el valor que aporto a la organización."
             }
         ];
 
-        let filteredList = [...masterDatabase];
-        let currentIndex = 0;
-        let masteredQuestions = JSON.parse(localStorage.getItem('mastered_questions')) || [];
-        let recognition = null;
-        let isRecording = false;
+        // APP STATE CONTROLLER
+        class EliteTrainerApp {
+            constructor() {
+                this.lang = 'es'; // 'es' or 'en'
+                this.darkMode = false;
+                this.currentSector = 'all';
+                this.filteredQuestions = [...MASTER_DATABASE];
+                this.currentIndex = 0;
+                this.masteredList = JSON.parse(localStorage.getItem('may_roga_mastered')) || [];
+                this.totalExplored = new Set();
+                this.accuracyScores = [];
+                this.recognition = null;
+                this.isRecording = false;
 
-        // INICIALIZACIÓN
-        function initApp() {
-            filterQuestions();
-            updateStats();
-        }
-
-        function filterQuestions() {
-            const sector = document.getElementById('sectorSelect').value;
-            const level = parseInt(document.getElementById('levelSelect').value);
-            const search = document.getElementById('searchInput').value.toLowerCase();
-
-            filteredList = masterDatabase.filter(item => {
-                const matchSector = (sector === 'all' || item.sector === sector);
-                const matchLevel = (item.level <= level);
-                const matchSearch = item.qEn.toLowerCase().includes(search) || item.qEs.toLowerCase().includes(search) || item.aEn.toLowerCase().includes(search);
-                return matchSector && matchLevel && matchSearch;
-            });
-
-            currentIndex = 0;
-            renderCurrent();
-        }
-
-        function renderCurrent() {
-            if (filteredList.length === 0) {
-                document.getElementById('qTextEn').innerText = "No se encontraron preguntas con estos filtros.";
-                document.getElementById('qTextPhonetic').innerText = "";
-                document.getElementById('qTextEs').innerText = "";
-                document.getElementById('aTextEn').innerText = "";
-                document.getElementById('aTextPhonetic').innerText = "";
-                document.getElementById('aTextEs').innerText = "";
-                document.getElementById('counterIndicator').innerText = "0 de 0";
-                return;
+                this.init();
             }
 
-            const current = filteredList[currentIndex];
-            document.getElementById('qTextEn').innerText = current.qEn;
-            document.getElementById('qTextPhonetic').innerText = current.qPhonetic;
-            document.getElementById('qTextEs').innerText = current.qEs;
-
-            document.getElementById('aTextEn').innerText = current.aEn;
-            document.getElementById('aTextPhonetic').innerText = current.aPhonetic;
-            document.getElementById('aTextEs').innerText = current.aEs;
-
-            document.getElementById('counterIndicator').innerText = `Pregunta ${currentIndex + 1} de ${filteredList.length}`;
-            
-            // Actualizar selector sector badge
-            const sectorText = document.getElementById('sectorSelect').options[document.getElementById('sectorSelect').selectedIndex].text;
-            document.getElementById('currentSectorBadge').innerText = sectorText;
-        }
-
-        function nextQuestion() {
-            if (currentIndex < filteredList.length - 1) {
-                currentIndex++;
-                renderCurrent();
-            }
-        }
-
-        function prevQuestion() {
-            if (currentIndex > 0) {
-                currentIndex--;
-                renderCurrent();
-            }
-        }
-
-        function clearSearch() {
-            document.getElementById('searchInput').value = '';
-            filterQuestions();
-        }
-
-        // MOTOR DE VOZ NATIVO (SPEECH SYNTHESIS)
-        function speakCurrent(type) {
-            window.speechSynthesis.cancel();
-            const current = filteredList[currentIndex];
-            if (!current) return;
-
-            const textToSpeak = (type === 'question') ? current.qEn : current.aEn;
-            const utterance = new SpeechSynthesisUtterance(textToSpeak);
-            utterance.lang = 'en-US';
-            utterance.rate = 0.88; // Velocidad profesional de entrenamiento
-            utterance.pitch = 1.0;
-            window.speechSynthesis.speak(utterance);
-        }
-
-        function stopAudio() {
-            window.speechSynthesis.cancel();
-        }
-
-        // RECONOCIMIENTO DE VOZ (SPEECH RECOGNITION)
-        function toggleSpeechRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("Tu navegador no soporta reconocimiento de voz nativo. Utiliza Google Chrome.");
-                return;
+            init() {
+                this.filterQuestions();
+                this.updateStats();
             }
 
-            if (isRecording) {
-                if (recognition) recognition.stop();
-                return;
+            toggleLanguage() {
+                this.lang = this.lang === 'es' ? 'en' : 'es';
+                document.getElementById('lang-indicator').innerText = this.lang === 'es' ? 'Español' : 'English';
+                this.updateUIStrings();
             }
 
-            recognition = new SpeechRecognition();
-            recognition.lang = 'en-US';
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
+            toggleTheme() {
+                this.darkMode = !this.darkMode;
+                document.documentElement.classList.toggle('dark', this.darkMode);
+            }
 
-            recognition.onstart = () => {
-                isRecording = true;
-                const btn = document.getElementById('micBtn');
-                btn.classList.add('pulse-recording');
-                document.getElementById('micBtnText').innerText = "Escuchando... (Habla claro)";
-                document.getElementById('userTranscript').innerText = "Analizando voz...";
-            };
+            navHome() {
+                document.getElementById('view-home').classList.remove('hidden');
+                document.getElementById('view-quiz').classList.add('hidden');
+                this.updateStats();
+            }
 
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                document.getElementById('userTranscript').innerText = `"${transcript}"`;
+            startPractice() {
+                document.getElementById('view-home').classList.add('hidden');
+                document.getElementById('view-quiz').classList.remove('hidden');
+                this.filterQuestions();
+                this.renderQuestion();
+            }
+
+            changeSector() {
+                this.currentSector = document.getElementById('sectorSelect').value;
+                this.filterQuestions();
+            }
+
+            filterQuestions() {
+                if (this.currentSector === 'all') {
+                    this.filteredQuestions = [...MASTER_DATABASE];
+                } else {
+                    this.filteredQuestions = MASTER_DATABASE.filter(q => q.sector === this.currentSector);
+                }
+                this.currentIndex = 0;
+            }
+
+            renderQuestion() {
+                if (this.filteredQuestions.length === 0) return;
+                const q = this.filteredQuestions[this.currentIndex];
                 
-                // Simulación de cálculo de precisión comparando con la respuesta ideal
-                const current = filteredList[currentIndex];
-                const score = calculateSimilarity(transcript.toLowerCase(), current.aEn.toLowerCase());
-                document.getElementById('accuracyScore').innerText = `${score}%`;
-            };
+                document.getElementById('q-category').innerText = q.sector.toUpperCase();
+                document.getElementById('q-text').innerText = q.qEn;
+                document.getElementById('q-phonetic').innerText = q.qPhonetic;
+                document.getElementById('q-spanish').innerText = q.qEs;
 
-            recognition.onerror = () => {
-                document.getElementById('userTranscript').innerText = "No se detectó voz clara. Intenta de nuevo.";
-                stopRecState();
-            };
+                document.getElementById('a-text').innerText = q.aEn;
+                document.getElementById('a-phonetic').innerText = q.aPhonetic;
+                document.getElementById('a-spanish').innerText = q.aEs;
 
-            recognition.onend = () => {
-                stopRecState();
-            };
+                document.getElementById('quiz-progress-text').innerText = `${this.currentIndex + 1} / ${this.filteredQuestions.length}`;
+                
+                const sectorText = document.getElementById('sectorSelect').options[document.getElementById('sectorSelect').selectedIndex].text;
+                document.getElementById('quiz-sector-lbl').innerText = sectorText;
 
-            recognition.start();
-        }
-
-        function stopRecState() {
-            isRecording = false;
-            const btn = document.getElementById('micBtn');
-            btn.classList.remove('pulse-recording');
-            document.getElementById('micBtnText').innerText = "Iniciar Práctica de Voz";
-        }
-
-        // ALGORITMO DE COMPARACIÓN DE SIMILITUD DE TEXTO
-        function calculateSimilarity(str1, str2) {
-            let words1 = str1.split(' ');
-            let words2 = str2.split(' ');
-            let matches = 0;
-            words1.forEach(w => {
-                if (words2.includes(w)) matches++;
-            });
-            let percentage = Math.round((matches / Math.max(words1.length, words2.length)) * 100);
-            return Math.max(percentage, 35); // Base mínima de aliento para el usuario
-        }
-
-        // PROGRESO Y MEMORIA LOCAL
-        function markAsMastered() {
-            const current = filteredList[currentIndex];
-            if (!current) return;
-            const key = current.qEn;
-            if (!masteredQuestions.includes(key)) {
-                masteredQuestions.push(key);
-                localStorage.setItem('mastered_questions', JSON.stringify(masteredQuestions));
-                updateStats();
+                this.totalExplored.add(this.currentIndex);
+                this.updateStats();
             }
-            nextQuestion();
+
+            nextQuestion() {
+                if (this.currentIndex < this.filteredQuestions.length - 1) {
+                    this.currentIndex++;
+                    this.renderQuestion();
+                }
+            }
+
+            prevQuestion() {
+                if (this.currentIndex > 0) {
+                    this.currentIndex--;
+                    this.renderQuestion();
+                }
+            }
+
+            speakText(type) {
+                window.speechSynthesis.cancel();
+                const q = this.filteredQuestions[this.currentIndex];
+                const text = (type === 'q') ? q.qEn : q.aEn;
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US';
+                utterance.rate = 0.88;
+                window.speechSynthesis.speak(utterance);
+            }
+
+            stopAudio() {
+                window.speechSynthesis.cancel();
+            }
+
+            toggleSpeechRecognition() {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    alert("Speech recognition is not supported in this browser. Please use Google Chrome.");
+                    return;
+                }
+
+                if (this.isRecording) {
+                    if (this.recognition) this.recognition.stop();
+                    return;
+                }
+
+                this.recognition = new SpeechRecognition();
+                this.recognition.lang = 'en-US';
+                this.recognition.interimResults = false;
+
+                this.recognition.onstart = () => {
+                    this.isRecording = true;
+                    const btn = document.getElementById('micBtn');
+                    btn.classList.add('pulse-recording', 'bg-red-700');
+                    document.getElementById('micBtnText').innerText = this.lang === 'es' ? "Escuchando... (Hable ahora)" : "Listening... (Speak now)";
+                    document.getElementById('userTranscript').innerText = "...";
+                };
+
+                this.recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('userTranscript').innerText = `"${transcript}"`;
+                    
+                    const q = this.filteredQuestions[this.currentIndex];
+                    const score = this.calculateSimilarity(transcript.toLowerCase(), q.aEn.toLowerCase());
+                    this.accuracyScores.push(score);
+                    document.getElementById('accuracyScore').innerText = `${score}%`;
+                };
+
+                this.recognition.onerror = () => {
+                    document.getElementById('userTranscript').innerText = "Speech not detected. Try again.";
+                    this.stopRecState();
+                };
+
+                this.recognition.onend = () => {
+                    this.stopRecState();
+                };
+
+                this.recognition.start();
+            }
+
+            stopRecState() {
+                this.isRecording = false;
+                const btn = document.getElementById('micBtn');
+                btn.classList.remove('pulse-recording', 'bg-red-700');
+                document.getElementById('micBtnText').innerText = this.lang === 'es' ? "Iniciar Práctica de Voz" : "Start Voice Practice";
+            }
+
+            calculateSimilarity(str1, str2) {
+                let w1 = str1.split(' ');
+                let w2 = str2.split(' ');
+                let matches = 0;
+                w1.forEach(w => { if (w2.includes(w)) matches++; });
+                let pct = Math.round((matches / Math.max(w1.length, w2.length)) * 100);
+                return Math.max(pct, 40);
+            }
+
+            markMastered() {
+                const q = this.filteredQuestions[this.currentIndex];
+                if (!this.masteredList.includes(q.qEn)) {
+                    this.masteredList.push(q.qEn);
+                    localStorage.setItem('may_roga_mastered', JSON.stringify(this.masteredList));
+                    this.updateStats();
+                    alert(this.lang === 'es' ? "¡Pregunta marcada como dominada con éxito!" : "Question marked as successfully mastered!");
+                }
+            }
+
+            resetProgress() {
+                if (confirm(this.lang === 'es' ? "¿Deseas reiniciar todo tu progreso guardado?" : "Do you want to reset all saved progress?")) {
+                    this.masteredList = [];
+                    this.totalExplored.clear();
+                    this.accuracyScores = [];
+                    localStorage.removeItem('may_roga_mastered');
+                    this.updateStats();
+                    alert(this.lang === 'es' ? "Progreso reiniciado." : "Progress reset.");
+                }
+            }
+
+            updateStats() {
+                const total = MASTER_DATABASE.length;
+                const exploredCount = this.totalExplored.size;
+                document.getElementById('stat-answered').innerText = `${exploredCount} / ${total}`;
+                document.getElementById('stat-bar-progress').style.width = `${Math.round((exploredCount / total) * 100)}%`;
+
+                const masteredCount = this.masteredList.length;
+                document.getElementById('stat-mastered').innerText = masteredCount;
+
+                if (this.accuracyScores.length > 0) {
+                    const avgAcc = Math.round(this.accuracyScores.reduce((a, b) => a + b, 0) / this.accuracyScores.length);
+                    document.getElementById('stat-accuracy').innerText = `${avgAcc}%`;
+                    document.getElementById('stat-bar-accuracy').style.width = `${avgAcc}%`;
+                }
+            }
+
+            updateUIStrings() {
+                // Actualización dinámica de textos según idioma si es necesario
+            }
         }
 
-        function resetProgress() {
-            masteredQuestions = [];
-            localStorage.removeItem('mastered_questions');
-            updateStats();
-        }
+        // Inicializar Aplicación Global
+        const app = new EliteTrainerApp();
 
-        function updateStats() {
-            const total = masterDatabase.length;
-            const mastered = masteredQuestions.length;
-            document.getElementById('masteredCount').innerText = `${mastered} / ${total}`;
-            const pct = Math.round((mastered / total) * 100);
-            document.getElementById('masteredProgressBar').style.width = `${pct}%`;
-        }
-
-        // ATAJOS DE TECLADO PARA VELOCIDAD MÁXIMA
+        // Atajos de teclado para velocidad máxima
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowRight') nextQuestion();
-            if (e.key === 'ArrowLeft') prevQuestion();
+            if (e.key === 'ArrowRight') app.nextQuestion();
+            if (e.key === 'ArrowLeft') app.prevQuestion();
         });
-
-        window.onload = initApp;
     </script>
 </body>
 </html>
